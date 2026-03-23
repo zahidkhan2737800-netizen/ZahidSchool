@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pending & Withdrawn Students</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <!-- Supabase JS Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .dashboard-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 2.5rem;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+            width: 100%;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+        .filter-panel {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 1.5rem;
+            border-radius: 12px;
+            margin-bottom: 2rem;
+            display: flex;
+            gap: 1.5rem;
+            align-items: flex-end;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        .filter-group {
+            flex: 1;
+        }
+        .filter-group label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 0.4rem;
+            display:block;
+        }
+        .filter-group select {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            outline: none;
+        }
+        .data-table-container {
+            overflow-x: auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 800px;
+        }
+        th, td {
+            text-align: left;
+            padding: 14px 16px;
+            border-bottom: 1px solid #f3f4f6;
+            font-size: 0.95rem;
+        }
+        th {
+            background-color: #f9fafb;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 0.05em;
+        }
+        .nav-links {
+            text-align: center;
+            margin-top: 1rem;
+            margin-bottom: 2rem;
+        }
+        .nav-links a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+            margin: 0 0.5rem;
+        }
+        .badge {
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .badge.pending { background: #FDE68A; color: #92400E; }
+        .badge.withdrawn { background: #FECACA; color: #991B1B; }
+    </style>
+</head>
+<body>
+    <div class="background-shapes">
+        <div class="shape shape-1"></div>
+        <div class="shape shape-2"></div>
+    </div>
+    
+    <div style="width: 100%; padding: 2rem;">
+        <header class="form-header">
+            <div class="logo-placeholder">📁</div>
+            <h1>Pending & Withdrawn Directory</h1>
+            <p>Review inactive student records</p>
+            <div class="nav-links">
+                <a href="students.html">← Back to Active Students</a>
+                <a href="index.html">Admission Form</a>
+            </div>
+        </header>
+
+        <div class="dashboard-panel">
+            <div class="filter-panel">
+                <div class="filter-group">
+                    <label for="statusFilter">Filter by Status</label>
+                    <select id="statusFilter">
+                        <option value="All" selected>Show All (Pending & Withdrawn)</option>
+                        <option value="Pending">Pending Only</option>
+                        <option value="Withdrawn">Withdrawn Only</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="data-table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Roll #</th>
+                            <th>Student Name</th>
+                            <th>Father Name</th>
+                            <th>Class</th>
+                            <th>Status</th>
+                            <th>Last Status Update</th>
+                        </tr>
+                    </thead>
+                    <tbody id="inactiveBody">
+                        <tr><td colspan="6" style="text-align:center; padding:2rem;">Loading records...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <script src="pending_withdrawn.js"></script>
+</body>
+</html>

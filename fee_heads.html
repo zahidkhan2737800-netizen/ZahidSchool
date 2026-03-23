@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Fee Heads - Zahid School System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <!-- Supabase JS Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .data-list {
+            margin-top: 2rem;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            overflow-x: auto;
+        }
+        .nav-links {
+            text-align: center;
+            margin-top: 1rem;
+        }
+        .nav-links a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+            margin: 0 0.5rem;
+        }
+        .nav-links a:hover {
+            text-decoration: underline;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+        th, td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        th {
+            background-color: #f9fafb;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+        .fee-badge {
+            background: #10B981;
+            color: white;
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="background-shapes">
+        <div class="shape shape-1"></div>
+        <div class="shape shape-2"></div>
+        <div class="shape shape-3"></div>
+    </div>
+    
+    <div class="container">
+        <header class="form-header">
+            <div class="logo-placeholder">💰</div>
+            <h1>Fee Heads Management</h1>
+            <p>Define fee structures for different classes</p>
+            <div class="nav-links">
+                <a href="index.html">← Admission Form</a>
+                <a href="classes.html">Manage Classes</a>
+            </div>
+        </header>
+
+        <form id="feeForm" class="glass-panel" novalidate>
+            <section class="form-section">
+                <h2>➕ Add New Fee Head</h2>
+                <div class="input-grid">
+                    <div class="input-group">
+                        <label for="classId">Target Class <span style="color:red">*</span></label>
+                        <select id="classId" name="classId" required>
+                            <option value="" disabled selected>Loading classes...</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label for="feeType">Fee Title / Type <span style="color:red">*</span></label>
+                        <input type="text" id="feeType" name="feeType" required placeholder="e.g. Monthly Fee, Exam Fee">
+                    </div>
+                    <div class="input-group">
+                        <label for="amount">Amount (Rs) <span style="color:red">*</span></label>
+                        <input type="number" id="amount" name="amount" required placeholder="e.g. 2500" min="0">
+                    </div>
+                </div>
+                <!-- Checkbox for Monthly Flag -->
+                <div class="input-group" style="flex-direction: row; align-items: center; gap: 0.5rem; justify-content: flex-start; margin-top: 1rem;">
+                    <input type="checkbox" id="isMonthly" name="isMonthly" style="width: auto; margin:0; cursor: pointer; transform: scale(1.2);">
+                    <label for="isMonthly" style="margin:0; cursor: pointer; color: var(--primary); font-weight: 600;">This is a monthly recurring fee</label>
+                </div>
+            </section>
+
+            <div class="form-actions">
+                <button type="submit" class="submit-btn" id="submitBtn">
+                    <span>Save Fee Head</span>
+                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="btn-icon"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                </button>
+            </div>
+            
+            <div id="formAlert" style="display:none; color: white; background: var(--error); padding: 1rem; border-radius: 8px; margin-top: 1rem; text-align: center; font-weight: 500;"></div>
+
+            <!-- Existing Fee Heads List -->
+            <div class="data-list">
+                <h3>📋 Configured Fee Heads</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Class (Section)</th>
+                            <th>Fee Title</th>
+                            <th>Amount (Rs)</th>
+                            <th>Added On</th>
+                        </tr>
+                    </thead>
+                    <tbody id="feeBody">
+                        <tr><td colspan="4" style="text-align: center;">Loading fee heads...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </form>
+    </div>
+    <script src="fee_heads.js"></script>
+</body>
+</html>

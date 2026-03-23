@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Collect Fee - Zahid System</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { background: #f0f4f8; }
+
+        .page-wrap { max-width: 1100px; margin: 0 auto; padding: 2rem; }
+
+        /* Page Header */
+        .page-header { margin-bottom: 2rem; }
+        .page-header h1 { font-size: 2rem; font-weight: 800; color: #0f172a; margin: 0 0 0.3rem 0; }
+        .page-header p { color: #64748b; margin: 0 0 0.8rem 0; }
+        .page-header a { color: var(--primary); font-weight: 600; text-decoration: none; margin-right: 1.2rem; }
+
+        /* Search Panel */
+        .search-panel {
+            background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 100%);
+            border-radius: 16px;
+            padding: 1.8rem 2rem;
+            box-shadow: 0 10px 25px rgba(29, 78, 216, 0.2);
+            margin-bottom: 2rem;
+        }
+        .search-panel h3 { color: white; margin: 0 0 1rem 0; font-size: 1.1rem; }
+        .search-row { display: flex; gap: 1rem; flex-wrap: wrap; }
+        .search-row input {
+            flex: 1; min-width: 200px;
+            padding: 0.85rem 1.2rem;
+            border: none; border-radius: 10px;
+            font-size: 1rem; outline: none;
+            font-family: 'Inter', sans-serif;
+        }
+        .search-row input:focus { box-shadow: 0 0 0 3px rgba(255,255,255,0.3); }
+        #searchStatus { color: rgba(255,255,255,0.8); font-size: 0.88rem; margin: 0.8rem 0 0 0; }
+
+        /* Student List */
+        #studentListSection { margin-bottom: 2rem; }
+        #studentListSection h3 { color: #374151; font-size: 1rem; font-weight: 700; margin-bottom: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .student-card {
+            background: white; border-radius: 12px; padding: 1rem 1.3rem;
+            display: flex; align-items: center; gap: 1rem;
+            border: 1px solid #e2e8f0; margin-bottom: 0.6rem;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+            transition: all 0.2s;
+        }
+        .student-card:hover { border-color: var(--primary); box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1); }
+        .student-card.active-card { border-color: var(--success); background: #f0fdf4; }
+        .stu-avatar {
+            width: 48px; height: 48px; border-radius: 50%;
+            background: var(--primary); color: white;
+            font-size: 1.2rem; font-weight: 700;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+        .stu-info { flex: 1; }
+        .stu-info strong { display: block; font-size: 1rem; color: #1e293b; }
+        .stu-info span { font-size: 0.82rem; color: #64748b; }
+        .stu-badge { font-size: 0.7rem; font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 10px; }
+        .badge-active { background: #d1fae5; color: #065f46; }
+        .badge-pending { background: #fef9c3; color: #854d0e; }
+        .badge-withdrawn { background: #fee2e2; color: #991b1b; }
+        .open-btn {
+            background: var(--primary); color: white; border: none;
+            padding: 0.5rem 1.2rem; border-radius: 8px;
+            font-weight: 600; font-size: 0.9rem; cursor: pointer;
+            transition: background 0.2s;
+        }
+        .open-btn:hover { background: #1d4ed8; }
+        .open-btn.active-open { background: var(--success); }
+
+        /* Workspace */
+        #workspace { display: none; }
+
+        /* Profile Strip */
+        .profile-strip {
+            background: white; border-radius: 16px;
+            padding: 1.5rem 2rem; margin-bottom: 2rem;
+            display: flex; align-items: center; gap: 1.5rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+        }
+        .big-avatar {
+            width: 70px; height: 70px; border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), #1d4ed8);
+            color: white; font-size: 2rem; font-weight: 800;
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+        }
+        .profile-data h2 { margin: 0 0 0.3rem 0; font-size: 1.4rem; color: #0f172a; }
+        .profile-data p { margin: 0.2rem 0; font-size: 0.9rem; color: #475569; }
+
+        .profile-actions { display: flex; gap: 0.8rem; margin-left: auto; margin-right: 1.5rem; align-items: center; }
+        
+        .pay-all-btn {
+            background: var(--success); color: white; border: none;
+            padding: 0.5rem 1.1rem; border-radius: 8px;
+            font-weight: 700; font-size: 0.85rem; cursor: pointer; transition: all 0.2s;
+        }
+        .pay-all-btn:hover { background: #16a34a; box-shadow: 0 4px 12px rgba(22, 163, 74, 0.2); }
+
+        .partial-btn {
+            background: #f59e0b; color: white; border: none;
+            padding: 0.5rem 1.1rem; border-radius: 8px;
+            font-weight: 700; font-size: 0.85rem; cursor: pointer; transition: all 0.2s;
+        }
+        .partial-btn:hover { background: #d97706; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2); }
+
+        .show-history-btn {
+            background: white; color: var(--primary);
+            border: 1.5px solid var(--primary);
+            padding: 0.5rem 1.1rem; border-radius: 8px;
+            font-weight: 700; font-size: 0.85rem; cursor: pointer; transition: all 0.2s;
+        }
+        .show-history-btn:hover { background: #eff6ff; }
+
+        /* Section Panels */
+        .section-panel {
+            background: white; border-radius: 16px;
+            padding: 1.5rem 2rem; margin-bottom: 2rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+        }
+        .section-panel h2 {
+            margin: 0 0 1.2rem 0; font-size: 1.1rem; color: var(--primary);
+            border-bottom: 2px solid #f1f5f9; padding-bottom: 0.7rem;
+            display: flex; align-items: center; gap: 0.5rem;
+        }
+        /* Dues Columns Structure */
+        .dues-header {
+            display: flex; gap: 1rem; padding: 0.5rem 1.4rem;
+            font-size: 0.8rem; font-weight: 700; color: #64748b;
+            text-transform: uppercase; letter-spacing: 0.05em;
+            border-bottom: 2px solid #e2e8f0; margin-bottom: 0.5rem;
+        }
+        .challan-item {
+            display: flex; align-items: center; gap: 1rem;
+            padding: 0.8rem 1.4rem; border-bottom: 1px solid #f1f5f9;
+            cursor: pointer; transition: all 0.2s; background: white;
+        }
+        .challan-item:hover { background: #f8fafc; }
+        .challan-item.selected { background: #f0fdf4; border-left: 4px solid var(--success); padding-left: calc(1.4rem - 4px); }
+        .challan-item input[type="checkbox"] { width: auto; margin: 0; flex-shrink: 0; transform: scale(1.3); cursor: pointer; }
+        
+        .col-head { flex: 2; font-weight: 600; color: #1e293b; font-size: 0.95rem; display: flex; align-items: center; gap: 0.5rem; }
+        .col-month { flex: 1.5; color: #64748b; font-size: 0.9rem; }
+        .col-paid { flex: 1.5; color: var(--success); font-weight: 600; font-size: 0.95rem; }
+        .col-rem { flex: 1; font-weight: 800; color: var(--error); font-size: 1.1rem; text-align: right; }
+        .late-badge { background: #fee2e2; color: #991b1b; font-size: 0.68rem; font-weight: 700; padding: 0.15rem 0.4rem; border-radius: 6px; }
+
+        /* History Table */
+        .history-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+        .history-table th { background: #f8fafc; color: #64748b; font-weight: 600; padding: 0.7rem 1rem; text-align: left; border-bottom: 1px solid #e2e8f0; }
+        .history-table td { padding: 0.75rem 1rem; border-bottom: 1px solid #f1f5f9; color: #374151; }
+        .history-table tr:last-child td { border-bottom: none; }
+
+        /* Checkout Panel */
+        .checkout-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem; font-size: 0.95rem; color: #475569; }
+        .checkout-row strong { color: #0f172a; }
+        .checkout-divider { border: none; border-top: 2px dashed #cbd5e1; margin: 1rem 0; }
+        .checkout-total { font-size: 1.3rem; font-weight: 800; color: var(--primary); }
+        .cf-input { width: 100%; padding: 0.8rem 1rem; border: 1.5px solid #e2e8f0; border-radius: 10px; font-family: 'Inter', sans-serif; font-size: 0.95rem; color: #0f172a; outline: none; box-sizing: border-box; margin-bottom: 1rem; }
+        .cf-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
+        .cf-label { font-size: 0.8rem; font-weight: 600; color: #475569; margin-bottom: 0.3rem; display: block; }
+        .submit-btn { width: 100%; background: var(--success); color: white; border: none; padding: 1rem; border-radius: 10px; font-size: 1.1rem; font-weight: 700; cursor: pointer; transition: background 0.2s; }
+        .submit-btn:hover:not(:disabled) { background: #16a34a; }
+        .submit-btn:disabled { background: #94a3b8; cursor: not-allowed; }
+        .checkout-alert { padding: 0.8rem 1rem; border-radius: 8px; text-align: center; font-weight: 600; font-size: 0.9rem; margin-top: 1rem; display: none; }
+
+        /* Print styles */
+        @media print {
+            body * { visibility: hidden; }
+            #printArea, #printArea * { visibility: visible; }
+            #printArea { position: absolute; left: 0; top: 0; width: 100%; padding: 20px; }
+        }
+        #printArea {
+            display: none; background: white; color: black;
+            font-family: 'Courier New', monospace;
+            max-width: 750px; margin: 0 auto; padding: 2rem;
+            border: 2px solid #000;
+        }
+        .rct-header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 1rem; margin-bottom: 1rem; }
+        .rct-row { display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.9rem; }
+        .rct-table { width: 100%; border-collapse: collapse; margin: 1.2rem 0; font-size: 0.85rem; }
+        .rct-table th, .rct-table td { border: 1px solid #000; padding: 0.4rem 0.6rem; text-align: left; }
+        .rct-sigs { display: flex; justify-content: space-between; margin-top: 3rem; }
+        .rct-sig-line { border-top: 1px solid #000; width: 180px; text-align: center; padding-top: 0.5rem; font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+<div class="background-shapes" style="z-index:0;"></div>
+<div class="page-wrap" style="position:relative; z-index:2;">
+
+    <div class="page-header">
+        <h1>💳 Collect Student Fee</h1>
+        <p>Search a student, select pending dues, and authorize payment with a printable receipt.</p>
+        <a href="dashboard.html">← Dashboard</a>
+        <a href="create_challan.html">Issue New Challans</a>
+    </div>
+
+    <!-- SEARCH PANEL -->
+    <div class="search-panel">
+        <h3>🔍 Search Student</h3>
+        <div class="search-row">
+            <input type="text" id="filterName" placeholder="Search by Student Name..." autocomplete="off">
+            <input type="text" id="filterRoll" placeholder="Search by Roll Number..." autocomplete="off">
+            <input type="text" id="filterFather" placeholder="Search by Father Name..." autocomplete="off">
+        </div>
+        <p id="searchStatus">Loading student list from database...</p>
+    </div>
+
+    <!-- STUDENT RESULTS LIST -->
+    <div id="studentListSection" style="display:none;">
+        <h3>Results (<span id="resultCount">0</span> Found)</h3>
+        <div id="studentList"></div>
+    </div>
+
+    <!-- VERTICAL WORKSPACE -->
+    <div id="workspace">
+        <!-- Profile Strip -->
+        <div class="profile-strip">
+            <div class="big-avatar" id="wsAvatar">Z</div>
+            <div class="profile-data">
+                <h2 id="wsName">—</h2>
+                <p><strong>Roll:</strong> <span id="wsRoll">—</span> &nbsp;|&nbsp; <strong>Class:</strong> <span id="wsClass">—</span></p>
+                <p><strong>Father:</strong> <span id="wsFather">—</span> &nbsp;|&nbsp; <strong>Contact:</strong> <span id="wsContact">—</span></p>
+            </div>
+            <div class="profile-actions">
+                <button id="btnPartial" class="partial-btn" style="display:none;">Partial Payment</button>
+                <button id="btnPayAll" class="pay-all-btn" style="display:none;">Pay All Dues</button>
+                <button id="btnToggleHistory" class="show-history-btn">Show History</button>
+            </div>
+            
+            <span class="stu-badge" id="wsStatusBadge">ACTIVE</span>
+        </div>
+
+        <!-- Payment History -->
+        <div class="section-panel" id="historyPanel" style="display:none;">
+            <h2>📜 Payment History</h2>
+            <div style="overflow-x:auto;">
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Receipt #</th>
+                            <th>Description</th>
+                            <th>Amount Paid</th>
+                            <th>Method</th>
+                            <th>Remarks</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyBody">
+                        <tr><td colspan="6" style="text-align:center; color:#94a3b8;">No recorded transactions yet.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Pending Challans -->
+        <div class="section-panel" style="padding: 1.5rem 0;">
+            <h2 style="padding: 0 2rem;">🧾 Pending Dues (Select to Pay)</h2>
+            <div class="dues-header">
+                <div style="width: 20px;"></div>
+                <div style="flex: 2;">Fee Head</div>
+                <div style="flex: 1.5;">Fee Month</div>
+                <div style="flex: 1.5;">Paid Amount</div>
+                <div style="flex: 1; text-align:right;">Remaining</div>
+            </div>
+            <div id="challansList"></div>
+        </div>
+
+        <!-- Checkout Panel -->
+        <div class="section-panel" id="checkoutPanel">
+            <h2>💰 Checkout</h2>
+
+            <div class="checkout-row">
+                <span>Selected Subtotal</span>
+                <strong id="sumSubtotal">Rs 0</strong>
+            </div>
+            
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1rem;">
+                <div>
+                    <label class="cf-label">Fine (Rs)</label>
+                    <input type="number" id="inputFine" class="cf-input" value="0" style="margin-bottom:0;">
+                </div>
+                <div>
+                    <label class="cf-label">Discount (Rs)</label>
+                    <input type="number" id="inputDiscount" class="cf-input" value="0" style="margin-bottom:0;">
+                </div>
+            </div>
+
+            <hr class="checkout-divider">
+            <div class="checkout-row checkout-total">
+                <span>Grand Total</span>
+                <span id="sumGrandTotal">Rs 0</span>
+            </div>
+            <hr class="checkout-divider">
+
+            <label class="cf-label" for="inputPaying">Amount Receiving Now (Rs) *</label>
+            <input type="number" id="inputPaying" class="cf-input" placeholder="Enter amount received" style="border-color:var(--success); border-width:2px; margin-bottom:1rem;">
+            
+            <div id="allocationPreview" style="font-size:0.85rem; color:#475569;"></div>
+            
+            <div class="checkout-row" style="margin-top:-0.5rem; margin-bottom:1rem;">
+                <span style="font-size:0.85rem; color:#64748b;">Remaining after this payment:</span>
+                <strong id="sumRemaining" style="color:var(--error);">Rs 0</strong>
+            </div>
+
+            <label class="cf-label">Payment Method *</label>
+            <select id="inputMethod" class="cf-input">
+                <option value="Cash">Cash</option>
+                <option value="Online / Bank">Online / Bank Transfer</option>
+                <option value="Cheque">Cheque</option>
+            </select>
+
+            <div id="refGroup" style="display:none;">
+                <label class="cf-label">Transaction / Cheque Reference #</label>
+                <input type="text" id="inputRef" class="cf-input" placeholder="Enter reference number...">
+            </div>
+
+            <label class="cf-label">Admin Remarks (Optional)</label>
+            <input type="text" id="inputRemarks" class="cf-input" placeholder="Late payment, scholarship note, etc.">
+
+            <button class="submit-btn" id="btnSubmit" disabled>Authorize Payment &amp; Print Receipt</button>
+
+            <div class="checkout-alert" id="checkoutAlert"></div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Print Receipt -->
+<div id="printArea">
+    <div class="rct-header">
+        <h2 style="margin:0; font-size:1.5rem;">ZAHID SCHOOL MANAGEMENT</h2>
+        <p style="margin:0.3rem 0 0 0;">Official Payment Receipt</p>
+    </div>
+    <div class="rct-row"><div><strong>Receipt No:</strong> <span id="rctNo"></span></div><div><strong>Date:</strong> <span id="rctDate"></span></div></div>
+    <div class="rct-row"><div><strong>Student:</strong> <span id="rctName"></span></div><div><strong>Roll:</strong> <span id="rctRoll"></span></div></div>
+    <div class="rct-row"><div><strong>Father:</strong> <span id="rctFather"></span></div><div><strong>Class:</strong> <span id="rctClass"></span></div></div>
+    <table class="rct-table">
+        <thead><tr><th>Description</th><th>Total</th><th>Fine</th><th>Discount</th><th>Paid</th></tr></thead>
+        <tbody id="rctBody"></tbody>
+    </table>
+    <div class="rct-row"><div><strong>Method:</strong> <span id="rctMethod"></span> <span id="rctRef"></span></div><div style="font-size:1.1rem;"><strong>Total Paid: Rs <span id="rctTotal"></span></strong></div></div>
+    <div class="rct-row"><div></div><div><strong>Remaining: Rs <span id="rctRemaining"></span></strong></div></div>
+    <div style="margin-top:1rem;"><strong>Remarks:</strong> <span id="rctRemarks"></span></div>
+    <div class="rct-sigs">
+        <div class="rct-sig-line">Authorized Signature</div>
+        <div class="rct-sig-line">Parent / Guardian</div>
+    </div>
+    <p style="text-align:center; margin-top:2rem; font-size:0.75rem;">Zahid System — Powered by Supabase</p>
+</div>
+
+<script src="collect_fee.js"></script>
+</body>
+</html>

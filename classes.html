@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Classes - Zahid School System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <!-- Supabase JS Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .classes-list {
+            margin-top: 2rem;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        .class-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 1rem;
+            border-bottom: 1px solid #eee;
+            align-items: center;
+        }
+        .class-item:last-child {
+            border-bottom: none;
+        }
+        .class-badge {
+            background: var(--primary);
+            color: white;
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        .nav-links {
+            text-align: center;
+            margin-top: 1rem;
+        }
+        .nav-links a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .nav-links a:hover {
+            text-decoration: underline;
+        }
+        #classesTable {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+        #classesTable th, #classesTable td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        #classesTable th {
+            background-color: #f9fafb;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="background-shapes">
+        <div class="shape shape-1"></div>
+        <div class="shape shape-2"></div>
+        <div class="shape shape-3"></div>
+    </div>
+    
+    <div class="container">
+        <header class="form-header">
+            <div class="logo-placeholder">🏫</div>
+            <h1>Class Management</h1>
+            <p>Add new classes and sections format</p>
+            <div class="nav-links">
+                <a href="index.html">← Back to Admission Form</a>
+            </div>
+        </header>
+
+        <form id="classForm" class="glass-panel" novalidate>
+            <section class="form-section">
+                <h2>➕ Add New Class</h2>
+                <div class="input-grid">
+                    <div class="input-group">
+                        <label for="className">Class Name <span style="color:red">*</span></label>
+                        <input type="text" id="className" name="className" required placeholder="e.g. Nursery, KG, Class 1">
+                    </div>
+                    <div class="input-group">
+                        <label for="classSection">Section <span style="color:red">*</span></label>
+                        <input type="text" id="classSection" name="classSection" required placeholder="e.g. A, B, Blue, Red">
+                    </div>
+                </div>
+            </section>
+
+            <div class="form-actions">
+                <button type="submit" class="submit-btn" id="submitBtn">
+                    <span>Save Class</span>
+                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="btn-icon"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                </button>
+            </div>
+            
+            <div id="formAlert" style="display:none; color: white; background: var(--error); padding: 1rem; border-radius: 8px; margin-top: 1rem; text-align: center; font-weight: 500;"></div>
+
+            <!-- Existing Classes List -->
+            <div class="classes-list">
+                <h3>📋 Existing Classes in System</h3>
+                <table id="classesTable">
+                    <thead>
+                        <tr>
+                            <th>Class Name</th>
+                            <th>Section</th>
+                            <th>Date Added</th>
+                        </tr>
+                    </thead>
+                    <tbody id="classesBody">
+                        <tr><td colspan="3" style="text-align: center;">Loading classes...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </form>
+    </div>
+    <script src="classes.js"></script>
+</body>
+</html>

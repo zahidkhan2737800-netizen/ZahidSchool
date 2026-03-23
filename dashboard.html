@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Zahid School System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { 
+            display: flex; 
+            margin: 0; 
+            height: 100vh; 
+            overflow: hidden; 
+            background: #f0f4f8; 
+            font-family: 'Inter', sans-serif;
+        }
+        
+        /* Premium Sidebar */
+        .sidebar { 
+            width: 270px; 
+            background: rgba(255, 255, 255, 0.95); 
+            backdrop-filter: blur(20px);
+            border-right: 1px solid rgba(0,0,0,0.05);
+            box-shadow: 4px 0 15px rgba(0,0,0,0.03); 
+            display: flex; 
+            flex-direction: column; 
+            z-index: 20;
+            transition: all 0.3s ease;
+        }
+        
+        .sidebar-header {
+            padding: 2rem 1.5rem 1.5rem;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+        
+        .sidebar h2 { 
+            color: var(--primary); 
+            font-size: 1.3rem; 
+            margin: 0; 
+            display: flex; 
+            align-items: center; 
+            gap: 0.6rem; 
+            font-weight: 700;
+        }
+        
+        .nav-content {
+            padding: 1.5rem;
+            overflow-y: auto;
+            flex: 1;
+        }
+        
+        .nav-group { 
+            margin-bottom: 2.2rem; 
+        }
+        
+        .nav-group-title { 
+            font-size: 0.75rem; 
+            text-transform: uppercase; 
+            color: #94a3b8; 
+            font-weight: 700; 
+            margin-bottom: 0.8rem; 
+            padding-left: 0.5rem; 
+            letter-spacing: 0.08em; 
+        }
+        
+        .nav-links-list { 
+            list-style: none; 
+            padding: 0; 
+            margin: 0; 
+        }
+        
+        .nav-item { 
+            margin-bottom: 0.4rem; 
+        }
+        
+        .nav-link { 
+            display: flex; 
+            align-items: center; 
+            gap: 0.75rem;
+            padding: 0.8rem 1rem; 
+            color: #475569; 
+            text-decoration: none; 
+            border-radius: 10px; 
+            font-weight: 500; 
+            font-size: 0.95rem; 
+            transition: all 0.2s ease; 
+        }
+        
+        .nav-link:hover { 
+            background: #f1f5f9; 
+            color: var(--primary); 
+            transform: translateX(3px);
+        }
+        
+        .nav-link.active { 
+            background: linear-gradient(135deg, var(--primary) 0%, #1d4ed8 100%);
+            color: white; 
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25); 
+        }
+        
+        .nav-link.pending-feature {
+            opacity: 0.6;
+            cursor: not-allowed;
+            position: relative;
+        }
+        .nav-link.pending-feature::after {
+            content: 'SOON';
+            position: absolute;
+            right: 1rem;
+            background: #e2e8f0;
+            color: #64748b;
+            font-size: 0.6rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 12px;
+            font-weight: 700;
+        }
+        .nav-link.pending-feature:hover {
+            transform: none;
+            background: transparent;
+            color: #475569;
+        }
+
+        /* Main Content Area */
+        .main-content { 
+            flex: 1; 
+            padding: 2.5rem 3.5rem; 
+            overflow-y: auto; 
+            position: relative; 
+        }
+        
+        .dashboard-header { 
+            margin-bottom: 3rem; 
+        }
+        .dashboard-header h1 { 
+            font-size: 2.2rem; 
+            margin: 0 0 0.5rem 0; 
+            color: #0f172a; 
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+        .dashboard-header p { 
+            color: #64748b; 
+            margin: 0; 
+            font-size: 1.05rem;
+        }
+
+        /* Stat Cards */
+        .stats-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); 
+            gap: 1.8rem; 
+            margin-bottom: 2.5rem; 
+            position: relative;
+            z-index: 2;
+        }
+        
+        .stat-card { 
+            background: rgba(255,255,255,0.7); 
+            backdrop-filter: blur(16px); 
+            border: 1px solid rgba(255,255,255,0.5); 
+            padding: 1.8rem; 
+            border-radius: 20px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.04); 
+            display: flex; 
+            flex-direction: column; 
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.08); 
+        }
+        
+        .stat-icon {
+            position: absolute;
+            top: 1.5rem;
+            right: 1.5rem;
+            font-size: 2rem;
+            opacity: 0.2;
+        }
+        
+        .stat-title { 
+            font-size: 0.95rem; 
+            color: #64748b; 
+            font-weight: 600; 
+            margin-bottom: 0.8rem; 
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .stat-value { 
+            font-size: 3rem; 
+            font-weight: 800; 
+            color: #0f172a; 
+            margin: 0; 
+            line-height: 1; 
+            display: flex;
+            align-items: baseline;
+            gap: 0.5rem;
+        }
+        
+        .stat-value.primary { color: var(--primary); }
+        .stat-value.danger { color: var(--error); }
+        
+        .stat-footer { 
+            display: flex; 
+            align-items: center; 
+            gap: 0.5rem; 
+            font-size: 0.85rem; 
+            color: #10b981; 
+            margin-top: 1.2rem; 
+            font-weight: 600; 
+            padding-top: 1rem;
+            border-top: 1px solid rgba(0,0,0,0.05);
+        }
+        .stat-footer.danger-text { color: #ef4444; }
+
+        /* Welcome Graphic Segment */
+        .welcome-panel {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border-radius: 20px;
+            padding: 3rem;
+            color: white;
+            box-shadow: 0 20px 40px rgba(15, 23, 42, 0.2);
+            position: relative;
+            overflow: hidden;
+            z-index: 2;
+        }
+        .welcome-panel::after {
+            content: '🎓';
+            position: absolute;
+            right: -2rem;
+            top: -2rem;
+            font-size: 15rem;
+            opacity: 0.05;
+            line-height: 1;
+        }
+        .welcome-panel h2 { margin: 0 0 1rem 0; font-size: 1.8rem; font-weight: 700; }
+        .welcome-panel p { margin: 0; color: #94a3b8; font-size: 1.1rem; max-width: 600px; line-height: 1.6; }
+
+        /* Loader */
+        #pageLoader {
+            position: absolute;
+            top: 2.5rem;
+            right: 3.5rem;
+            color: var(--primary);
+            font-weight: 600;
+            background: rgba(255,255,255,0.8);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255,255,255,0.5);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(37, 99, 235, 0.2);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+    </style>
+</head>
+<body>
+    
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2><span style="font-size: 1.6rem;">🎓</span> Zahid System</h2>
+        </div>
+        
+        <div class="nav-content">
+            <!-- Group 1: Students Management -->
+            <div class="nav-group">
+                <div class="nav-group-title">Students Management</div>
+                <ul class="nav-links-list">
+                    <li class="nav-item">
+                        <a href="dashboard.html" class="nav-link active">
+                            <span>📊</span> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="index.html" class="nav-link">
+                            <span>📝</span> Admission Form
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="students.html" class="nav-link">
+                            <span>👥</span> Total Active Students
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="pending_withdrawn.html" class="nav-link">
+                            <span>⏸️</span> Pending / Withdrawn
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Group 2: Fee Management -->
+            <div class="nav-group">
+                <div class="nav-group-title">Fee Management</div>
+                <ul class="nav-links-list">
+                    <li class="nav-item">
+                        <a href="create_challan.html" class="nav-link">
+                            <span>🧾</span> Create Challans
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="collect_fee.html" class="nav-link">
+                            <span>💰</span> Collect Student Fee
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link pending-feature" title="Coming Soon">
+                            <span>👨‍👩‍👧‍👦</span> Collect Family Fee
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link pending-feature" title="Coming Soon">
+                            <span>📑</span> Family Bill
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link pending-feature" title="Coming Soon">
+                            <span>📞</span> Fee Contacts
+                        </a>
+                    </li>
+                </ul>
+            </div>
+            
+            <!-- Group 3: Settings -->
+            <div class="nav-group">
+                <div class="nav-group-title">Administration</div>
+                <ul class="nav-links-list">
+                    <li class="nav-item">
+                        <a href="classes.html" class="nav-link">
+                            <span>🏫</span> Manage Classes
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="fee_heads.html" class="nav-link">
+                            <span>⚙️</span> Fee Configuration
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Re-using background animations from your premium template -->
+        <div class="background-shapes" style="z-index: 0;">
+            <div class="shape shape-1"></div>
+            <div class="shape shape-2"></div>
+            <div class="shape shape-3" style="bottom: 10%; right: 10%;"></div>
+        </div>
+        
+        <div id="pageLoader">
+            <div class="spinner"></div> Syncing Data...
+        </div>
+
+        <div class="dashboard-header" style="position:relative; z-index:2;">
+            <h1>Admin Overview</h1>
+            <p>Welcome back! Here's what's happening in your school today.</p>
+        </div>
+
+        <!-- Metric Cards -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">👥</div>
+                <div class="stat-title">Total Active Students</div>
+                <div class="stat-value primary" id="totalActiveCount">--</div>
+                <div class="stat-footer">
+                    <span>🟢 Connected to live database</span>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon">📉</div>
+                <div class="stat-title">Withdrawn (This Month)</div>
+                <div class="stat-value danger" id="withdrawnMonthCount">--</div>
+                <div class="stat-footer danger-text">
+                    <span id="monthNameLabel">📅 Current Month</span>
+                </div>
+            </div>
+            
+            <div class="stat-card" style="opacity: 0.6;">
+                <div class="stat-icon">💰</div>
+                <div class="stat-title">Fees Collected (This Month)</div>
+                <div class="stat-value" style="font-size: 2rem;">Coming Soon</div>
+                <div class="stat-footer" style="color:#64748b;">
+                    <span>⏳ Module currently in development</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Welcome Banner -->
+        <div class="welcome-panel">
+            <h2>Welcome to Zahid System Dashboard!</h2>
+            <p>Your sidebar navigation connects all modules together. New modules like "Collect Fees" and "Family Billing" will be directly hooked in here as they are developed.</p>
+            <div style="margin-top: 1.5rem;">
+                <a href="index.html" style="background:var(--primary); color:white; padding:0.8rem 1.5rem; text-decoration:none; border-radius:8px; font-weight:600; display:inline-block; transition:opacity 0.2s;">
+                    + New Admission
+                </a>
+                <a href="create_challan.html" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:white; padding:0.8rem 1.5rem; text-decoration:none; border-radius:8px; font-weight:600; display:inline-block; margin-left:1rem; transition:background 0.2s;">
+                    Generate Challans
+                </a>
+            </div>
+        </div>
+    </main>
+
+    <script src="dashboard.js"></script>
+</body>
+</html>

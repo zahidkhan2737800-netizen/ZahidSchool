@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Active Students - Zahid School System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <!-- Supabase JS Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .dashboard-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 2.5rem;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+            width: 100%;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+        .filter-panel {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 1.5rem;
+            border-radius: 12px;
+            margin-bottom: 2rem;
+            display: flex;
+            gap: 1.5rem;
+            align-items: flex-end;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            flex-wrap: wrap;
+        }
+        .filter-group {
+            flex: 1;
+            min-width: 250px;
+            display: flex;
+            flex-direction: column;
+        }
+        .filter-group label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 0.4rem;
+        }
+        .filter-group input {
+            padding: 0.75rem 1rem;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        .filter-group input:focus {
+            border-color: var(--primary);
+        }
+        .search-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.75rem 2rem;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            height: 44px;
+            transition: background 0.3s;
+        }
+        .search-btn:hover {
+            background: var(--primary-hover);
+        }
+        .data-table-container {
+            overflow-x: auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 800px;
+        }
+        th, td {
+            text-align: left;
+            padding: 14px 16px;
+            border-bottom: 1px solid #f3f4f6;
+            font-size: 0.95rem;
+        }
+        th {
+            background-color: #f9fafb;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 0.05em;
+        }
+        tr:hover td {
+            background-color: #f9fafb;
+        }
+        .nav-links {
+            text-align: center;
+            margin-top: 1rem;
+            margin-bottom: 2rem;
+        }
+        .nav-links a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+            margin: 0 0.5rem;
+        }
+        .nav-links a:hover {
+            text-decoration: underline;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+    <div class="background-shapes">
+        <div class="shape shape-1"></div>
+        <div class="shape shape-2"></div>
+        <div class="shape shape-3"></div>
+    </div>
+    
+    <div style="width: 100%; padding: 2rem;">
+        <header class="form-header">
+            <div class="logo-placeholder">👨‍🎓</div>
+            <h1>Active Students Directory</h1>
+            <p>View currently admitted and active students only</p>
+            <div class="nav-links">
+                <a href="index.html">← Admission Form</a>
+                <a href="classes.html">Classes</a>
+                <a href="fee_heads.html">Fee Heads</a>
+            </div>
+        </header>
+
+        <div class="dashboard-panel">
+            <div class="dashboard-stats" style="display:flex; justify-content:center; gap:2rem; margin-bottom:2rem; padding: 1.5rem; background: rgba(59, 130, 246, 0.1); border-radius: 12px; border: 1px solid rgba(59, 130, 246, 0.2);">
+                <div style="text-align:center;">
+                    <h3 style="margin:0; font-size:1.1rem; color: var(--primary);">Total Active Students</h3>
+                    <p id="totalActive" style="margin:0.5rem 0 0; font-size:3rem; font-weight:800; color: var(--text-main);">0</p>
+                </div>
+            </div>
+
+            <div class="filter-panel">
+                <div class="filter-group">
+                    <label for="searchName">Partial Search (Student Name or Father Name)</label>
+                    <input type="text" id="searchName" placeholder="e.g. Ali, Khan...">
+                </div>
+                <div class="filter-group">
+                    <label for="searchRoll">Exact Roll Number</label>
+                    <input type="text" id="searchRoll" placeholder="e.g. 104">
+                </div>
+            </div>
+
+            <div class="data-table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Roll #</th>
+                            <th>Student Name</th>
+                            <th>Father Name</th>
+                            <th>Father Mobile</th>
+                            <th>Admission Date</th>
+                            <th>Current Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="studentsBody">
+                        <tr><td colspan="7" class="empty-state">Loading students...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <script src="students.js"></script>
+</body>
+</html>
