@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fee Contacts & Follow-up - Zahid School System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- Supabase JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <style>
+        body { 
+            display: flex; 
+            margin: 0; 
+            height: 100vh; 
+            overflow: hidden; 
+            background: #f0f4f8; 
+            font-family: 'Inter', sans-serif;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        body.auth-ready { opacity: 1; }
+
+        /* Sidebar Standard */
+        .sidebar { 
+            width: 270px; 
+            background: rgba(255, 255, 255, 0.95); 
+            backdrop-filter: blur(20px);
+            border-right: 1px solid rgba(0,0,0,0.05);
+            box-shadow: 4px 0 15px rgba(0,0,0,0.03); 
+            display: flex; 
+            flex-direction: column; 
+            z-index: 20;
+            flex-shrink: 0;
+        }
+        .sidebar-header { padding: 2rem 1.5rem 1.5rem; border-bottom: 1px solid rgba(0,0,0,0.05); }
+        .sidebar h2 { color: var(--primary); font-size: 1.3rem; margin: 0; display: flex; align-items: center; gap: 0.6rem; font-weight: 700; }
+        .nav-content { padding: 1.5rem; overflow-y: auto; flex: 1; }
+        .nav-group { margin-bottom: 2.2rem; }
+        .nav-group-title { font-size: 0.75rem; text-transform: uppercase; color: #94a3b8; font-weight: 700; margin-bottom: 0.8rem; padding-left: 0.5rem; letter-spacing: 0.08em; }
+        .nav-links-list { list-style: none; padding: 0; margin: 0; }
+        .nav-item { margin-bottom: 0.4rem; }
+        .nav-link { display: flex; align-items: center; gap: 0.75rem; padding: 0.8rem 1rem; color: #475569; text-decoration: none; border-radius: 10px; font-weight: 500; font-size: 0.95rem; transition: all 0.2s ease; }
+        .nav-link:hover { background: #f1f5f9; color: var(--primary); transform: translateX(3px); }
+        .nav-link.active { background: linear-gradient(135deg, var(--primary) 0%, #1d4ed8 100%); color: white; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25); }
+
+        /* Main Content */
+        .main-content { 
+            flex: 1; 
+            padding: 0.5rem 1rem; 
+            overflow-y: auto; 
+            position: relative; 
+            height: 100vh;
+            max-height: 100vh;
+            box-sizing: border-box;
+            background: transparent;
+        }
+
+        /* Pretty Scrollbars */
+        .main-content::-webkit-scrollbar { width: 10px; height: 10px; }
+        .main-content::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.02); }
+        .main-content::-webkit-scrollbar-thumb { background-color: rgba(148, 163, 184, 0.5); border-radius: 10px; }
+        .main-content::-webkit-scrollbar-thumb:hover { background-color: rgba(100, 116, 139, 0.8); }
+
+        .page-header { margin-bottom: 1.5rem; position: relative; z-index: 2; display: flex; justify-content: space-between; align-items: center; }
+        .page-header h1 { font-size: 2.2rem; margin: 0; color: #0f172a; font-weight: 800; letter-spacing: -0.02em; }
+        .page-header p { color: #64748b; margin: 0.3rem 0 0 0; font-size: 0.95rem; }
+
+        .total-badge {
+            background: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 14px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .total-badge strong { font-size: 1.3rem; color: var(--primary); }
+
+        /* Control Panel */
+        .control-panel {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.5);
+            border-radius: 16px;
+            padding: 1.25rem;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.03);
+            margin-bottom: 1.5rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            align-items: center;
+        }
+
+        .control-group { display: flex; align-items: center; gap: 0.5rem; }
+        .control-group label { font-size: 0.9rem; font-weight: 600; color: #64748b; text-transform: uppercase; }
+        
+        .control-input {
+            padding: 0.8rem 1rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 1rem;
+            outline: none;
+            background: white;
+            transition: border-color 0.2s;
+        }
+        .control-input:focus { border-color: var(--primary); }
+        
+        .btn-action {
+            padding: 0.6rem 1rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex; align-items: center; gap: 0.4rem;
+        }
+        .btn-outline { background: white; border: 1px solid #cbd5e1; color: #475569; }
+        .btn-outline:hover { background: #f1f5f9; border-color: #94a3b8; }
+        .btn-danger { background: #fee2e2; color: #b91c1c; }
+        .btn-danger:hover { background: #fca5a5; }
+        
+        /* Table Design */
+        .table-container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.04);
+            border: 1px solid #e2e8f0;
+            overflow-x: auto;
+            position: relative;
+            z-index: 10;
+        }
+        
+        .table-container::-webkit-scrollbar { height: 10px; width: 10px; }
+        .table-container::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 8px; }
+        .table-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
+        .table-container::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        .dense-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 1.05rem;
+        }
+        
+        .dense-table th {
+            background: #f8fafc;
+            color: #475569;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            padding: 0.6rem 0.4rem;
+            border-bottom: 2px solid #e2e8f0;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 5;
+        }
+        
+        .dense-table td {
+            padding: 0.5rem 0.3rem;
+            border-bottom: 1px solid #f1f5f9;
+            text-align: center;
+            vertical-align: middle;
+            transition: background 0.2s;
+        }
+        
+        .dense-table tr:hover td { background: #f8fafc; }
+        .dense-table tr.pinned td { background: #fffbeb; } /* Highlight for pinned */
+        .dense-table tr.solved td { opacity: 0.4; } /* Solved are dimmed */
+
+        /* Column specific styling */
+        .col-roll { font-weight: 700; color: #0f172a; text-align: left !important; padding-left: 1rem !important; }
+        .col-name { text-align: left !important; min-width: 150px; }
+        .col-balance { font-weight: 800; color: #b91c1c; }
+        .col-balance.zero { color: #10b981; }
+
+        /* Attendance Pill */
+        .att-pill {
+            display: inline-flex; justify-content: center; align-items: center;
+            width: 28px; height: 28px; border-radius: 6px; font-weight: 800; font-size: 0.95rem;
+            color: white; background: #cbd5e1; cursor: pointer;
+        }
+        .att-pill.P { background: #10b981; }
+        .att-pill.A { background: #ef4444; }
+
+        /* Contact Cell Layout */
+        .contact-cell {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            width: 60px;
+        }
+        .c-select {
+            font-size: 0.85rem;
+            padding: 2px 0;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            width: 50px;
+            text-align: center;
+            background: white;
+            cursor: pointer;
+            font-weight: 700;
+        }
+        .c-btn {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            background: #e2e8f0; /* Default gray */
+            transition: transform 0.1s, background 0.3s;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .c-btn:active { transform: scale(0.85); box-shadow: inset 0 4px 6px rgba(0,0,0,0.2); }
+        
+        /* Status Colors */
+        .status-C { background: #10b981 !important; color: white; border-color: #10b981 !important;} /* Connected - Green */
+        .status-CN { background: #f59e0b !important; color: white; border-color: #f59e0b !important; } /* Connected No - Yellow */
+        .status-W { background: #ef4444 !important; color: white; border-color: #ef4444 !important; } /* Wrong - Red */
+        .status-NO { background: #f97316 !important; color: white; border-color: #f97316 !important; } /* Number Off - Orange */
+        .status-NN { background: #64748b !important; color: white; border-color: #64748b !important; } /* No Network - Gray/Blue */
+
+        .c-date { font-size: 0.75rem; color: #94a3b8; font-family: monospace; }
+        .c-date.hidden { opacity: 0; }
+
+        /* Action Buttons */
+        .action-btn-cell {
+            background: none; border: none; cursor: pointer; border-radius: 6px;
+            padding: 0.4rem; transition: background 0.2s;
+            display: inline-flex; align-items: center; justify-content: center;
+        }
+        .action-btn-cell:hover { background: #e2e8f0; }
+        
+        .cd-btn { color: #2563eb; font-weight: 800; font-size: 1rem; }
+        .cd-btn.active { background: #ef4444; color: white; }
+        .pin-btn { filter: grayscale(1); opacity: 0.5; font-size: 1.1rem; }
+        .pin-btn.active { filter: none; opacity: 1; transform: scale(1.2); }
+
+        /* Commit Notes */
+        .commit-input {
+            width: 160px;
+            padding: 0.5rem;
+            font-size: 1rem;
+            border: 1px solid transparent;
+            background: transparent;
+            border-radius: 6px;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        .commit-input:focus, .commit-input:hover {
+            border-color: var(--primary);
+            background: white;
+            outline: none;
+            width: 240px;
+            position: absolute;
+            z-index: 100;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            /* Transform fixes the input jumping out of alignment */
+            transform: translateY(-10px);
+        }
+        .commit-input:not(:placeholder-shown) {
+            font-weight: 600;
+            color: #0f172a;
+        }
+
+        .row-status-select {
+            font-size: 0.85rem;
+            padding: 0.6rem;
+            border-radius: 6px;
+            border: 1px solid #cbd5e1;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        .row-status-select.Pending { color: #b91c1c; border-color: #fca5a5; background: #fef2f2; }
+        .row-status-select.Solved { color: #10b981; border-color: #6ee7b7; background: #ecfdf5; }
+
+        /* Hide optional columns by default */
+        .col-c7, .col-c8 { display: none; }
+        .show-c7 .col-c7 { display: table-cell; }
+        .show-c8 .col-c8 { display: table-cell; }
+        
+        /* Spinner */
+        #loader { text-align: center; padding: 4rem; color: #64748b; font-weight: 500; font-size: 1.2rem; }
+    </style>
+</head>
+<body>
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2><span style="font-size: 1.6rem;">🎓</span> Zahid System</h2>
+        </div>
+        
+        <div class="nav-content">
+            <!-- Group 1: Students Management -->
+            <div class="nav-group">
+                <div class="nav-group-title">Students Management</div>
+                <ul class="nav-links-list">
+                    <li class="nav-item">
+                        <a href="dashboard.html" class="nav-link">
+                            <span>📊</span> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="index.html" class="nav-link">
+                            <span>📝</span> Admission Form
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="students.html" class="nav-link">
+                            <span>👥</span> Total Active Students
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="pending_withdrawn.html" class="nav-link">
+                            <span>⏸️</span> Pending / Withdrawn
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Group 2: Fee Management -->
+            <div class="nav-group">
+                <div class="nav-group-title">Fee Management</div>
+                <ul class="nav-links-list">
+                    <li class="nav-item">
+                        <a href="create_challan.html" class="nav-link">
+                            <span>🧾</span> Create Challans
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="collect_fee.html" class="nav-link">
+                            <span>💰</span> Collect Student Fee
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link pending-feature" title="Coming Soon">
+                            <span>👨‍👩‍👧‍👦</span> Collect Family Fee
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link pending-feature" title="Coming Soon">
+                            <span>📑</span> Family Bill
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="fee_contacts.html" class="nav-link active">
+                            <span>📞</span> Fee Contacts
+                        </a>
+                    </li>
+                </ul>
+            </div>
+            
+            <!-- Group 3: Settings -->
+            <div class="nav-group">
+                <div class="nav-group-title">Administration</div>
+                <ul class="nav-links-list">
+                    <li class="nav-item">
+                        <a href="classes.html" class="nav-link">
+                            <span>🏫</span> Manage Classes
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="fee_heads.html" class="nav-link">
+                            <span>⚙️</span> Fee Configuration
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="access_control.html" class="nav-link">
+                            <span>🔐</span> Access Control
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <!-- Background Animations -->
+        <div class="background-shapes" style="z-index: 0;">
+            <div class="shape shape-1"></div>
+            <div class="shape shape-2"></div>
+        </div>
+
+        <div class="page-header">
+            <div>
+                <h1>📞 Fee Follow-ups & Contacts</h1>
+                <p>Track call statuses, lodge complaints, and record parental commitments.</p>
+            </div>
+            <div class="total-badge">
+                <span style="color:#64748b; font-size:0.9rem; font-weight:600; text-transform:uppercase;">Visible Unpaid Balance</span>
+                <strong id="totalBalanceBadge">Rs. 0</strong>
+            </div>
+        </div>
+
+        <!-- Control Bar -->
+        <div class="control-panel">
+            <div class="control-group">
+                <button class="btn-action btn-outline" id="btnPrevMonth">◀</button>
+                <input type="month" id="monthPicker" class="control-input">
+                <button class="btn-action btn-outline" id="btnNextMonth">▶</button>
+            </div>
+
+            <div class="control-group">
+                <select id="classFilter" class="control-input">
+                    <option value="">All Classes</option>
+                    <!-- Populated dynamically -->
+                </select>
+            </div>
+
+            <div class="control-group">
+                <select id="statusFilter" class="control-input">
+                    <option value="All" selected>All Rows</option>
+                    <option value="Pending">Pending Rows Only</option>
+                    <option value="Solved">Solved Rows Only</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <input type="text" id="rollFilter" class="control-input" placeholder="Roll No..." style="width: 100px;">
+            </div>
+
+            <div class="control-group" style="margin-left:auto; gap: 1rem;">
+                <label style="display:flex; align-items:center; gap:0.3rem; margin:0; cursor:pointer;">
+                    <input type="checkbox" id="toggleC7"> Show C7
+                </label>
+                <label style="display:flex; align-items:center; gap:0.3rem; margin:0; cursor:pointer;">
+                    <input type="checkbox" id="toggleC8"> Show C8
+                </label>
+            </div>
+
+            <div class="control-group">
+                <button class="btn-action btn-outline" id="btnClearFilters">Reset Filters</button>
+            </div>
+        </div>
+
+        <!-- Table Container -->
+        <div class="table-container" id="tableWrapper">
+            <table class="dense-table" id="contactsTable">
+                <thead>
+                    <tr>
+                        <th class="col-roll">Roll No</th>
+                        <th class="col-name">Student Name</th>
+                        <th>Att</th>
+                        <th>C 1</th>
+                        <th>C 2</th>
+                        <th>C 3</th>
+                        <th>C 4</th>
+                        <th>C 5</th>
+                        <th>C 6</th>
+                        <th class="col-c7">C 7</th>
+                        <th class="col-c8">C 8</th>
+                        <th>Balance (Rs)</th>
+                        <th>CD</th>
+                        <th>Pin</th>
+                        <th style="min-width: 130px; text-align:left;">Commitment</th>
+                        <th>Row Status</th>
+                    </tr>
+                </thead>
+                <tbody id="contactsBody">
+                    <!-- Rows rendered via JS -->
+                </tbody>
+            </table>
+            <div id="loader" style="display:none;">🔄 Loading Data...</div>
+        </div>
+    </main>
+
+    <!-- Global shared dependencies -->
+    <script src="auth.js"></script>
+    <script src="fee_contacts.js"></script>
+</body>
+</html>

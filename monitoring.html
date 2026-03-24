@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Monitoring & Progress</title>
+  <link rel="stylesheet" href="monitoring.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+  <h2>Student Progress & Monitoring</h2>
+
+  <!-- Class Selector + Search -->
+  <div class="toolbar" id="classToolbar">
+    <label><b>Select Class:</b></label>
+    <select id="classSelect">
+      <option value="">Loading classes...</option>
+    </select>
+    <input type="text" id="studentSearchInput" placeholder="Search Exact Roll or Name..." style="display:none;">
+  </div>
+
+  <!-- Subjects Toolbar -->
+  <div class="toolbar" id="subjectsToolbar" style="display:none;">
+    <label><b>Subjects:</b></label>
+    <div id="subjectButtons" style="display:flex; gap:8px; flex-wrap:wrap; flex:1;"></div>
+    <button id="addSubjectBtn" class="btn btn-info">+ Add Subject</button>
+  </div>
+
+  <!-- Actions Toolbar -->
+  <div class="toolbar" id="actionsToolbar" style="display:none;">
+    <span id="currentSubjectLabel" style="font-size:14px; font-weight:bold; color:#0056b3; margin-right:auto;"></span>
+    <div class="menu-wrapper">
+      <button id="toggleColsBtn" class="btn btn-warning">👁️ Show/Hide Topics</button>
+      <div id="colToggleMenu" class="dropdown-menu"></div>
+    </div>
+    <button id="addColBtn" class="btn">+ Add Topic (Column)</button>
+    <button id="thermalPrintBtn" class="btn btn-print">🖨️ Thermal Print Trace</button>
+  </div>
+
+  <!-- Data Table -->
+  <div class="table-container" id="tableContainer">
+    <table id="monitoringTable">
+      <thead id="tableHead"></thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+  <!-- Supabase Auth + App Logic -->
+  <script src="auth.js"></script>
+  <script src="monitoring.js"></script>
+</body>
+</html>

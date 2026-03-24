@@ -1,6 +1,5 @@
-const SUPABASE_URL = 'https://dkscydwftycubvwxondi.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrc2N5ZHdmdHljdWJ2d3hvbmRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyNTMxOTQsImV4cCI6MjA4OTgyOTE5NH0.U84KKtJV2Lzz_FXbnXqlstvzzTW-FWBBtJTxbGlNYIE';
-const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// Supabase client is now provided by auth.js (supabaseClient)
+const db = supabaseClient;
 
 // ─── State ────────────────────────────────────────────────────────────────────
 let allStudents   = [];   // full admissions cache

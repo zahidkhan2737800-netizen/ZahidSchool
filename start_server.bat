@@ -1,4 +1,4 @@
 @echo off
-echo Starting local server on http://localhost:8000
-python -m http.server 8000
+echo Starting local server on http://127.0.0.1:8080
+python -m http.server 8080 --bind 127.0.0.1
 pause

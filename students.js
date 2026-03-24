@@ -1,6 +1,4 @@
-const supabaseUrl = 'https://dkscydwftycubvwxondi.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrc2N5ZHdmdHljdWJ2d3hvbmRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyNTMxOTQsImV4cCI6MjA4OTgyOTE5NH0.U84KKtJV2Lzz_FXbnXqlstvzzTW-FWBBtJTxbGlNYIE';
-const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+// Supabase client is now provided by auth.js (supabaseClient)
 
 document.addEventListener('DOMContentLoaded', () => {
     const studentsBody = document.getElementById('studentsBody');
