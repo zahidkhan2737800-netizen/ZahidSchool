@@ -38,6 +38,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     loadClasses();
     
+    let baseMonthlyFee = 0;
+
     // Auto-fetch fees when class is selected
     classSelect.addEventListener('change', async () => {
         const selectedOption = classSelect.options[classSelect.selectedIndex];
@@ -64,25 +66,47 @@ document.addEventListener('DOMContentLoaded', () => {
                 data.forEach(fee => {
                     if (fee.is_monthly) {
                         monthlyTotal += fee.amount;
-                    } else if (fee.fee_type.toLowerCase().includes('admission')) {
+                    } else {
+                        // All non-monthly fees added to Admission Fee
                         admissionTotal += fee.amount;
                     }
                 });
             }
             
+            baseMonthlyFee = monthlyTotal;
+            
             if (monthlyFeeInput) {
-                if (monthlyTotal > 0) monthlyFeeInput.value = monthlyTotal;
+                monthlyFeeInput.value = monthlyTotal > 0 ? monthlyTotal : '';
                 monthlyFeeInput.placeholder = "";
             }
             if (admissionFeeInput) {
-                if (admissionTotal > 0) admissionFeeInput.value = admissionTotal;
+                admissionFeeInput.value = admissionTotal > 0 ? admissionTotal : '';
                 admissionFeeInput.placeholder = "";
             }
+            
+            // Apply any existing discount immediately
+            applyDiscount();
 
         } catch (err) {
             console.error('Error fetching class fee heads:', err);
         }
     });
+
+    const discountInput = document.getElementById('discount');
+    if (discountInput) {
+        discountInput.addEventListener('input', applyDiscount);
+    }
+
+    function applyDiscount() {
+        const monthlyFeeInput = document.getElementById('monthlyFee');
+        if (!monthlyFeeInput || baseMonthlyFee === 0) return;
+        
+        const disc = parseFloat(discountInput ? discountInput.value : 0) || 0;
+        let finalFee = baseMonthlyFee - disc;
+        if (finalFee < 0) finalFee = 0;
+        
+        monthlyFeeInput.value = finalFee;
+    }
 
     // Only fetch elements that have 'required' attribute
     const getRequiredInputs = () => form.querySelectorAll('input[required], select[required], textarea[required]');
