@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const val = `${cls.class_name} ${cls.section}`;
                     opt.value = val;
                     opt.textContent = val;
+                    opt.dataset.classId = cls.id;
                     classSelect.appendChild(opt);
                 });
             } else {
@@ -37,6 +38,52 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     loadClasses();
     
+    // Auto-fetch fees when class is selected
+    classSelect.addEventListener('change', async () => {
+        const selectedOption = classSelect.options[classSelect.selectedIndex];
+        const classId = selectedOption.dataset.classId;
+        if (!classId) return;
+
+        try {
+            const monthlyFeeInput = document.getElementById('monthlyFee');
+            const admissionFeeInput = document.getElementById('admissionFee');
+            if (monthlyFeeInput) monthlyFeeInput.placeholder = "Loading...";
+            if (admissionFeeInput) admissionFeeInput.placeholder = "Loading...";
+
+            const { data, error } = await supabaseClient
+                .from('fee_heads')
+                .select('*')
+                .eq('class_id', classId);
+                
+            if (error) throw error;
+            
+            let monthlyTotal = 0;
+            let admissionTotal = 0;
+
+            if (data && data.length > 0) {
+                data.forEach(fee => {
+                    if (fee.is_monthly) {
+                        monthlyTotal += fee.amount;
+                    } else if (fee.fee_type.toLowerCase().includes('admission')) {
+                        admissionTotal += fee.amount;
+                    }
+                });
+            }
+            
+            if (monthlyFeeInput) {
+                if (monthlyTotal > 0) monthlyFeeInput.value = monthlyTotal;
+                monthlyFeeInput.placeholder = "";
+            }
+            if (admissionFeeInput) {
+                if (admissionTotal > 0) admissionFeeInput.value = admissionTotal;
+                admissionFeeInput.placeholder = "";
+            }
+
+        } catch (err) {
+            console.error('Error fetching class fee heads:', err);
+        }
+    });
+
     // Only fetch elements that have 'required' attribute
     const getRequiredInputs = () => form.querySelectorAll('input[required], select[required], textarea[required]');
     
