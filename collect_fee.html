@@ -117,6 +117,19 @@
         }
         .show-history-btn:hover { background: #eff6ff; }
 
+        .reprint-btn {
+            background: #6366f1; color: white; border: none;
+            padding: 0.5rem 1.1rem; border-radius: 8px;
+            font-weight: 700; font-size: 0.85rem; cursor: pointer; transition: all 0.2s;
+        }
+        .reprint-btn:hover { background: #4f46e5; box-shadow: 0 4px 12px rgba(99,102,241,0.25); }
+        .print-row-btn {
+            background: #6366f1; color: white; border: none;
+            padding: 0.25rem 0.6rem; border-radius: 6px;
+            cursor: pointer; font-size: 0.85rem; transition: background 0.2s;
+        }
+        .print-row-btn:hover { background: #4f46e5; }
+
         /* Section Panels */
         .section-panel {
             background: white; border-radius: 16px;
@@ -213,9 +226,10 @@
                 <p><strong>Father:</strong> <span id="wsFather">—</span> &nbsp;|&nbsp; <strong>Contact:</strong> <span id="wsContact">—</span></p>
             </div>
             <div class="profile-actions">
-                <button id="btnPartial" class="partial-btn" style="display:none;">Partial Payment</button>
-                <button id="btnPayAll" class="pay-all-btn" style="display:none;">Pay All Dues</button>
-                <button id="btnToggleHistory" class="show-history-btn">Show History</button>
+                <button id="btnPartial" class="partial-btn" style="display:none;">💳 Partial Payment</button>
+                <button id="btnPayAll" class="pay-all-btn" style="display:none;">✅ Pay All Dues</button>
+                <button id="btnReprint" class="reprint-btn" style="display:none;">🖨️ Reprint Last</button>
+                <button id="btnToggleHistory" class="show-history-btn">📜 History</button>
             </div>
             
             <span class="stu-badge" id="wsStatusBadge">ACTIVE</span>
@@ -230,14 +244,15 @@
                         <tr>
                             <th>Date</th>
                             <th>Receipt #</th>
-                            <th>Description</th>
-                            <th>Amount Paid</th>
+                            <th>Total Paid</th>
+                            <th>Remaining</th>
                             <th>Method</th>
                             <th>Remarks</th>
+                            <th>Print</th>
                         </tr>
                     </thead>
                     <tbody id="historyBody">
-                        <tr><td colspan="6" style="text-align:center; color:#94a3b8;">No recorded transactions yet.</td></tr>
+                        <tr><td colspan="7" style="text-align:center; color:#94a3b8;">No recorded transactions yet.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -247,11 +262,11 @@
         <div class="section-panel" style="padding: 1.5rem 0;">
             <h2 style="padding: 0 2rem;">🧾 Pending Dues (Select to Pay)</h2>
             <div class="dues-header">
-                <div style="width: 20px;"></div>
-                <div style="flex: 2;">Fee Head</div>
-                <div style="flex: 1.5;">Fee Month</div>
-                <div style="flex: 1.5;">Paid Amount</div>
-                <div style="flex: 1; text-align:right;">Remaining</div>
+                <div style="width: 24px;"></div>
+                <div style="flex: 2.5;">Fee Head</div>
+                <div style="flex: 2;">Fee Month</div>
+                <div style="flex: 1.5;">Already Paid</div>
+                <div style="flex: 1.5; text-align:right;">Remaining</div>
             </div>
             <div id="challansList"></div>
         </div>

@@ -7,6 +7,7 @@ let activeStudent = null; // currently opened student object
 let pendingDues   = [];   // challans for active student
 let selectedIds   = new Set();
 let grandTotal    = 0;
+let receiptCache  = [];   // saved receipts for current student (for reprint)
 
 // ─── DOM Refs ─────────────────────────────────────────────────────────────────
 const filterName   = document.getElementById('filterName');
@@ -46,6 +47,7 @@ const sumSubtotal   = document.getElementById('sumSubtotal');
 const sumGrandTotal = document.getElementById('sumGrandTotal');
 const sumRemaining  = document.getElementById('sumRemaining');
 const btnSubmit     = document.getElementById('btnSubmit');
+const btnReprint    = document.getElementById('btnReprint');
 const checkoutAlert = document.getElementById('checkoutAlert');
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
@@ -70,11 +72,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     btnToggleHistory.addEventListener('click', () => {
         if(historyPanel.style.display === 'none') {
             historyPanel.style.display = 'block';
-            btnToggleHistory.textContent = 'Hide History';
+            btnToggleHistory.textContent = '📜 Hide History';
         } else {
             historyPanel.style.display = 'none';
-            btnToggleHistory.textContent = 'Show History';
+            btnToggleHistory.textContent = '📜 History';
         }
+    });
+
+    btnReprint.addEventListener('click', () => {
+        if (receiptCache.length === 0) return;
+        reprintFromHistory(receiptCache[0]); // Reprint the most recent receipt
     });
 
     btnPayAll.addEventListener('click', () => {
@@ -200,6 +207,7 @@ function renderStudentList() {
 async function openStudent(student) {
     activeStudent = student;
     selectedIds.clear();
+    receiptCache = [];
 
     // Update profile strip
     wsAvatar.textContent = student.full_name.charAt(0).toUpperCase();
@@ -218,7 +226,8 @@ async function openStudent(student) {
     inputDiscount.value = '0';
     inputPaying.value = '';
     historyPanel.style.display = 'none';
-    btnToggleHistory.textContent = 'Show History';
+    btnToggleHistory.textContent = '📜 History';
+    btnReprint.style.display = 'none';
     recalcCart();
 
     workspace.style.display = 'block';
@@ -234,35 +243,67 @@ async function openStudent(student) {
     ]);
 }
 
-// ─── Load Payment History ─────────────────────────────────────────────────────
+// ─── Load Payment History (from receipts table) ───────────────────────────────
 async function loadHistory(uuid) {
-    historyBody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#94a3b8;">Loading...</td></tr>';
+    historyBody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#94a3b8;">Loading...</td></tr>';
     try {
         const { data, error } = await db
-            .from('transactions')
+            .from('receipts')
             .select('*')
             .eq('student_id', uuid)
             .order('created_at', { ascending: false });
         if (error) throw error;
 
+        receiptCache = data || [];
+
+        if (receiptCache.length > 0) {
+            btnReprint.style.display = 'inline-block';
+        }
+
         if (!data || data.length === 0) {
-            historyBody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#b0b8c1;">No payment history found.</td></tr>';
+            historyBody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#b0b8c1;">No payment receipts found.</td></tr>';
             return;
         }
 
-        historyBody.innerHTML = data.map(tx => `
+        historyBody.innerHTML = data.map((r, idx) => `
             <tr>
-                <td>${new Date(tx.payment_date || tx.created_at).toLocaleDateString()}</td>
-                <td style="font-family:monospace; font-weight:600; font-size:0.82rem;">${tx.receipt_number}</td>
-                <td>${tx.fee_details}</td>
-                <td style="color:#16a34a; font-weight:700;">Rs ${tx.amount_paid}</td>
-                <td>${tx.payment_method}</td>
-                <td style="color:#94a3b8; font-size:0.82rem;">${tx.remarks || '—'}</td>
+                <td>${new Date(r.created_at).toLocaleDateString()}</td>
+                <td style="font-family:monospace; font-weight:600; font-size:0.82rem;">${r.receipt_number}</td>
+                <td style="color:#16a34a; font-weight:700;">Rs ${Number(r.total_paid).toLocaleString()}</td>
+                <td style="color:${r.remaining > 0 ? '#ef4444' : '#16a34a'}; font-weight:700;">Rs ${Number(r.remaining).toLocaleString()}</td>
+                <td>${r.payment_method}</td>
+                <td style="color:#94a3b8; font-size:0.82rem;">${r.remarks || '—'}</td>
+                <td><button class="print-row-btn" onclick="reprintFromHistory(receiptCache[${idx}])">🖨️</button></td>
             </tr>
         `).join('');
     } catch (e) {
-        historyBody.innerHTML = `<tr><td colspan="6" style="color:red; text-align:center;">Error loading history: ${e.message}</td></tr>`;
+        historyBody.innerHTML = `<tr><td colspan="7" style="color:red; text-align:center;">Error loading history: ${e.message}</td></tr>`;
     }
+}
+
+// ─── Reprint a Saved Receipt ──────────────────────────────────────────────────
+function reprintFromHistory(receipt) {
+    document.getElementById('rctNo').textContent        = receipt.receipt_number;
+    document.getElementById('rctDate').textContent      = new Date(receipt.created_at).toLocaleString();
+    document.getElementById('rctName').textContent      = receipt.student_name;
+    document.getElementById('rctRoll').textContent      = receipt.roll_number;
+    document.getElementById('rctFather').textContent    = receipt.father_name || 'N/A';
+    document.getElementById('rctClass').textContent     = receipt.class_name;
+    document.getElementById('rctTotal').textContent     = Number(receipt.total_paid).toLocaleString();
+    document.getElementById('rctRemaining').textContent = Number(receipt.remaining).toLocaleString();
+    document.getElementById('rctMethod').textContent    = receipt.payment_method;
+    document.getElementById('rctRef').textContent       = receipt.payment_reference ? `(${receipt.payment_reference})` : '';
+    document.getElementById('rctRemarks').textContent   = receipt.remarks || 'None';
+
+    const lines = Array.isArray(receipt.fee_lines) ? receipt.fee_lines : [];
+    document.getElementById('rctBody').innerHTML = lines.map(line => `
+        <div class="th-fee-row">
+            <span class="th-fee-desc">${line.desc}</span>
+            <span class="th-fee-amt">Rs ${Number(line.amount).toLocaleString()}</span>
+        </div>
+    `).join('');
+
+    window.print();
 }
 
 // ─── Load Pending Dues ────────────────────────────────────────────────────────
@@ -489,8 +530,28 @@ async function submitPayment() {
         const { error: txErr } = await db.from('transactions').insert(txRecords);
         if (txErr) throw txErr;
 
+        // ── Save receipt to receipts table for future reprinting ──
+        const remaining = Math.max(0, grandTotal - paying);
+        const feeLines  = txRecords.map(tx => ({ desc: tx.fee_details, amount: tx.amount_paid }));
+        const receiptRecord = {
+            receipt_number:    baseReceipt,
+            student_id:        activeStudent.id,
+            student_name:      activeStudent.full_name,
+            roll_number:       activeStudent.roll_number,
+            father_name:       activeStudent.father_name || null,
+            class_name:        activeStudent.applying_for_class,
+            fee_lines:         feeLines,
+            total_paid:        paying,
+            remaining:         remaining,
+            payment_method:    method,
+            payment_reference: ref || null,
+            remarks:           remarks || null
+        };
+        const { error: rctErr } = await db.from('receipts').insert([receiptRecord]);
+        if (rctErr) console.warn('Receipt save warning:', rctErr.message); // non-fatal
+
         // Print receipt
-        printReceipt(baseReceipt, txRecords, paying, Math.max(0, grandTotal - paying));
+        printReceipt(baseReceipt, txRecords, paying, remaining);
 
         // Reset & Refresh
         inputFine.value    = '0';
