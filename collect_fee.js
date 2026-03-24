@@ -434,7 +434,6 @@ async function submitPayment() {
 
     if (paying <= 0) return alert('Enter a valid amount.');
     if (paying > grandTotal) return alert(`Cannot exceed Grand Total of Rs ${grandTotal}.`);
-    if (!confirm(`Authorize payment of Rs ${paying} via ${method}? This will save the record and print a receipt.`)) return;
 
     btnSubmit.innerHTML  = '⏳ Processing...';
     btnSubmit.disabled   = true;
