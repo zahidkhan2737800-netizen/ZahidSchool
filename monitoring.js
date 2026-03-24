@@ -43,26 +43,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadClasses();
 });
 
-// ── 1. Load Classes — distinct values from admissions (guarantees exact match) ──
+// ── 1. Load Classes — directly from classes table ──
 async function loadClasses() {
     const { data, error } = await supabaseClient
-        .from('admissions')
-        .select('applying_for_class')
-        .eq('status', 'Active')
-        .not('applying_for_class', 'is', null);
+        .from('classes')
+        .select('*')
+        .order('class_name', { ascending: true })
+        .order('section', { ascending: true });
 
-    if (error) { console.error('Error loading classes:', error); return; }
-
-    const classSet = new Set((data || []).map(r => r.applying_for_class).filter(Boolean));
-    const sorted = Array.from(classSet).sort();
+    if (error) { 
+        console.error('Error loading classes:', error); 
+        classSelect.innerHTML = '<option value="">Error loading classes</option>';
+        return; 
+    }
 
     classSelect.innerHTML = '<option value="">-- Select Class --</option>';
-    sorted.forEach(cls => {
-        const opt = document.createElement('option');
-        opt.value = cls;
-        opt.textContent = cls;
-        classSelect.appendChild(opt);
-    });
+    if (data && data.length > 0) {
+        data.forEach(cls => {
+            const opt = document.createElement('option');
+            const val = `${cls.class_name} ${cls.section}`;
+            opt.value = val;
+            opt.textContent = val;
+            classSelect.appendChild(opt);
+        });
+    } else {
+        classSelect.innerHTML = '<option value="">No classes available</option>';
+    }
 }
 
 // ── 2. Class Selection ──
