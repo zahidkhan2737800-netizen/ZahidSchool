@@ -516,28 +516,28 @@ async function submitPayment() {
 
 // ─── Receipt Print ────────────────────────────────────────────────────────────
 function printReceipt(receiptId, txRecords, totalPaid, remaining) {
-    document.getElementById('rctNo').textContent      = receiptId;
-    document.getElementById('rctDate').textContent    = new Date().toLocaleString();
-    document.getElementById('rctName').textContent    = activeStudent.full_name;
-    document.getElementById('rctRoll').textContent    = activeStudent.roll_number;
-    document.getElementById('rctFather').textContent  = activeStudent.father_name || 'N/A';
-    document.getElementById('rctClass').textContent   = activeStudent.applying_for_class;
-    document.getElementById('rctTotal').textContent   = totalPaid;
-    document.getElementById('rctRemaining').textContent = remaining;
-    document.getElementById('rctMethod').textContent  = txRecords[0].payment_method;
-    document.getElementById('rctRef').textContent     = txRecords[0].payment_reference ? `(${txRecords[0].payment_reference})` : '';
-    document.getElementById('rctRemarks').textContent = txRecords[0].remarks || 'None';
+    document.getElementById('rctNo').textContent       = receiptId;
+    document.getElementById('rctDate').textContent     = new Date().toLocaleString();
+    document.getElementById('rctName').textContent     = activeStudent.full_name;
+    document.getElementById('rctRoll').textContent     = activeStudent.roll_number;
+    document.getElementById('rctFather').textContent   = activeStudent.father_name || 'N/A';
+    document.getElementById('rctClass').textContent    = activeStudent.applying_for_class;
+    document.getElementById('rctTotal').textContent    = totalPaid.toLocaleString();
+    document.getElementById('rctRemaining').textContent = remaining.toLocaleString();
+    document.getElementById('rctMethod').textContent   = txRecords[0].payment_method;
+    document.getElementById('rctRef').textContent      = txRecords[0].payment_reference ? `(${txRecords[0].payment_reference})` : '';
+    document.getElementById('rctRemarks').textContent  = txRecords[0].remarks || 'None';
 
+    // Build itemised fee lines for thermal receipt
     const rctBody = document.getElementById('rctBody');
     rctBody.innerHTML = txRecords.map(tx => {
-        const c = pendingDues.find(x => x.id === tx.challan_id);
-        return `<tr>
-            <td>${tx.fee_details}</td>
-            <td>${c ? c.amount : '—'}</td>
-            <td>${tx.fine_amount > 0 ? tx.fine_amount : '—'}</td>
-            <td>${tx.discount_amount > 0 ? tx.discount_amount : '—'}</td>
-            <td><strong>${tx.amount_paid}</strong></td>
-        </tr>`;
+        // Format: "Monthly Fee   March 2026"  on left, "Rs 2,500" on right
+        const desc = tx.fee_details; // e.g. "Monthly Fee (March 2026)"
+        const amt  = Number(tx.amount_paid).toLocaleString();
+        return `<div class="th-fee-row">
+                    <span class="th-fee-desc">${desc}</span>
+                    <span class="th-fee-amt">Rs ${amt}</span>
+                </div>`;
     }).join('');
 
     window.print();
