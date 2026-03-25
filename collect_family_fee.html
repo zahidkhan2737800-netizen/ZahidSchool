@@ -324,44 +324,57 @@
      THERMAL RECEIPT — hidden on screen, prints on payment
      ═══════════════════════════════════════════════ -->
 <style>
+    @page {
+        size: 80mm auto;
+        margin: 6mm 4mm;
+    }
     @media print {
         body * { visibility: hidden; }
-        #printArea { display: block !important; visibility: visible; position: absolute; left: 0; top: 0; width: 100%; padding: 0; }
+        #printArea {
+            display: block !important;
+            visibility: visible;
+            position: fixed;
+            left: 0; top: 0;
+            width: 100%;
+            padding: 0;
+        }
         #printArea * { visibility: visible; }
     }
     #printArea {
         display: none;
         font-family: 'Courier New', Courier, monospace;
-        font-size: 13px;
+        font-size: 16px;
+        line-height: 1.6;
         color: #000;
         background: #fff;
-        width: 300px;
+        width: 380px;
         margin: 0 auto;
-        padding: 14px 10px;
+        padding: 18px 14px;
         box-sizing: border-box;
     }
     #printArea .th-center  { text-align: center; }
-    #printArea .th-school  { font-size: 18px; font-weight: bold; letter-spacing: 1px; }
-    #printArea .th-phone   { font-size: 13px; margin-bottom: 4px; }
-    #printArea .th-divider { border: none; border-top: 1px dashed #000; margin: 7px 0; }
-    #printArea .th-row     { display: flex; justify-content: space-between; margin: 3px 0; }
-    #printArea .th-label   { flex: 1; }
+    #printArea .th-school  { font-size: 22px; font-weight: bold; letter-spacing: 2px; margin-bottom: 4px; }
+    #printArea .th-phone   { font-size: 15px; margin-bottom: 3px; }
+    #printArea .th-divider { border: none; border-top: 2px dashed #000; margin: 10px 0; }
+    #printArea .th-divider-solid { border: none; border-top: 2px solid #000; margin: 10px 0; }
+    #printArea .th-row     { display: flex; justify-content: space-between; margin: 5px 0; font-size: 15px; }
+    #printArea .th-label   { flex: 1; font-weight: normal; }
     #printArea .th-value   { text-align: right; font-weight: bold; }
-    #printArea .th-fee-row { display: flex; justify-content: space-between; margin: 4px 0; font-size: 12px; }
+    #printArea .th-fee-row { display: flex; justify-content: space-between; margin: 6px 0; font-size: 15px; }
     #printArea .th-fee-desc { flex: 1; padding-right: 5px; }
-    #printArea .th-fee-amt  { min-width: 65px; text-align: right; font-weight: bold; }
+    #printArea .th-fee-amt  { min-width: 75px; text-align: right; font-weight: bold; }
     #printArea .th-total-row {
         display: flex; justify-content: space-between;
-        font-weight: bold; font-size: 14px; margin: 4px 0;
+        font-weight: bold; font-size: 18px; margin: 6px 0;
     }
     #printArea .th-remain-row {
         display: flex; justify-content: space-between;
-        font-weight: bold; font-size: 13px; margin: 4px 0;
+        font-weight: bold; font-size: 16px; margin: 6px 0;
     }
-    #printArea .th-sig-row  { display: flex; justify-content: space-between; margin-top: 22px; font-size: 11px; }
-    #printArea .th-sig      { border-top: 1px solid #000; width: 100px; text-align: center; padding-top: 3px; }
-    #printArea .th-footer   { text-align: center; font-size: 11px; margin-top: 10px; }
-    #printArea .student-subhead { font-weight: bold; text-decoration: underline; margin-top: 6px; font-size: 12px; text-align: left; }
+    #printArea .th-sig-row  { display: flex; justify-content: space-between; margin-top: 28px; font-size: 13px; }
+    #printArea .th-sig      { border-top: 1px solid #000; width: 120px; text-align: center; padding-top: 4px; }
+    #printArea .th-footer   { text-align: center; font-size: 13px; margin-top: 14px; letter-spacing: 0.5px; }
+    #printArea .student-subhead { font-weight: bold; text-decoration: underline; margin-top: 8px; font-size: 14px; text-align: left; }
 </style>
 
 <div id="printArea">
