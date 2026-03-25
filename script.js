@@ -193,6 +193,49 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Roll Number Uniqueness Check Logic
+    const rollNumberInput = document.getElementById('rollNumber');
+    
+    async function isRollNumberDuplicate(roll) {
+        if (!roll) return false;
+        try {
+            const { data, error } = await supabaseClient
+                .from('admissions')
+                .select('id')
+                .eq('roll_number', roll)
+                .limit(1);
+            if (error) throw error;
+            return data && data.length > 0;
+        } catch (err) {
+            console.error("Error checking roll number duplicate:", err);
+            return false; // Fail open to not block UI completely on network drop, but DB RLS/constraints usually catch it anyway.
+        }
+    }
+
+    if (rollNumberInput) {
+        rollNumberInput.addEventListener('blur', async () => {
+            const val = rollNumberInput.value.trim();
+            if (val) {
+                const group = rollNumberInput.closest('.input-group');
+                const isDup = await isRollNumberDuplicate(val);
+                if (isDup) {
+                    group.classList.add('invalid');
+                    let errorSpan = group.querySelector('.error-msg');
+                    if (!errorSpan) {
+                        errorSpan = document.createElement('span');
+                        errorSpan.className = 'error-msg';
+                        group.appendChild(errorSpan);
+                    }
+                    errorSpan.textContent = 'Roll number already exists. Duplicates are not allowed.';
+                    errorSpan.style.display = 'block';
+                } else {
+                    // if it was invalid just because of the dup check, remove it (re-run standard validation)
+                    validateInput(rollNumberInput);
+                }
+            }
+        });
+    }
+
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
         
@@ -271,6 +314,33 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     status: getVal('status') || 'Pending'
                 };
+
+                // Final Duplicate Check Before Save
+                const isDuplicate = await isRollNumberDuplicate(formData.roll_number);
+                if (isDuplicate) {
+                    formAlert.textContent = '❌ Cannot save student: Roll number already exists in the system.';
+                    formAlert.style.display = 'block';
+                    formAlert.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    
+                    const group = rollNumberInput.closest('.input-group');
+                    if (group) {
+                        group.classList.add('invalid');
+                        let errorSpan = group.querySelector('.error-msg');
+                        if (!errorSpan) {
+                            errorSpan = document.createElement('span');
+                            errorSpan.className = 'error-msg';
+                            group.appendChild(errorSpan);
+                        }
+                        errorSpan.textContent = 'Roll number already exists. Duplicates are not allowed.';
+                        errorSpan.style.display = 'block';
+                    }
+                    
+                    // Reset button state and abort submission
+                    submitBtn.innerHTML = originalText;
+                    submitBtn.style.opacity = '1';
+                    submitBtn.style.pointerEvents = 'all';
+                    return;
+                }
 
                 const { data, error } = await supabaseClient
                     .from('admissions')

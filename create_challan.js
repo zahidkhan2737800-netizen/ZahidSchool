@@ -266,19 +266,35 @@ document.addEventListener('DOMContentLoaded', async () => {
             return showAlert('No applicable students found with valid fee configurations for this type.', true);
         }
 
-        // PREPARE SUPABASE PAYLOAD (AND CHECK DUPLICATES)
+        // PREPARE SUPABASE PAYLOAD (AND CHECK DUPLICATES VIA DB)
+        generateBtn.innerHTML = '⏳ Checking Duplicates...';
+        generateBtn.disabled = true;
+
+        let existingStudentIds = new Set();
+        try {
+            // Get all target student IDs
+            const studentIds = targetStudents.map(t => t.student.id);
+
+            // Fetch existing challans for these students for the exact same fee
+            const { data: existingData, error: existingErr } = await supabaseClient
+                .from('challans')
+                .select('student_id')
+                .in('student_id', studentIds)
+                .eq('fee_type', feeType)
+                .eq('fee_month', feeMonth);
+            
+            if (!existingErr && existingData) {
+                existingData.forEach(row => existingStudentIds.add(row.student_id));
+            }
+        } catch(err) {
+            console.error('Duplicate check failed', err);
+        }
+
         let payload = [];
         let duplicateCount = 0;
 
         for (let t of targetStudents) {
-            // Check cache for existing challan with same student, fee type, and fee month
-            const exists = cache.challans.some(c => 
-                c.student_id === t.student.id && 
-                c.fee_type === feeType && 
-                c.fee_month === feeMonth
-            );
-
-            if (exists) {
+            if (existingStudentIds.has(t.student.id)) {
                 duplicateCount++;
             } else {
                 payload.push({
@@ -301,6 +317,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const msg = duplicateCount > 0 
                 ? `❌ All selected students already have a '${feeType}' challan ${feeMonth !== 'N/A' ? 'for ' + feeMonth : ''}!`
                 : 'No valid students found to generate challans.';
+            generateBtn.innerHTML = 'Generate Challan(s)';
+            generateBtn.disabled = false;
             return showAlert(msg, true);
         }
 
@@ -309,21 +327,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             : `You are about to generate ${payload.length} challan(s). Proceed?`;
 
         // CONFIRM
-        if(!confirm(confirmMsg)) return;
+        if(!confirm(confirmMsg)) {
+            generateBtn.innerHTML = 'Generate Challan(s)';
+            generateBtn.disabled = false;
+            return;
+        }
 
         generateBtn.innerHTML = '⏳ Generating...';
-        generateBtn.disabled = true;
 
         try {
-            const { data, error } = await supabaseClient.from('challans').insert(payload).select('*');
+            const { data, error } = await supabaseClient.from('challans').insert(payload);
             if(error) throw error;
             
             showAlert(`✅ Successfully generated ${payload.length} challans!`, false);
             
-            // Synchorize local cache securely
-            if(data) cache.challans.unshift(...data);
+            // Reload the first page from DB to show the newly generated challans
+            await loadChallansPage(0, filterTextInput.value.trim());
             
-            renderChallans();
         } catch(e) {
             showAlert('❌ Generator Error: ' + e.message, true);
         } finally {
@@ -500,6 +520,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 ? `<button class="pay-btn" data-id="${c.id}" style="background:var(--success); color:white; border:none; padding:0.3rem 0.6rem; border-radius:6px; font-size:0.8rem; cursor:pointer; margin-right:0.3rem;">Pay</button>` 
                 : `<span style="color:var(--success); font-size:0.85rem; font-weight:700; margin-right:0.5rem;">Fully Paid via ${c.payment_method || 'Unknown'}</span>`;
 
+            // RBAC Check for Delete Action
+            const deleteButtonHTML = window.hasPermission('challans', 'can_delete')
+                ? `<button type="button" class="del-btn" data-id="${c.id}">Delete</button>`
+                : '';
+
             tr.innerHTML = `
                 <td><strong>${c.roll_number}</strong></td>
                 <td>${c.student_name}</td>
@@ -511,7 +536,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <td><span class="badge ${badgeClass}">${c.status}</span></td>
                 <td>
                     ${payButtonHTML}
-                    <button type="button" class="del-btn" data-id="${c.id}">Delete</button>
+                    ${deleteButtonHTML}
                 </td>
             `;
             challanBody.appendChild(tr);
@@ -547,6 +572,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             btn.addEventListener('click', async (e) => {
                 const id = e.target.getAttribute('data-id');
                 
+                // Extra RBAC Guard (in case of DOM tampering)
+                if (!window.hasPermission('challans', 'can_delete')) {
+                    alert('Action Denied: You do not have permission to delete challans. Please contact an Administrator.');
+                    return;
+                }
+
                 // Use standard confirmation
                 if(!confirm("Are you sure you want to delete this challan permanently?")) return;
                 

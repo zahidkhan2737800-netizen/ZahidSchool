@@ -155,6 +155,7 @@ function hasPermission(pageKey, action) {
     if (!perm) return false;
     return perm[action] === true;
 }
+window.hasPermission = hasPermission;
 
 // ─── Inject User Profile into Sidebar ──────────────────────────────────────────
 function injectUserProfile() {
