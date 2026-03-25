@@ -1,0 +1,11 @@
+{
+  "name": "zahid-school-management",
+  "version": "1.0.0",
+  "description": "Zahid School Management System",
+  "scripts": {
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  }
+}
