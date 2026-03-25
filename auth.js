@@ -90,6 +90,15 @@ let userPermissions = {};  // { page_key: { can_view, can_create, can_edit, can_
             };
         });
 
+        // Auto-grant new module permissions to admin if missing from DB
+        if (userRoleName === 'admin') {
+            ['monitoring', 'attendance'].forEach(key => {
+                if (!userPermissions[key]) {
+                    userPermissions[key] = { can_view: true, can_create: true, can_edit: true, can_delete: true };
+                }
+            });
+        }
+
         // 4. Check if user has VIEW access to current page
         const pageKey = PAGE_KEY_MAP[currentPage];
         if (pageKey && (!userPermissions[pageKey] || !userPermissions[pageKey].can_view)) {

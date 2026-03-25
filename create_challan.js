@@ -133,7 +133,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         if (isMonthlyType) {
             monthPickerGroup.style.display = 'block';
-            amountGroup.style.display = 'none'; // hide amount box entirely
+            amountGroup.style.display = 'block'; // ALWAYS show amount box so they can edit it
             updateDueDateForMonth(); // instantly snap the due date to the 1st
         } else {
             monthPickerGroup.style.display = 'none';
@@ -162,13 +162,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Try to find the fee amount matching this student's class and selected type
         let foundAmount = null;
+        const isMonthlyType = cache.feeHeads.some(f => f.fee_type === type && f.is_monthly);
 
-        // 1. Convert applying_for_class ("Class 1 A") to a class_id
-        const matchedClass = cache.classes.find(c => `${c.class_name} ${c.section}`.trim().toLowerCase() === student.applying_for_class.trim().toLowerCase());
-        
-        if(matchedClass) {
-            const matchedFee = cache.feeHeads.find(f => f.fee_type === type && f.class_id === matchedClass.id);
-            if(matchedFee) foundAmount = matchedFee.amount;
+        // Prioritize student's specific monthly fee if configured
+        if (isMonthlyType && student.monthly_fee) {
+            foundAmount = student.monthly_fee;
+        } else {
+            // 1. Convert applying_for_class ("Class 1 A") to a class_id
+            const matchedClass = cache.classes.find(c => `${c.class_name} ${c.section}`.trim().toLowerCase() === student.applying_for_class.trim().toLowerCase());
+            
+            if(matchedClass) {
+                const matchedFee = cache.feeHeads.find(f => f.fee_type === type && f.class_id === matchedClass.id);
+                if(matchedFee) foundAmount = matchedFee.amount;
+            }
         }
         
         if(foundAmount !== null) {
@@ -294,16 +300,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Helpers for Bulk payload mapping
     async function calculateBulkPayload(studentsArray, feeType, manualOverrideBase) {
         let validPayloads = [];
+        const isMonthlyType = cache.feeHeads.some(f => f.fee_type === feeType && f.is_monthly);
         
         for(let s of studentsArray) {
             let assignedAmt = manualOverrideBase;
             
-            // If manual amount isn't globally provided, we compute per-class dynamically
-            if(assignedAmt === null) {
-                const matchedClass = cache.classes.find(c => `${c.class_name} ${c.section}`.trim().toLowerCase() === s.applying_for_class.trim().toLowerCase());
-                if(matchedClass) {
-                    const matchedFee = cache.feeHeads.find(f => f.fee_type === feeType && f.class_id === matchedClass.id);
-                    if(matchedFee) assignedAmt = matchedFee.amount;
+            // If manual amount isn't globally provided, we compute per-class dynamically or per-student if monthly
+            if(assignedAmt === null || isNaN(assignedAmt)) {
+                if (isMonthlyType && s.monthly_fee) {
+                    assignedAmt = s.monthly_fee;
+                } else {
+                    const matchedClass = cache.classes.find(c => `${c.class_name} ${c.section}`.trim().toLowerCase() === s.applying_for_class.trim().toLowerCase());
+                    if(matchedClass) {
+                        const matchedFee = cache.feeHeads.find(f => f.fee_type === feeType && f.class_id === matchedClass.id);
+                        if(matchedFee) assignedAmt = matchedFee.amount;
+                    }
                 }
             }
             
@@ -328,7 +339,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const [classesRes, feeHeadsRes, admissionsRes, challansRes] = await Promise.all([
                 supabaseClient.from('classes').select('id, class_name, section').order('class_name'),
                 supabaseClient.from('fee_heads').select('id, class_id, fee_type, amount, is_monthly'),
-                supabaseClient.from('admissions').select('id, roll_number, full_name, father_name, applying_for_class').eq('status', 'Active'),
+                supabaseClient.from('admissions').select('id, roll_number, full_name, father_name, applying_for_class, monthly_fee').eq('status', 'Active'),
                 supabaseClient.from('challans').select('*').order('created_at', { ascending: false }).limit(200) // caching top 200
             ]);
 
