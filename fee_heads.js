@@ -6,10 +6,33 @@ document.addEventListener('DOMContentLoaded', () => {
     const feeBody = document.getElementById('feeBody');
     const formAlert = document.getElementById('formAlert');
     const submitBtn = document.getElementById('submitBtn');
+    const cancelEditBtn = document.getElementById('cancelEditBtn');
+
+    let editFeeId = null; // Track if we are editing an existing record
 
     // Load necessary data on startup
     loadClasses();
     fetchFeeHeads();
+
+    // Handle Cancel Edit
+    cancelEditBtn.addEventListener('click', () => {
+        resetFormToCreateMode();
+    });
+
+    function resetFormToCreateMode() {
+        editFeeId = null;
+        document.getElementById('feeType').value = '';
+        document.getElementById('amount').value = '';
+        document.getElementById('isMonthly').checked = false;
+        classIdSelect.value = ''; // Reset select
+        
+        // Reset UI Buttons
+        submitBtn.innerHTML = `
+            <span>Save Fee Head</span>
+            <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" class="btn-icon"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+        `;
+        cancelEditBtn.style.display = 'none';
+    }
 
     feeForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -31,31 +54,36 @@ document.addEventListener('DOMContentLoaded', () => {
         submitBtn.style.pointerEvents = 'none';
 
         try {
-            const { data, error } = await supabaseClient
-                .from('fee_heads')
-                .insert([{ 
-                    class_id: classId, 
-                    fee_type: feeType, 
-                    amount: parseFloat(amount),
-                    is_monthly: isMonthly
-                }]);
+            const payload = { 
+                class_id: classId, 
+                fee_type: feeType, 
+                amount: parseFloat(amount),
+                is_monthly: isMonthly
+            };
 
-            if (error) throw new Error(error.message);
+            if (editFeeId) {
+                // Update Existing
+                const { error } = await supabaseClient
+                    .from('fee_heads')
+                    .update(payload)
+                    .eq('id', editFeeId);
+                if (error) throw new Error(error.message);
+                showAlert('✅ Fee Head updated successfully!', false);
+            } else {
+                // Create New
+                const { error } = await supabaseClient
+                    .from('fee_heads')
+                    .insert([payload]);
+                if (error) throw new Error(error.message);
+                showAlert('✅ Fee Head added successfully!', false);
+            }
 
-            // Successfully added
-            document.getElementById('feeType').value = '';
-            document.getElementById('amount').value = '';
-            document.getElementById('isMonthly').checked = false;
-            classIdSelect.value = ''; // Reset select
-            
-            showAlert('✅ Fee Head added successfully!', false);
-            
-            // Refresh list
-            fetchFeeHeads();
+            resetFormToCreateMode();
+            fetchFeeHeads(); // Refresh list
             
         } catch (error) {
             console.error('Error:', error);
-            showAlert('❌ Failed to add fee head: ' + error.message, true);
+            showAlert('❌ Failed to save fee head: ' + error.message, true);
         } finally {
             submitBtn.innerHTML = originalText;
             submitBtn.style.opacity = '1';
@@ -99,6 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 .from('fee_heads')
                 .select(`
                     id, 
+                    class_id,
                     fee_type, 
                     amount, 
                     is_monthly,
@@ -112,9 +141,12 @@ document.addEventListener('DOMContentLoaded', () => {
             feeBody.innerHTML = ''; // Clear loading text
 
             if (data.length === 0) {
-                feeBody.innerHTML = '<tr><td colspan="4" style="text-align: center;">No fee heads configured yet. Add one above!</td></tr>';
+                feeBody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No fee heads configured yet. Add one above!</td></tr>';
                 return;
             }
+
+            // Keep reference to raw data internally for edit populating
+            window._feeHeadsData = data;
 
             data.forEach(fee => {
                 const tr = document.createElement('tr');
@@ -130,14 +162,72 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td>${fee.fee_type} ${typeBadge}</td>
                     <td><span class="fee-badge">Rs ${fee.amount}</span></td>
                     <td>${addedDate}</td>
+                    <td>
+                        <button type="button" class="edit-btn" data-id="${fee.id}" style="background:var(--secondary); color:white; border:none; padding:0.3rem 0.6rem; border-radius:6px; cursor:pointer; font-size:0.8rem; margin-right:0.3rem;">Edit</button>
+                        <button type="button" class="del-btn" data-id="${fee.id}" style="background:var(--error); color:white; border:none; padding:0.3rem 0.6rem; border-radius:6px; cursor:pointer; font-size:0.8rem;">Delete</button>
+                    </td>
                 `;
                 feeBody.appendChild(tr);
             });
             
+            attachActionListeners();
+            
         } catch (error) {
             console.error('Error fetching fee heads:', error);
-            feeBody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: red;">Failed to load fee heads. (Did you run the SQL script for fee_heads table?)</td></tr>';
+            feeBody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: red;">Failed to load fee heads. (Did you run the SQL script for fee_heads table?)</td></tr>';
         }
+    }
+
+    function attachActionListeners() {
+        // Edit listening
+        document.querySelectorAll('.edit-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const id = e.target.getAttribute('data-id');
+                const p = window._feeHeadsData.find(f => f.id === id);
+                if(!p) return;
+
+                // Enter edit mode
+                editFeeId = p.id;
+                document.getElementById('feeType').value = p.fee_type;
+                document.getElementById('amount').value = p.amount;
+                document.getElementById('isMonthly').checked = p.is_monthly;
+                
+                // Select matching class via text/id reverse lookup (actually we can just query the DOM or relation)
+                // Wait, our query didn't fetch class_id! Let's just fix the fetch query to include class_id.
+                // Assuming we fetched class_id:
+                if (p.class_id) classIdSelect.value = p.class_id;
+                
+                // Update UI Buttons
+                submitBtn.innerHTML = `<span>🔄 Update Fee Head</span>`;
+                cancelEditBtn.style.display = 'inline-block';
+                
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+        });
+
+        // Delete listening
+        document.querySelectorAll('.del-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const id = e.target.getAttribute('data-id');
+                if(!confirm('Are you sure you want to delete this Fee Head? Existing challans will not be affected.')) return;
+
+                e.target.innerHTML = '...';
+                e.target.disabled = true;
+
+                try {
+                    const { error } = await supabaseClient.from('fee_heads').delete().eq('id', id);
+                    if (error) throw error;
+                    
+                    fetchFeeHeads(); // Refresh List
+                    showAlert('✅ Fee Head deleted successfully!', false);
+                    
+                    if(editFeeId === id) resetFormToCreateMode(); // If deleting currently editing item
+                } catch(err) {
+                    alert('Failed to delete: ' + err.message);
+                    fetchFeeHeads(); 
+                }
+            });
+        });
     }
 
     function showAlert(msg, isError) {

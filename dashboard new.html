@@ -1,0 +1,98 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#2563eb">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>Shaeen Academy - Admin Dashboard</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+  <script>window.addEventListener('error',function(e){if(e.filename&&e.filename.indexOf('share-modal')!==-1){e.preventDefault();e.stopPropagation();return true}},true);</script>
+
+  <div class="mobile-header">
+    <button class="hamburger" id="menuToggle"><i class="fas fa-bars"></i></button>
+    <span class="mob-title">Shaeen Academy</span>
+  </div>
+  <div class="overlay-bg" id="overlayBg"></div>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon"><i class="fas fa-graduation-cap"></i></div>
+      <div class="brand-text">
+        <h2>Shaeen Academy</h2>
+        <p>Management System</p>
+      </div>
+    </div>
+
+    <div class="sidebar-user" id="sidebarUser">
+      <div class="user-avatar avatar-admin" id="userAvatar">AD</div>
+      <div class="user-details">
+        <div class="user-name" id="userName">Loading...</div>
+        <div class="user-role" id="userRole">--</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+
+    <div class="sidebar-footer">
+      <button class="logout-btn" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Sign Out</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="welcome-card">
+      <h1 id="welcomeMsg">Welcome back!</h1>
+      <p>Manage your academy from one place. Select a section from the sidebar to get started.</p>
+      <div class="welcome-date" id="welcomeDate"></div>
+    </div>
+
+    <div class="quote-card" id="quoteCard" style="display:none;">
+      <i class="fas fa-quote-left quote-icon"></i>
+      <p class="quote-text" id="quoteText"></p>
+      <span class="quote-author" id="quoteAuthor"></span>
+    </div>
+
+    <div class="stats" id="statsGrid">
+      <div class="stat-card">
+        <div class="stat-icon blue"><i class="fas fa-user-graduate"></i></div>
+        <div class="stat-info"><div class="stat-val" id="statStudents">--</div><div class="stat-label">Students</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon green"><i class="fas fa-file-alt"></i></div>
+        <div class="stat-info"><div class="stat-val" id="statMcqs">--</div><div class="stat-label">Total MCQs</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon amber"><i class="fas fa-clipboard-check"></i></div>
+        <div class="stat-info"><div class="stat-val" id="statTests">--</div><div class="stat-label">Tests Taken</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon purple"><i class="fas fa-users"></i></div>
+        <div class="stat-info"><div class="stat-val" id="statUsers">--</div><div class="stat-label">Total Users</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon red"><i class="fas fa-book"></i></div>
+        <div class="stat-info"><div class="stat-val" id="statSubjects">--</div><div class="stat-label">Subjects</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon sky"><i class="fas fa-headset"></i></div>
+        <div class="stat-info"><div class="stat-val" id="statCounsellingPending">--</div><div class="stat-label">Pending Counselling Leads</div></div>
+      </div>
+    </div>
+
+    <div class="section-title">Quick Access</div>
+    <div class="quick-links" id="quickLinks"></div>
+  </main>
+
+  <script type="module" src="dashboard.js"></script>
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(function(){});
+  }
+</script></body>
+</html>

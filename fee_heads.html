@@ -128,10 +128,13 @@
                 </div>
             </section>
 
-            <div class="form-actions">
+            <div class="form-actions" style="display: flex; gap: 1rem;">
                 <button type="submit" class="submit-btn" id="submitBtn">
                     <span>Save Fee Head</span>
                     <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="btn-icon"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                </button>
+                <button type="button" id="cancelEditBtn" style="display: none; background: #e2e8f0; color: #475569; border: none; padding: 0.8rem 1.5rem; border-radius: 8px; font-weight: 600; cursor: pointer;">
+                    Cancel Edit
                 </button>
             </div>
             
@@ -147,10 +150,11 @@
                             <th>Fee Title</th>
                             <th>Amount (Rs)</th>
                             <th>Added On</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="feeBody">
-                        <tr><td colspan="4" style="text-align: center;">Loading fee heads...</td></tr>
+                        <tr><td colspan="5" style="text-align: center;">Loading fee heads...</td></tr>
                     </tbody>
                 </table>
             </div>

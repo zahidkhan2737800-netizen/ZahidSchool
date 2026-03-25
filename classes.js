@@ -5,9 +5,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const classesBody = document.getElementById('classesBody');
     const formAlert = document.getElementById('formAlert');
     const submitBtn = document.getElementById('submitBtn');
+    const cancelEditBtn = document.getElementById('cancelEditBtn');
+
+    let editClassId = null;
 
     // Fetch and display existing classes on load
     fetchClasses();
+
+    // Handle Cancel Edit
+    cancelEditBtn.addEventListener('click', () => {
+        resetFormToCreateMode();
+    });
+
+    function resetFormToCreateMode() {
+        editClassId = null;
+        document.getElementById('className').value = '';
+        document.getElementById('classSection').value = '';
+        
+        submitBtn.innerHTML = `
+            <span>Save Class</span>
+            <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" class="btn-icon"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+        `;
+        cancelEditBtn.style.display = 'none';
+    }
 
     classForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -30,24 +50,31 @@ document.addEventListener('DOMContentLoaded', () => {
         submitBtn.style.pointerEvents = 'none';
 
         try {
-            const { data, error } = await supabaseClient
-                .from('classes')
-                .insert([{ class_name: className, section: section }]);
+            const payload = { class_name: className, section: section };
 
-            if (error) throw new Error(error.message);
+            if (editClassId) {
+                // Update
+                const { error } = await supabaseClient
+                    .from('classes')
+                    .update(payload)
+                    .eq('id', editClassId);
+                if (error) throw new Error(error.message);
+                showAlert('✅ Class updated successfully!', false);
+            } else {
+                // Insert
+                const { error } = await supabaseClient
+                    .from('classes')
+                    .insert([payload]);
+                if (error) throw new Error(error.message);
+                showAlert('✅ Class added successfully to the database!', false);
+            }
 
-            // Successfully added
-            classNameInput.value = '';
-            classSectionInput.value = '';
-            
-            showAlert('✅ Class added successfully to the database!', false);
-            
-            // Refresh list
-            fetchClasses();
+            resetFormToCreateMode();
+            fetchClasses(); // Refresh list
             
         } catch (error) {
             console.error('Error:', error);
-            showAlert('❌ Failed to add class: ' + error.message, true);
+            showAlert('❌ Failed to save class: ' + error.message, true);
         } finally {
             submitBtn.innerHTML = originalText;
             submitBtn.style.opacity = '1';
@@ -68,9 +95,11 @@ document.addEventListener('DOMContentLoaded', () => {
             classesBody.innerHTML = ''; // Clear loading text
 
             if (data.length === 0) {
-                classesBody.innerHTML = '<tr><td colspan="3" style="text-align: center;">No classes found. Add one above!</td></tr>';
+                classesBody.innerHTML = '<tr><td colspan="4" style="text-align: center;">No classes found. Add one above!</td></tr>';
                 return;
             }
+
+            window._classesData = data; // Store globally for edit mapping
 
             data.forEach(cls => {
                 const tr = document.createElement('tr');
@@ -80,14 +109,62 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td><strong>${cls.class_name}</strong></td>
                     <td><span class="class-badge">${cls.section}</span></td>
                     <td>${addedDate}</td>
+                    <td>
+                        <button type="button" class="edit-btn" data-id="${cls.id}" style="background:var(--primary); color:white; border:none; padding:0.3rem 0.6rem; border-radius:6px; cursor:pointer; font-size:0.8rem; margin-right:0.3rem;">Edit</button>
+                        <button type="button" class="del-btn" data-id="${cls.id}" style="background:var(--error); color:white; border:none; padding:0.3rem 0.6rem; border-radius:6px; cursor:pointer; font-size:0.8rem;">Delete</button>
+                    </td>
                 `;
                 classesBody.appendChild(tr);
             });
             
+            attachActionListeners();
+            
         } catch (error) {
             console.error('Error fetching classes:', error);
-            classesBody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: red;">Failed to load classes from database. Did you run the SQL script?</td></tr>';
+            classesBody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: red;">Failed to load classes from database. Did you run the SQL script?</td></tr>';
         }
+    }
+
+    function attachActionListeners() {
+        document.querySelectorAll('.edit-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const id = e.target.getAttribute('data-id');
+                const cls = window._classesData.find(c => c.id === id);
+                if(!cls) return;
+
+                editClassId = cls.id;
+                document.getElementById('className').value = cls.class_name;
+                document.getElementById('classSection').value = cls.section;
+                
+                submitBtn.innerHTML = `<span>🔄 Update Class</span>`;
+                cancelEditBtn.style.display = 'inline-block';
+                
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+        });
+
+        document.querySelectorAll('.del-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const id = e.target.getAttribute('data-id');
+                if(!confirm('Are you sure you want to delete this Class? Linked fee heads or admissions may fail.')) return;
+
+                e.target.innerHTML = '...';
+                e.target.disabled = true;
+
+                try {
+                    const { error } = await supabaseClient.from('classes').delete().eq('id', id);
+                    if (error) throw error;
+                    
+                    fetchClasses();
+                    showAlert('✅ Class deleted successfully!', false);
+                    
+                    if(editClassId === id) resetFormToCreateMode();
+                } catch(err) {
+                    alert('Failed to delete: ' + err.message);
+                    fetchClasses();
+                }
+            });
+        });
     }
 
     function showAlert(msg, isError) {

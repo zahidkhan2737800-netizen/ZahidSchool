@@ -88,8 +88,9 @@
 
                     <div id="studentFields">
                         <div class="input-group">
-                            <label for="rollNo">Student Roll Number <span style="color:red">*</span></label>
-                            <input type="text" id="rollNo" placeholder="Enter Roll Number to auto-fill" style="border: 2px solid var(--primary);">
+                            <label for="rollNo">Student Roll Number or Name <span style="color:red">*</span></label>
+                            <input type="text" id="rollNo" list="studentSearchList" placeholder="Type Roll Number or Student Name" style="border: 2px solid var(--primary);">
+                            <datalist id="studentSearchList"></datalist>
                             <small id="rollStatus" style="color:var(--text-muted); font-size:0.75rem; margin-top:0.3rem;">Type to search cache...</small>
                         </div>
                         <div class="input-group">
@@ -187,6 +188,12 @@
                             <!-- Populated by JS -->
                         </tbody>
                     </table>
+                    <!-- Pagination Controls -->
+                    <div id="paginationBar" style="display:flex; justify-content:space-between; align-items:center; margin-top:1rem; flex-wrap:wrap; gap:0.5rem;">
+                        <button type="button" id="prevPageBtn" disabled style="background:var(--primary); color:white; border:none; padding:0.5rem 1.2rem; border-radius:8px; cursor:pointer; font-weight:600;">&larr; Previous</button>
+                        <span id="pageInfo" style="color:var(--text-muted); font-size:0.9rem; font-weight:500;">Loading...</span>
+                        <button type="button" id="nextPageBtn" disabled style="background:var(--primary); color:white; border:none; padding:0.5rem 1.2rem; border-radius:8px; cursor:pointer; font-weight:600;">Next &rarr;</button>
+                    </div>
                 </div>
             </div>
         </div>

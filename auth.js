@@ -8,6 +8,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 // Shared Supabase client
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+window.supabaseClient = supabaseClient; // EXPORT FOR JS
 
 // Page key mapping — maps HTML file to permission key
 const PAGE_KEY_MAP = {
@@ -52,6 +53,7 @@ let userPermissions = {};  // { page_key: { can_view, can_create, can_edit, can_
         }
 
         currentUser = session.user;
+        window.currentUser = currentUser;
 
         // 2. Fetch user's role
         const { data: roleData, error: roleError } = await supabaseClient
@@ -67,6 +69,7 @@ let userPermissions = {};  // { page_key: { can_view, can_create, can_edit, can_
 
         userRole = Array.isArray(roleData.roles) ? roleData.roles[0] : roleData.roles;
         userRoleName = userRole.role_name;
+        window.userRoleName = userRoleName;
 
         // 3. Fetch all permissions for this role
         const { data: permsData, error: permsError } = await supabaseClient
@@ -140,6 +143,13 @@ async function logout() {
 }
 
 // ─── Permission Checker ────────────────────────────────────────────────────────
+window.canView = function(pageKey) {
+    if (!pageKey) return true; // public or dashboard
+    const perm = userPermissions[pageKey];
+    if (!perm) return false;
+    return perm.can_view === true;
+};
+
 function hasPermission(pageKey, action) {
     const perm = userPermissions[pageKey];
     if (!perm) return false;
@@ -148,6 +158,8 @@ function hasPermission(pageKey, action) {
 
 // ─── Inject User Profile into Sidebar ──────────────────────────────────────────
 function injectUserProfile() {
+    if (document.getElementById('userAvatar')) return; // Skip if new dashboard layout handles it natively
+    
     const sidebar = document.querySelector('.sidebar');
     if (!sidebar) return;
 
