@@ -66,7 +66,7 @@ async function loadFinancialData() {
         // 2. Fetch Other Revenue
         const { data: otherRevData, error: revErr } = await window.supabaseClient
             .from('other_revenue')
-            .select('category, amount, revenue_date')
+            .select('id, category, amount, revenue_date, description')
             .gte('revenue_date', start)
             .lte('revenue_date', end);
         if (revErr) throw revErr;
@@ -74,7 +74,7 @@ async function loadFinancialData() {
         // 3. Fetch Expenses
         const { data: expensesData, error: expErr } = await window.supabaseClient
             .from('expenses')
-            .select('category, amount, expense_date')
+            .select('id, category, amount, expense_date, description')
             .gte('expense_date', start)
             .lte('expense_date', end);
         if (expErr) throw expErr;
@@ -93,33 +93,33 @@ function processAndRender(fees, otherRev, expenses) {
     let totalRev = 0;
     let totalExp = 0;
     
-    // Group Revenue
+    // Group Revenue items (with full objects including ID)
     const revItems = [];
     
-    // Compile Fees
+    // Compile Fees (no deletable ID — from transactions table)
     let totalFees = 0;
     fees.forEach(f => { totalFees += Number(f.amount_paid) || 0; });
     if (totalFees > 0) {
-        revItems.push({ category: 'Student Fees', amount: totalFees, date: 'Various' });
+        revItems.push({ id: null, tableRef: null, category: 'Student Fees', amount: totalFees, date: 'Various', description: 'Auto from fee collection' });
         totalRev += totalFees;
     }
 
     // Compile Other Revenue
     otherRev.forEach(r => {
-        revItems.push({ category: r.category, amount: Number(r.amount), date: r.revenue_date });
+        revItems.push({ id: r.id, tableRef: 'other_revenue', category: r.category, amount: Number(r.amount), date: r.revenue_date, description: r.description || '' });
         totalRev += Number(r.amount);
     });
 
     // Compile Expenses
     const expItems = [];
     expenses.forEach(e => {
-        expItems.push({ category: e.category, amount: Number(e.amount), date: e.expense_date });
+        expItems.push({ id: e.id, tableRef: 'expenses', category: e.category, amount: Number(e.amount), date: e.expense_date, description: e.description || '' });
         totalExp += Number(e.amount);
     });
 
     // Render Tables
-    renderTable('revenueTableBody', revItems);
-    renderTable('expenseTableBody', expItems);
+    renderTable('revenueTableBody', revItems, 'revenue');
+    renderTable('expenseTableBody', expItems, 'expense');
 
     // Update Totals
     document.getElementById('totalRevenueAmt').textContent = formatMoney(totalRev);
@@ -143,24 +143,84 @@ function processAndRender(fees, otherRev, expenses) {
     renderChart(fees, otherRev, expenses);
 }
 
-function renderTable(tbodyId, items) {
+function renderTable(tbodyId, items, type) {
     const tbody = document.getElementById(tbodyId);
     if (items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #94a3b8; padding: 1.5rem;">No records found.</td></tr>';
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: #94a3b8; padding: 1.5rem;">No records found.</td></tr>`;
         return;
     }
-    
-    // Sort descending by date (if valid) or amount
-    items.sort((a,b) => b.amount - a.amount);
-    
-    tbody.innerHTML = items.map(item => `
-        <tr>
-            <td style="font-weight: 500; color: #334155;">${item.category}</td>
-            <td style="color: #64748b;">${formatDateDisp(item.date)}</td>
-            <td class="amount-col" style="color: #0f172a;">${formatMoney(item.amount)}</td>
-        </tr>
-    `).join('');
+
+    tbody.innerHTML = items.map(item => {
+        const amtColor = type === 'revenue' ? 'color:#16a34a;' : 'color:#dc2626;';
+
+        // Edit & Delete buttons — only for DB-backed rows (not aggregated Student Fees)
+        let actions = '';
+        if (item.id) {
+            const safeDesc = (item.description || '').replace(/'/g, "&apos;");
+            actions = `
+                <button onclick="editFinanceRecord('${item.id}','${item.tableRef}',${item.amount},'${safeDesc}')"
+                    style="background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;padding:0.3rem 0.6rem;border-radius:6px;cursor:pointer;font-weight:600;font-size:0.8rem;margin-right:0.3rem;">
+                    ✏️
+                </button>
+                <button onclick="deleteFinanceRecord('${item.id}','${item.tableRef}')"
+                    style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:0.3rem 0.6rem;border-radius:6px;cursor:pointer;font-weight:600;font-size:0.8rem;">
+                    🗑️
+                </button>`;
+        } else {
+            actions = '<span style="font-size:0.75rem;color:#94a3b8;">Auto</span>';
+        }
+
+        return `
+            <tr>
+                <td style="font-weight:500;color:#334155;">${item.category}</td>
+                <td style="color:#64748b;font-size:0.9rem;">${formatDateDisp(item.date)}</td>
+                <td style="color:#64748b;font-size:0.85rem;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${item.description || ''}">${item.description || '—'}</td>
+                <td class="amount-col" style="${amtColor}">${formatMoney(item.amount)}</td>
+                <td style="white-space:nowrap;">${actions}</td>
+            </tr>`;
+    }).join('');
 }
+
+// ─── Delete Finance Record ─────────────────────────────────────────────────────
+window.deleteFinanceRecord = async function(id, tableName) {
+    if (!confirm('Delete this record permanently?')) return;
+    try {
+        const { error } = await window.supabaseClient
+            .from(tableName)
+            .delete()
+            .eq('id', id);
+        if (error) throw error;
+        showToast('Record deleted.', 'success');
+        loadFinancialData();
+    } catch(err) {
+        showToast('Delete failed: ' + err.message, 'error');
+    }
+};
+
+// ─── Edit Finance Record (Amount + Description) ───────────────────────────────
+window.editFinanceRecord = async function(id, tableName, currentAmount, currentDesc) {
+    const newAmount = prompt(`Enter new amount (Rs):`, currentAmount);
+    if (newAmount === null) return;
+    if (isNaN(parseFloat(newAmount)) || parseFloat(newAmount) <= 0) {
+        alert('Please enter a valid amount.');
+        return;
+    }
+    const newDesc = prompt('Update description (leave blank to keep):', currentDesc);
+    if (newDesc === null) return;
+
+    try {
+        const amountField = tableName === 'other_revenue' ? 'amount' : 'amount';
+        const { error } = await window.supabaseClient
+            .from(tableName)
+            .update({ [amountField]: parseFloat(newAmount), description: newDesc })
+            .eq('id', id);
+        if (error) throw error;
+        showToast('Record updated successfully!', 'success');
+        loadFinancialData();
+    } catch(err) {
+        showToast('Update failed: ' + err.message, 'error');
+    }
+};
 
 // ─── Chart Integration ────────────────────────────────────────────────────────
 function renderChart(fees, otherRev, expenses) {

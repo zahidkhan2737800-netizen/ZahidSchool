@@ -84,6 +84,52 @@
       </div>
     </div>
 
+    <!-- SECTION: Cash Flow Overview (Admin Only) -->
+    <div class="section-title" style="margin-top:1.5rem;"><i class="fas fa-chart-line"></i> Cash Flow — This Month</div>
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-icon green"><i class="fas fa-arrow-circle-up"></i></div>
+        <div class="stat-info"><div class="stat-val" id="statTotalRevenue">--</div><div class="stat-label">Total Revenue</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon red"><i class="fas fa-arrow-circle-down"></i></div>
+        <div class="stat-info"><div class="stat-val" id="statTotalExpenses">--</div><div class="stat-label">Total Expenses</div></div>
+      </div>
+      <div class="stat-card" id="profitCard">
+        <div class="stat-icon" id="profitIcon" style="background:rgba(37,99,235,0.1);color:#2563eb;"><i class="fas fa-balance-scale"></i></div>
+        <div class="stat-info"><div class="stat-val" id="statNetProfit">--</div><div class="stat-label" id="profitLabel">Net Profit / Loss</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon amber"><i class="fas fa-money-bill"></i></div>
+        <div class="stat-info"><div class="stat-val" id="statSalariesPaid">--</div><div class="stat-label">Salaries Paid</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon purple"><i class="fas fa-file-invoice-dollar"></i></div>
+        <div class="stat-info"><div class="stat-val" id="statUnpaidSalaries">--</div><div class="stat-label">Unpaid Salary Challans</div></div>
+      </div>
+    </div>
+
+    <!-- SECTION: Staff Today -->
+    <div class="section-title" style="margin-top:1.5rem;"><i class="fas fa-chalkboard-teacher"></i> Staff — Today</div>
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-icon blue"><i class="fas fa-id-badge"></i></div>
+        <div class="stat-info"><div class="stat-val" id="statTotalStaff">--</div><div class="stat-label">Total Active Staff</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon green"><i class="fas fa-user-check"></i></div>
+        <div class="stat-info"><div class="stat-val" id="statStaffPresent">--</div><div class="stat-label">Staff Present Today</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon red"><i class="fas fa-user-times"></i></div>
+        <div class="stat-info"><div class="stat-val" id="statStaffAbsent">--</div><div class="stat-label">Staff Absent Today</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon amber"><i class="fas fa-umbrella-beach"></i></div>
+        <div class="stat-info"><div class="stat-val" id="statStaffLeave">--</div><div class="stat-label">Staff On Leave Today</div></div>
+      </div>
+    </div>
+
     <!-- SECTION 3: Challans -->
     <div class="section-title" style="margin-top:1.5rem;"><i class="fas fa-receipt"></i> Challans</div>
     <div class="stats">

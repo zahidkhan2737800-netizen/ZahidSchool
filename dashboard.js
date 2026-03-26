@@ -85,6 +85,112 @@ async function bootDashboard() {
     loadStats();
     loadMonthlyFeeBalance();
     loadRecentAdmissions();
+    loadCashFlowStats();
+    loadStaffTodayStats();
+}
+
+// ─── Cash Flow Overview ────────────────────────────────────────────────────────
+async function loadCashFlowStats() {
+    try {
+        const now = new Date();
+        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+        const lastDay  = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+
+        const fmt = n => 'Rs ' + Math.round(n || 0).toLocaleString();
+
+        // 1. Student Fee Revenue this month
+        const { data: feeData } = await window.supabaseClient
+            .from('transactions')
+            .select('amount_paid')
+            .gte('created_at', firstDay + 'T00:00:00')
+            .lte('created_at', lastDay + 'T23:59:59');
+        const feeRevenue = (feeData || []).reduce((s, r) => s + Number(r.amount_paid || 0), 0);
+
+        // 2. Other Revenue this month
+        const { data: revData } = await window.supabaseClient
+            .from('other_revenue')
+            .select('amount')
+            .gte('revenue_date', firstDay)
+            .lte('revenue_date', lastDay);
+        const otherRevenue = (revData || []).reduce((s, r) => s + Number(r.amount || 0), 0);
+
+        // 3. Expenses this month
+        const { data: expData } = await window.supabaseClient
+            .from('expenses')
+            .select('amount, category')
+            .gte('expense_date', firstDay)
+            .lte('expense_date', lastDay);
+        const totalExpenses = (expData || []).reduce((s, r) => s + Number(r.amount || 0), 0);
+        const salariesPaid = (expData || [])
+            .filter(r => r.category === 'Salaries')
+            .reduce((s, r) => s + Number(r.amount || 0), 0);
+
+        // 4. Unpaid salary challans
+        const { data: unpaidData } = await window.supabaseClient
+            .from('staff_payroll')
+            .select('id')
+            .eq('status', 'Unpaid');
+
+        const totalRevenue = feeRevenue + otherRevenue;
+        const netProfit = totalRevenue - totalExpenses;
+
+        // Write to UI
+        const el = id => document.getElementById(id);
+        if (el('statTotalRevenue')) el('statTotalRevenue').textContent = fmt(totalRevenue);
+        if (el('statTotalExpenses')) el('statTotalExpenses').textContent = fmt(totalExpenses);
+        if (el('statSalariesPaid')) el('statSalariesPaid').textContent = fmt(salariesPaid);
+        if (el('statUnpaidSalaries')) el('statUnpaidSalaries').textContent = (unpaidData || []).length;
+
+        const profitEl = el('statNetProfit');
+        const profitIconEl = el('profitIcon');
+        if (profitEl) {
+            profitEl.textContent = fmt(Math.abs(netProfit));
+            if (netProfit >= 0) {
+                profitEl.style.color = '#16a34a';
+                if (profitIconEl) { profitIconEl.style.background = 'rgba(22,163,74,0.1)'; profitIconEl.style.color = '#16a34a'; profitIconEl.innerHTML = '<i class="fas fa-arrow-trend-up"></i>'; }
+                if (el('profitLabel')) el('profitLabel').textContent = '📈 Net Profit';
+            } else {
+                profitEl.style.color = '#dc2626';
+                if (profitIconEl) { profitIconEl.style.background = 'rgba(220,38,38,0.1)'; profitIconEl.style.color = '#dc2626'; profitIconEl.innerHTML = '<i class="fas fa-arrow-trend-down"></i>'; }
+                if (el('profitLabel')) el('profitLabel').textContent = '📉 Net Loss';
+            }
+        }
+
+    } catch(e) {
+        console.error('Cash flow stats error:', e);
+    }
+}
+
+// ─── Staff Today Stats ─────────────────────────────────────────────────────────
+async function loadStaffTodayStats() {
+    try {
+        const today = new Date().toISOString().split('T')[0];
+
+        // Total active staff
+        const { data: staffData } = await window.supabaseClient
+            .from('staff')
+            .select('id')
+            .eq('status', 'Active');
+        const totalStaff = (staffData || []).length;
+
+        // Today's attendance
+        const { data: attData } = await window.supabaseClient
+            .from('staff_attendance')
+            .select('status')
+            .eq('date', today);
+
+        const counts = { Present: 0, Absent: 0, Leave: 0 };
+        (attData || []).forEach(r => { if (counts[r.status] !== undefined) counts[r.status]++; });
+
+        const el = id => document.getElementById(id);
+        if (el('statTotalStaff'))    el('statTotalStaff').textContent    = totalStaff;
+        if (el('statStaffPresent'))  el('statStaffPresent').textContent  = counts.Present;
+        if (el('statStaffAbsent'))   el('statStaffAbsent').textContent   = counts.Absent;
+        if (el('statStaffLeave'))    el('statStaffLeave').textContent    = counts.Leave;
+
+    } catch(e) {
+        console.error('Staff stats error:', e);
+    }
 }
 
 function buildSidebar() {

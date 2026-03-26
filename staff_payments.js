@@ -139,21 +139,40 @@ window.processPayment = async function(payrollId, netPayableAmount, monthStr, st
     }
 };
 
-// ─── Delete Challan ────────────────────────────────────────────────────────────
+// ─── Delete Challan (with cascade expense cleanup) ─────────────────────────────
 window.deleteChallan = async function(id, name, month, status) {
     if (status === 'Paid') {
-        if (!confirm(`WARNING: This challan for ${name} (${month}) is already PAID. Deleting it will NOT remove the expense from Finance. Are you sure?`)) return;
+        if (!confirm(`WARNING: This challan for ${name} (${month}) was already PAID.\n\nDeleting it will ALSO remove the linked salary expense from the Finance module.\n\nAre you sure?`)) return;
     } else {
         if (!confirm(`Delete unpaid challan for ${name} (${month})?`)) return;
     }
 
     try {
+        // 1. Delete the payroll challan itself
         const { error } = await window.supabaseClient
             .from('staff_payroll')
             .delete()
             .eq('id', id);
         if (error) throw error;
-        showToast('Challan deleted.', 'success');
+
+        // 2. If it was Paid, cascade-delete the matching expense record
+        if (status === 'Paid') {
+            const expectedDesc = `Salary: ${name} (${month})`;
+            const { error: expErr } = await window.supabaseClient
+                .from('expenses')
+                .delete()
+                .eq('description', expectedDesc);
+
+            if (expErr) {
+                console.warn('Challan deleted, but expense cleanup failed:', expErr);
+                showToast('Challan deleted. ⚠️ Expense entry may need manual removal.', 'error');
+            } else {
+                showToast('Challan & Finance expense deleted successfully.', 'success');
+            }
+        } else {
+            showToast('Challan deleted.', 'success');
+        }
+
         loadChallans();
     } catch (err) {
         showToast('Delete failed: ' + err.message, 'error');
