@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Staff Attendance - Zahid School System</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="attendance.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <!-- Toast Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <main class="main-content">
+        <!-- Page Header -->
+        <div class="page-header">
+            <div>
+                <h1>🕒 Staff Attendance Hub</h1>
+                <p>Mark daily attendance for all active employees. Changes are auto-saved.</p>
+                <div style="display:flex; gap:0.5rem; margin-top:0.8rem; flex-wrap:wrap;">
+                    <a href="dashboard.html" style="background:#eff6ff;color:#2563eb;text-decoration:none;font-weight:600;padding:0.4rem 0.9rem;border-radius:6px;border:1px solid #bfdbfe;font-size:0.85rem;">📊 Dashboard</a>
+                    <a href="staff_hiring.html" style="background:#eff6ff;color:#2563eb;text-decoration:none;font-weight:600;padding:0.4rem 0.9rem;border-radius:6px;border:1px solid #bfdbfe;font-size:0.85rem;">👔 Hiring</a>
+                    <a href="staff_payroll.html" style="background:#eff6ff;color:#2563eb;text-decoration:none;font-weight:600;padding:0.4rem 0.9rem;border-radius:6px;border:1px solid #bfdbfe;font-size:0.85rem;">💸 Payroll</a>
+                    <a href="staff_payments.html" style="background:#eff6ff;color:#2563eb;text-decoration:none;font-weight:600;padding:0.4rem 0.9rem;border-radius:6px;border:1px solid #bfdbfe;font-size:0.85rem;">💳 Payments</a>
+                </div>
+            </div>
+            <div class="date-context">
+                <input type="date" id="globalDate" class="control-input highlight-input" title="Select date for attendance">
+            </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(37,99,235,0.1); color: #2563eb;">👥</div>
+                <div class="stat-info">
+                    <p>Total Active Staff</p>
+                    <h3 id="statTotal">0</h3>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(16,185,129,0.1); color: #10b981;">✅</div>
+                <div class="stat-info">
+                    <p>Present Today</p>
+                    <h3 id="statPresent">0</h3>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(239,68,68,0.1); color: #ef4444;">❌</div>
+                <div class="stat-info">
+                    <p>Absent Today</p>
+                    <h3 id="statAbsent">0</h3>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(245,158,11,0.1); color: #f59e0b;">🏖️</div>
+                <div class="stat-info">
+                    <p>On Leave Today</p>
+                    <h3 id="statLeave">0</h3>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filters & Bulk Actions -->
+        <div class="advanced-filters">
+            <div class="filter-group">
+                <input type="text" id="searchFilter" class="control-input" placeholder="Search Name or Emp ID...">
+
+                <select id="statusFilter" class="control-input">
+                    <option value="All">All Statuses</option>
+                    <option value="Present">Present Only</option>
+                    <option value="Absent">Absent Only</option>
+                    <option value="Leave">Leave Only</option>
+                </select>
+
+                <span class="divider"></span>
+                <span style="font-size: 0.8rem; font-weight: 700; color: #64748b;">BULK TARGET:</span>
+                <button id="btnBulkPresent" class="btn-action btn-outline" style="color:#10b981; border-color:#10b981;">All Present</button>
+                <button id="btnBulkAbsent" class="btn-action btn-outline" style="color:#ef4444; border-color:#ef4444;">All Absent</button>
+                <button id="btnBulkLeave" class="btn-action btn-outline" style="color:#f59e0b; border-color:#f59e0b;">All Leave</button>
+            </div>
+        </div>
+
+        <!-- Attendance Table -->
+        <div class="main-split">
+            <div class="table-container">
+                <table class="data-table" id="attendanceTable">
+                    <thead>
+                        <tr>
+                            <th>Emp ID</th>
+                            <th>Staff Member</th>
+                            <th>Total Absents</th>
+                            <th>Status (<span id="tableDateDisplay"></span>)</th>
+                            <th>Quick Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="attendanceBody">
+                    </tbody>
+                </table>
+                <div id="loader" class="loader">🔄 Loading Staff Data...</div>
+            </div>
+        </div>
+    </main>
+
+    <script src="auth.js"></script>
+    <script src="staff_attendance.js"></script>
+</body>
+</html>

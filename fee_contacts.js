@@ -7,6 +7,7 @@ let allStudents = [];
 let monthData = {}; // keyed by student.id
 let classesList = [];
 let studentBalances = {}; // Cache for live balance calculations
+let todayAttendance = {}; // Cache for today's attendance statuses (student_id -> status)
 
 const STATUS_COLORS = {
     'C': 'status-C',
@@ -107,6 +108,20 @@ async function loadBaseData() {
             });
         }
 
+        // Fetch Today's Attendance
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const { data: attData, error: attErr } = await supabaseClient
+            .from('attendance')
+            .select('student_id, status')
+            .eq('date', todayStr);
+
+        todayAttendance = {};
+        if (attData && !attErr) {
+            attData.forEach(a => {
+                todayAttendance[a.student_id] = a.status;
+            });
+        }
+
     } catch (err) {
         console.error("Error loading base data:", err);
     }
@@ -183,13 +198,21 @@ function renderTable() {
         const balance = studentBalances[student.id] || 0;
         totalBalance += balance;
 
+        // Build real attendance indicator
+        const attStatus = todayAttendance[student.id];
+        let attHtml = `<div class="att-pill" style="background:#e2e8f0; color:#64748b;" title="Not Marked">-</div>`;
+        if (attStatus === 'Present') {
+            attHtml = `<div class="att-pill P" title="Present">P</div>`;
+        } else if (attStatus === 'Absent') {
+            attHtml = `<div class="att-pill" style="background:#fee2e2; color:#b91c1c; font-weight:bold;" title="Absent">A</div>`;
+        } else if (attStatus === 'Leave') {
+            attHtml = `<div class="att-pill" style="background:#fef9c3; color:#a16207; font-weight:bold;" title="Leave">L</div>`;
+        }
+
         tr.innerHTML = `
             <td class="col-roll">${student.roll_number}</td>
             <td class="col-name">${student.full_name}</td>
-            <td>
-                <!-- Random mock attendance for display -->
-                <div class="att-pill P" title="Present">P</div>
-            </td>
+            <td>${attHtml}</td>
             ${[1,2,3,4,5,6,7,8].map(idx => generateContactCell(student.id, idx, data)).join('')}
             <td class="col-balance ${balance === 0 ? 'zero' : ''}">${balance}</td>
             <td><button class="action-btn-cell cd-btn ${data.complaint ? 'active' : ''}" data-id="${student.id}" title="Complaint">C</button></td>

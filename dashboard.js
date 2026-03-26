@@ -8,12 +8,13 @@ var NAV_CATEGORIES = [
       { href: 'dashboard.html', label: 'Dashboard', icon: 'fas fa-chart-line', key: 'dashboard' },
       { href: 'index.html', label: 'Admission Form', icon: 'fas fa-file-signature', key: 'admissions' },
       { href: 'students.html', label: 'Active Students', icon: 'fas fa-users', key: 'students' },
-      { href: 'family.html', label: 'Family Management', icon: 'fas fa-home', key: 'students' },
+      { href: 'family.html', label: 'Family Management', icon: 'fas fa-home', key: 'family' },
       { href: 'attendance.html', label: 'Attendance', icon: 'fas fa-calendar-check', key: 'attendance' },
       { href: 'monitoring.html', label: 'Monitoring', icon: 'fas fa-chart-pie', key: 'monitoring' },
-      { href: 'homework.html', label: 'Homework Publisher', icon: 'fas fa-book', key: 'students' },
-      { href: 'complaint_diary.html', label: 'Complaint Diary', icon: 'fas fa-envelope-open-text', key: 'students' },
+      { href: 'homework.html', label: 'Homework Publisher', icon: 'fas fa-book', key: 'homework' },
+      { href: 'complaint_diary.html', label: 'Complaint Diary', icon: 'fas fa-envelope-open-text', key: 'complaints' },
       { href: 'pending_withdrawn.html', label: 'Pending / Withdrawn', icon: 'fas fa-user-alt-slash', key: 'pending_withdrawn' },
+      { href: 'reports.html', label: 'Report Generator', icon: 'fas fa-print', key: 'reports' },
     ]
   },
   {
@@ -21,9 +22,19 @@ var NAV_CATEGORIES = [
     items: [
       { href: 'create_challan.html', label: 'Create Challans', icon: 'fas fa-file-invoice-dollar', key: 'challans' },
       { href: 'collect_fee.html', label: 'Collect Student Fee', icon: 'fas fa-hand-holding-usd', key: 'collect_fee' },
-      { href: 'collect_family_fee.html', label: 'Collect Family Fee', icon: 'fas fa-users-cog', key: 'collect_fee' },
-      { href: 'fee_contacts.html', label: 'Fee Contacts', icon: 'fas fa-phone-alt', key: 'collect_fee' },
+      { href: 'collect_family_fee.html', label: 'Collect Family Fee', icon: 'fas fa-users-cog', key: 'collect_family_fee' },
+      { href: 'fee_contacts.html', label: 'Fee Contacts', icon: 'fas fa-phone-alt', key: 'fee_contacts' },
       { href: 'fee_heads.html', label: 'Fee Config', icon: 'fas fa-cogs', key: 'fee_heads' },
+      { href: 'finance.html', label: 'Finance & Cash Flow', icon: 'fas fa-chart-pie', key: 'finance' }
+    ]
+  },
+  {
+    id: 'staff', label: 'Staff Management', icon: 'fas fa-chalkboard-teacher',
+    items: [
+      { href: 'staff_hiring.html', label: 'Staff Hiring', icon: 'fas fa-user-tie', key: 'staff_hiring' },
+      { href: 'staff_attendance.html', label: 'Staff Attendance', icon: 'fas fa-user-clock', key: 'staff_attendance' },
+      { href: 'staff_payroll.html', label: 'Salary Challans', icon: 'fas fa-file-invoice-dollar', key: 'staff_payroll' },
+      { href: 'staff_payments.html', label: 'Pay Salaries', icon: 'fas fa-money-check-alt', key: 'staff_payments' }
     ]
   },
   {
@@ -54,29 +65,26 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function bootDashboard() {
-    // Top Right Details
     document.getElementById('userName').textContent = window.currentUser.email || 'Admin User';
     document.getElementById('userRole').textContent = (window.userRoleName || 'Staff').toUpperCase();
     document.getElementById('welcomeMsg').textContent = 'Welcome, ' + (window.currentUser.email || 'Admin').split('@')[0] + '!';
 
     var avatar = document.getElementById('userAvatar');
     avatar.textContent = (window.currentUser.email || 'A').substring(0, 1).toUpperCase();
-    
-    // Role styling adapter
     if (window.userRoleName === 'admin') avatar.style.background = '#2563eb';
     else if (window.userRoleName === 'teacher') avatar.style.background = '#16a34a';
     else avatar.style.background = '#d97706';
     avatar.style.color = 'white';
 
-    // Welcome Date
     var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
     var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
     var now = new Date();
     document.getElementById('welcomeDate').textContent = days[now.getDay()] + ', ' + months[now.getMonth()] + ' ' + now.getDate() + ', ' + now.getFullYear();
 
     buildSidebar();
-    buildQuickLinks();
     loadStats();
+    loadMonthlyFeeBalance();
+    loadRecentAdmissions();
 }
 
 function buildSidebar() {
@@ -132,66 +140,144 @@ function buildSidebar() {
     });
 }
 
-function buildQuickLinks() {
-    var container = document.getElementById('quickLinks');
-    var html = '';
-    QUICK_ACCESS.forEach(function (item) {
-        if (!window.canView(item.key)) return;
-        html += '<a href="' + item.href + '" class="quick-link"><i class="' + item.icon + '"></i><span>' + item.label + '</span></a>';
-    });
-    container.innerHTML = html;
-}
+function buildQuickLinks() {}
+
 
 async function loadStats() {
     try {
         const now = new Date();
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
+        const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+        const todayEnd   = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
+        const todayStr   = now.toISOString().slice(0, 10); // YYYY-MM-DD
 
-        // Run all 4 queries in parallel — server-side filtering
-        const [activeRes, withdrawnRes, feesRes, challansRes] = await Promise.all([
-            // 1. Count of active students only
-            window.supabaseClient
-                .from('admissions')
-                .select('*', { count: 'exact', head: true })
-                .eq('status', 'Active'),
-
-            // 2. Count withdrawn THIS month
-            window.supabaseClient
-                .from('admissions')
+        const [activeRes, withdrawnRes, feesRes, challansRes, unpaidChallansRes, dailyFeesRes, balanceRes, attendanceRes, admittedRes] = await Promise.all([
+            window.supabaseClient.from('admissions')
+                .select('*', { count: 'exact', head: true }).eq('status', 'Active'),
+            window.supabaseClient.from('admissions')
                 .select('*', { count: 'exact', head: true })
                 .eq('status', 'Withdrawn')
-                .gte('updated_at', monthStart)
-                .lt('updated_at', monthEnd),
-
-            // 3. Only this month's receipts (small dataset for summing)
-            window.supabaseClient
-                .from('receipts')
+                .gte('updated_at', monthStart).lt('updated_at', monthEnd),
+            window.supabaseClient.from('transactions')
                 .select('amount_paid')
-                .gte('created_at', monthStart)
-                .lt('created_at', monthEnd),
-
-            // 4. Count challans this month
-            window.supabaseClient
-                .from('challans')
+                .gte('created_at', monthStart).lt('created_at', monthEnd),
+            window.supabaseClient.from('challans')
                 .select('*', { count: 'exact', head: true })
-                .gte('created_at', monthStart)
-                .lt('created_at', monthEnd)
+                .gte('created_at', monthStart).lt('created_at', monthEnd),
+            window.supabaseClient.from('challans')
+                .select('*', { count: 'exact', head: true })
+                .eq('status', 'Unpaid'),
+            window.supabaseClient.from('transactions')
+                .select('amount_paid')
+                .gte('created_at', todayStart).lt('created_at', todayEnd),
+            window.supabaseClient.from('challans')
+                .select('amount, paid_amount')
+                .in('status', ['Unpaid', 'Partially Paid']),
+            // Today's attendance
+            window.supabaseClient.from('attendance')
+                .select('status')
+                .eq('date', todayStr),
+            // Admitted this month count
+            window.supabaseClient.from('admissions')
+                .select('*', { count: 'exact', head: true })
+                .gte('admission_date', monthStart.slice(0, 10))
+                .lt('admission_date', monthEnd.slice(0, 10))
         ]);
 
-        const activeCount = activeRes.count || 0;
+        const activeCount    = activeRes.count || 0;
         const withdrawnCount = withdrawnRes.count || 0;
-        const challansCount = challansRes.count || 0;
-        const totalFees = (feesRes.data || []).reduce((sum, r) => sum + (Number(r.amount_paid) || 0), 0);
+        const challansCount  = challansRes.count || 0;
+        const unpaidCount    = unpaidChallansRes.count || 0;
+        const totalFees      = (feesRes.data || []).reduce((s, r) => s + (Number(r.amount_paid) || 0), 0);
+        const dailyFees      = (dailyFeesRes.data || []).reduce((s, r) => s + (Number(r.amount_paid) || 0), 0);
+        const totalBalance   = (balanceRes.data || []).reduce((s, r) => s + ((Number(r.amount) || 0) - (Number(r.paid_amount) || 0)), 0);
 
-        // Show values instantly
+        const attendanceData = attendanceRes.data || [];
+        const presentCount   = attendanceData.filter(r => r.status === 'Present').length;
+        const absentCount    = attendanceData.filter(r => r.status === 'Absent').length;
+        const admittedCount  = admittedRes.count || 0;
+
+        const fmt = (n) => 'Rs ' + Math.round(n).toLocaleString();
+
         document.getElementById('statActiveStudents').textContent = activeCount.toLocaleString();
-        document.getElementById('statWithdrawn').textContent = withdrawnCount.toLocaleString();
-        document.getElementById('statFeesCollected').textContent = 'Rs ' + totalFees.toLocaleString();
-        document.getElementById('statChallans').textContent = challansCount.toLocaleString();
+        document.getElementById('statWithdrawn').textContent      = withdrawnCount.toLocaleString();
+        document.getElementById('statFeesCollected').textContent  = fmt(totalFees);
+        document.getElementById('statChallans').textContent       = challansCount.toLocaleString();
+        document.getElementById('statUnpaidChallans').textContent = unpaidCount.toLocaleString();
+        document.getElementById('statDailyFee').textContent       = fmt(dailyFees);
+        document.getElementById('statTotalBalance').textContent   = fmt(totalBalance);
+        document.getElementById('statPresent').textContent        = presentCount.toLocaleString();
+        document.getElementById('statAbsent').textContent         = absentCount.toLocaleString();
+        document.getElementById('statAdmittedMonth').textContent  = admittedCount.toLocaleString();
 
     } catch (e) {
-        console.error("Failed to load dashboard stats", e);
+        console.error('Failed to load dashboard stats', e);
+    }
+}
+
+async function loadMonthlyFeeBalance() {
+    const tbody = document.getElementById('monthlyFeeBody');
+    try {
+        // Build last 6 months array
+        const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        const now = new Date();
+        const months = [];
+        for (let i = 5; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            months.push(`${monthNames[d.getMonth()]} ${d.getFullYear()}`);
+        }
+
+        // Fetch all challans for those months (any fee_month matching)
+        const { data, error } = await window.supabaseClient
+            .from('challans')
+            .select('fee_month, amount, paid_amount, status')
+            .in('fee_month', months);
+
+        if (error) throw error;
+
+        if (!data || data.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#94a3b8; padding:1.5rem;">No challan data for the last 6 months.</td></tr>`;
+            return;
+        }
+
+        // Group by fee_month
+        const grouped = {};
+        months.forEach(m => grouped[m] = { count: 0, billed: 0, collected: 0 });
+
+        data.forEach(c => {
+            if (!grouped[c.fee_month]) return;
+            grouped[c.fee_month].count++;
+            grouped[c.fee_month].billed    += Number(c.amount) || 0;
+            grouped[c.fee_month].collected += Number(c.paid_amount) || 0;
+        });
+
+        const rows = months.map(month => {
+            const g = grouped[month];
+            const remaining = g.billed - g.collected;
+            const pct = g.billed > 0 ? Math.round((g.collected / g.billed) * 100) : 0;
+
+            let badge, remClass;
+            if (g.billed === 0)     { badge = ''; remClass = ''; }
+            else if (remaining <= 0){ badge = '<span class="month-badge cleared">Cleared</span>'; remClass = 'clear'; }
+            else if (pct >= 50)     { badge = '<span class="month-badge partial">Partial</span>'; remClass = ''; }
+            else                    { badge = '<span class="month-badge overdue">Overdue</span>'; remClass = ''; }
+
+            const fmt = n => n > 0 ? 'Rs ' + Math.round(n).toLocaleString() : '—';
+
+            return `<tr>
+                <td><strong>${month}</strong></td>
+                <td>${g.count || '—'}</td>
+                <td>${fmt(g.billed)}</td>
+                <td style="color:#16a34a; font-weight:600;">${fmt(g.collected)}</td>
+                <td class="col-remaining ${remClass}">${remaining > 0 ? 'Rs ' + Math.round(remaining).toLocaleString() : '✓ 0'}</td>
+                <td>${badge}</td>
+            </tr>`;
+        }).join('');
+
+        tbody.innerHTML = rows;
+    } catch(e) {
+        tbody.innerHTML = `<tr><td colspan="6" style="color:red;">Error loading monthly data: ${e.message}</td></tr>`;
     }
 }
 
@@ -200,6 +286,41 @@ document.getElementById('logoutBtn').addEventListener('click', async function ()
     if (window.supabaseClient) await window.supabaseClient.auth.signOut();
     window.location.href = 'login.html';
 });
+
+async function loadRecentAdmissions() {
+    const tbody = document.getElementById('recentAdmissionsBody');
+    try {
+        const { data, error } = await window.supabaseClient
+            .from('admissions')
+            .select('roll_number, full_name, father_name, applying_for_class, admission_date')
+            .eq('status', 'Active')
+            .order('admission_date', { ascending: false })
+            .limit(6);
+
+        if (error) throw error;
+
+        if (!data || data.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#94a3b8; padding:1.5rem;">No recent admissions found.</td></tr>`;
+            return;
+        }
+
+        const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        tbody.innerHTML = data.map((s, i) => {
+            const d = s.admission_date ? new Date(s.admission_date) : null;
+            const dateStr = d ? `${d.getDate()} ${monthNames[d.getMonth()]} ${d.getFullYear()}` : '—';
+            const rowBg = i === 0 ? 'background:#f0fdf4;' : '';
+            return `<tr style="${rowBg}">
+                <td><strong>${s.roll_number || '—'}</strong></td>
+                <td>${s.full_name || '—'}</td>
+                <td>${s.father_name || '—'}</td>
+                <td>${s.applying_for_class || '—'}</td>
+                <td>${dateStr}</td>
+            </tr>`;
+        }).join('');
+    } catch(e) {
+        tbody.innerHTML = `<tr><td colspan="5" style="color:red;">Error: ${e.message}</td></tr>`;
+    }
+}
 
 document.getElementById('menuToggle').addEventListener('click', function () {
     document.getElementById('sidebar').classList.toggle('open');

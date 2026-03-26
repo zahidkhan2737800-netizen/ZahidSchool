@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zahid School - Report Generator</title>
+    <!-- Include Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="reports.css">
+</head>
+<body>
+
+    <div class="screen-only" style="width: 100%; padding: 1.5rem; max-width: 1600px; margin: 0 auto;">
+        <!-- Header -->
+        <header>
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <div style="font-size: 2rem; background: #e0f2fe; padding: 0.5rem; border-radius: 8px;">🖨️</div>
+                <div>
+                    <h1 style="margin: 0; font-size: 1.4rem; color: #0f172a; font-weight: 700;">Students Report Engine</h1>
+                    <p style="margin: 0.2rem 0 0; font-size: 0.9rem; color: #64748b;">Generate printable, paginated lists of students</p>
+                </div>
+            </div>
+            <div class="nav-links" style="margin: 0;">
+                <a href="dashboard.html">📊 Dashboard</a>
+                <a href="students.html">Students</a>
+            </div>
+        </header>
+
+        <!-- Control Panel -->
+        <div class="control-panel">
+            <div class="control-group">
+                <label for="classSelect">Target Class</label>
+                <select id="classSelect">
+                    <option value="ALL">All Classes (Combined)</option>
+                    <!-- Populated via JS -->
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label>Report Font Size</label>
+                <div class="font-slider-container">
+                    <span style="font-size:0.8rem;">A</span>
+                    <input type="range" id="fontSlider" min="10" max="18" value="13" step="0.5">
+                    <span style="font-size:1.2rem; font-weight:bold;">A</span>
+                    <span id="fontValue" style="min-width:35px; text-align:right; font-weight:600; color:var(--primary);">13px</span>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 1rem;">
+                <button type="button" id="generateBtn" class="btn btn-primary">
+                    <i class="fas fa-magic"></i> Generate Layout
+                </button>
+                <button type="button" id="printBtn" class="btn btn-success" disabled>
+                    <i class="fas fa-print"></i> Print Report
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- The actual printable A4 pages will be injected here -->
+    <div id="reportPreviewArea">
+        <div style="padding:4rem; color:var(--text-muted); text-align:center;">
+            Please select a class and click "Generate Layout" to preview the printable pages.
+        </div>
+    </div>
+
+    <script src="auth.js"></script>
+    <script src="reports.js"></script>
+</body>
+</html>

@@ -4,17 +4,35 @@
 
 // Page metadata for display
 const PAGE_LABELS = {
+    // Students Management
     dashboard:          { icon: '📊', label: 'Dashboard' },
     admissions:         { icon: '📝', label: 'Admission Form' },
-    students:           { icon: '👥', label: 'Active Students' },
-    pending_withdrawn:  { icon: '⏸️', label: 'Pending / Withdrawn' },
-    challans:           { icon: '🧾', label: 'Create Challans' },
-    collect_fee:        { icon: '💰', label: 'Collect Fee' },
-    classes:            { icon: '🏫', label: 'Manage Classes' },
-    fee_heads:          { icon: '⚙️', label: 'Fee Configuration' },
-    access_control:     { icon: '🔐', label: 'Access Control' },
+    students:           { icon: '👥', label: 'Total Active Students' },
+    family:             { icon: '🏠', label: 'Family Management' },
     attendance:         { icon: '📅', label: 'Attendance System' },
-    monitoring:         { icon: '📈', label: 'Monitoring System' }
+    monitoring:         { icon: '📈', label: 'Monitoring System' },
+    homework:           { icon: '📚', label: 'Homework Publisher' },
+    complaints:         { icon: '✉️', label: 'Complaint Diary' },
+    pending_withdrawn:  { icon: '⏸️', label: 'Pending / Withdrawn' },
+    reports:            { icon: '🖨️', label: 'Report Generator' },
+    
+    // Fee Management
+    challans:           { icon: '🧾', label: 'Create Challans' },
+    collect_fee:        { icon: '💰', label: 'Collect Student Fee' },
+    collect_family_fee: { icon: '👨‍👩‍👧‍👦', label: 'Collect Family Fee' },
+    fee_contacts:       { icon: '📞', label: 'Fee Contacts' },
+    fee_heads:          { icon: '⚙️', label: 'Fee Configuration' },
+    finance:            { icon: '📈', label: 'Finance & Cash Flow' },
+
+    // Staff Management
+    staff_hiring:       { icon: '👔', label: 'Staff Hiring' },
+    staff_attendance:   { icon: '🕒', label: 'Staff Attendance' },
+    staff_payroll:      { icon: '💸', label: 'Salary Challans' },
+    staff_payments:     { icon: '💳', label: 'Pay Salaries' },
+
+    // Administration
+    classes:            { icon: '🏫', label: 'Manage Classes' },
+    access_control:     { icon: '🔐', label: 'Access Control' }
 };
 
 const PAGE_KEYS = Object.keys(PAGE_LABELS);
@@ -114,12 +132,13 @@ function renderPermissionsMatrix() {
     allRoles.filter(role => role.role_name !== 'admin').forEach(role => {
         const badgeClass = role.role_name;
         const card = document.createElement('div');
-        card.className = 'perm-card';
+        card.className = 'dashboard-panel';
         card.innerHTML = `
-            <h3>
+            <div style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 1rem;">
                 <span class="role-badge ${badgeClass}">${role.role_name.replace('_', ' ').toUpperCase()}</span>
-                ${role.description || ''}
-            </h3>
+                <span style="font-weight: 500; font-size: 0.95rem; color: #64748b;">${role.description || ''}</span>
+            </div>
+            <div class="data-table-container">
             <table class="perm-table">
                 <thead>
                     <tr>
@@ -155,6 +174,7 @@ function renderPermissionsMatrix() {
                     }).join('')}
                 </tbody>
             </table>
+            </div>
         `;
         container.appendChild(card);
     });
@@ -244,7 +264,7 @@ async function loadUsers() {
         if (error) throw error;
 
         if (!userRoles || userRoles.length === 0) {
-            container.innerHTML = '<p style="color:#94a3b8; text-align:center; padding:2rem;">No users registered yet.</p>';
+            container.innerHTML = '<tr><td colspan="4" style="color:#94a3b8; text-align:center; padding:2rem;">No users registered yet.</td></tr>';
             return;
         }
 
@@ -258,20 +278,24 @@ async function loadUsers() {
             const displayName = ur.full_name || 'Unnamed User';
             const displayEmail = ur.email || ur.user_id.substring(0, 8) + '...';
 
-            const row = document.createElement('div');
-            row.className = 'user-row';
+            const row = document.createElement('tr');
             row.innerHTML = `
-                <div class="user-avatar">${rChar}</div>
-                <div class="user-info">
-                    <strong>${displayName} <span style="font-weight:normal; color:#64748b; font-size:0.8rem;">(${displayEmail})</span></strong>
-                    <small>Role: ${rName.replace('_', ' ').toUpperCase()}</small>
-                </div>
+                <td>
+                    <div style="display: flex; align-items: center;">
+                        <span class="user-avatar">${rChar}</span>
+                        <strong>${displayName}</strong>
+                    </div>
+                </td>
+                <td style="color: #475569;">${displayEmail}</td>
+                <td><span class="role-badge ${rName}">${rName.replace('_', ' ').toUpperCase()}</span></td>
+                <td>
                 ${rName === 'admin' 
-                    ? '<div style="font-size:0.8rem; font-weight:800; color:#2563eb; padding:0.5rem 1rem; border-radius:8px; background:#eff6ff;">SUPREME ADMIN</div>'
+                    ? '<div style="font-size:0.8rem; font-weight:800; color:#2563eb; padding:0.4rem 0.8rem; border-radius:6px; background:#eff6ff; display: inline-block;">SUPER ADMIN</div>'
                     : `<select class="role-select" data-ur-id="${ur.id}" data-user-id="${ur.user_id}">
                         ${allRoles.filter(r => r.role_name !== 'admin').map(r => `<option value="${r.id}" ${r.id === ur.role_id ? 'selected' : ''}>${r.role_name.replace('_', ' ').toUpperCase()}</option>`).join('')}
                        </select>`
                 }
+                </td>
             `;
             
             const sel = row.querySelector('.role-select');

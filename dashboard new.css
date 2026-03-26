@@ -91,39 +91,31 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f1f5f9; min-
 /* ---- Main ---- */
 .main { margin-left: 270px; padding: 32px; flex: 1; min-height: 100vh; }
 
-.welcome-card {
-  background: linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #3b82f6 100%);
-  border-radius: 20px; padding: 36px 32px; color: #fff; margin-bottom: 28px;
-  position: relative; overflow: hidden;
-}
-.welcome-card::before {
-  content: ''; position: absolute; top: -40px; right: -40px; width: 200px; height: 200px;
-  background: rgba(255,255,255,0.08); border-radius: 50%;
-}
-.welcome-card::after {
-  content: ''; position: absolute; bottom: -60px; right: 60px; width: 150px; height: 150px;
-  background: rgba(255,255,255,0.05); border-radius: 50%;
-}
-.welcome-card h1 { font-size: 1.6rem; font-weight: 800; margin-bottom: 6px; position: relative; }
-.welcome-card p { font-size: 0.9rem; color: rgba(255,255,255,0.8); position: relative; }
-.welcome-date { font-size: 0.8rem; color: rgba(255,255,255,0.6); margin-top: 10px; position: relative; }
 
-/* ---- Quote of the Day ---- */
-.quote-card {
-  background: #fff; border-radius: 16px; padding: 24px 28px; margin-bottom: 24px;
-  border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-  display: flex; align-items: flex-start; gap: 16px;
-  border-left: 4px solid #7c3aed;
+/* ---- Compact Top Bar ---- */
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+  padding: 18px 24px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  border: 1px solid #e2e8f0;
 }
-.quote-icon { font-size: 22px; color: #7c3aed; flex-shrink: 0; margin-top: 2px; }
-.quote-text {
-  font-size: 1rem; font-style: italic; color: #334155; line-height: 1.6;
-  flex: 1; margin: 0;
+.top-bar-left h1 {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin-bottom: 2px;
 }
-.quote-author {
-  font-size: 0.82rem; font-weight: 700; color: #64748b; white-space: nowrap;
-  align-self: flex-end;
+.top-bar-date {
+  font-size: 0.8rem;
+  color: #64748b;
+  font-weight: 500;
 }
+
 
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 18px; margin-bottom: 28px; }
 .stat-card {
@@ -155,4 +147,55 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f1f5f9; min-
 .quick-link i { font-size: 24px; color: #2563eb; }
 .quick-link span { font-size: 0.85rem; font-weight: 700; }
 
-.section-title { font-size: 1rem; font-weight: 700; color: #475569; margin-bottom: 14px; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.8rem; }
+.section-title {
+  font-size: 0.8rem; font-weight: 700; color: #475569; margin-bottom: 14px;
+  text-transform: uppercase; letter-spacing: 0.5px;
+  display: flex; align-items: center; gap: 0.5rem;
+}
+
+/* ---- Monthly Fee Balance Table ---- */
+.monthly-table-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 0;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  overflow: hidden;
+  margin-bottom: 28px;
+}
+.monthly-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.monthly-table thead tr {
+  background: #1e3a8a;
+  color: #fff;
+}
+.monthly-table th {
+  padding: 12px 18px;
+  text-align: left;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.monthly-table td {
+  padding: 12px 18px;
+  font-size: 0.9rem;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+}
+.monthly-table tbody tr:last-child td { border-bottom: none; }
+.monthly-table tbody tr:hover td { background: #f8fafc; }
+.monthly-table .col-remaining { font-weight: 700; color: #dc2626; }
+.monthly-table .col-remaining.clear { color: #16a34a; }
+.month-badge {
+  display: inline-block;
+  padding: 0.2rem 0.7rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.month-badge.cleared { background: #dcfce7; color: #15803d; }
+.month-badge.partial { background: #fef9c3; color: #92400e; }
+.month-badge.overdue  { background: #fee2e2; color: #b91c1c; }

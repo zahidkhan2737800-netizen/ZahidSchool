@@ -1,0 +1,274 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+:root {
+    --primary: #1e3a8a;
+    --primary-hover: #1e40af;
+    --secondary: #3b82f6;
+    --success: #10b981;
+    --error: #ef4444;
+    --background: #f8fafc;
+    --card-bg: #ffffff;
+    --text-main: #0f172a;
+    --text-muted: #64748b;
+    --border: #e2e8f0;
+    
+    /* Dynamic Font Size for Reports */
+    --report-font-size: 13px;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--background);
+    margin: 0;
+    padding: 0;
+    color: var(--text-main);
+}
+
+.screen-only {
+    display: block;
+}
+
+/* ─── Control Panel ─── */
+.control-panel {
+    background: var(--card-bg);
+    padding: 1.5rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    margin-bottom: 2rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    align-items: flex-end;
+}
+
+.control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    flex: 1;
+    min-width: 200px;
+}
+
+.control-group label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.control-group select, .control-group input[type="range"] {
+    padding: 0.6rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 1rem;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.control-group select:focus {
+    border-color: var(--primary);
+}
+
+/* Font Slider Container */
+.font-slider-container {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    background: #f1f5f9;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+
+.font-slider-container input[type="range"] {
+    padding: 0;
+    border: none;
+    flex: 1;
+    cursor: pointer;
+}
+
+/* Buttons */
+.btn {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.btn-primary {
+    background: var(--primary);
+    color: white;
+}
+.btn-primary:hover {
+    background: var(--primary-hover);
+    transform: translateY(-1px);
+}
+
+.btn-success {
+    background: var(--success);
+    color: white;
+}
+.btn-success:hover {
+    background: #059669;
+    transform: translateY(-1px);
+}
+
+/* ─── Header Navigation ─── */
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: white;
+    padding: 1rem 1.5rem;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    margin-bottom: 2rem;
+    border: 1px solid var(--border);
+}
+
+.nav-links a {
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 600;
+    margin: 0 0.5rem;
+    font-size: 0.95rem;
+}
+
+.nav-links a:hover {
+    text-decoration: underline;
+}
+
+/* ─── Printed Pages Container ─── */
+#reportPreviewArea {
+    background: #e2e8f0; /* Darker background to simulate table/desk */
+    padding: 2rem;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    align-items: center;
+    min-height: 500px;
+}
+
+/* Individual A4 Page simulation on screen */
+.report-page {
+    background: white;
+    width: 210mm; /* A4 Width */
+    min-height: 297mm; /* A4 Height */
+    padding: 15mm;
+    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+    box-sizing: border-box;
+    position: relative;
+    
+    font-size: var(--report-font-size);
+}
+
+/* Report Internal Styles */
+.report-header {
+    text-align: center;
+    margin-bottom: 20px;
+    border-bottom: 2px solid var(--text-main);
+    padding-bottom: 15px;
+}
+
+.report-header h2 {
+    margin: 0;
+    font-size: 1.5em; /* Scales with --report-font-size */
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.report-header p {
+    margin: 5px 0 0 0;
+    font-size: 1.1em;
+    color: #333;
+}
+
+.report-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+
+.report-table th, .report-table td {
+    border: 1px solid #000;
+    padding: 0.4em 0.6em; /* Padding scales relatively with font size */
+    text-align: left;
+    vertical-align: middle;
+}
+
+.report-table th {
+    background-color: #f1f5f9;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.9em;
+}
+
+.report-table td.center {
+    text-align: center;
+}
+
+.report-footer {
+    position: absolute;
+    bottom: 15mm;
+    left: 15mm;
+    right: 15mm;
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85em;
+    color: #666;
+    border-top: 1px solid #ccc;
+    padding-top: 10px;
+}
+
+/* ─── PRINT MEDIA SPECIFIC RULES ─── */
+@media print {
+    @page {
+        size: A4;
+        margin: 0; /* Let the padding of .report-page dictate the margins */
+    }
+
+    body {
+        background: white;
+        margin: 0;
+        padding: 0;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    /* Hide EVERYTHING except the report area */
+    .screen-only, header, .control-panel {
+        display: none !important;
+    }
+
+    #reportPreviewArea {
+        background: transparent !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        gap: 0 !important;
+        box-shadow: none !important;
+    }
+
+    .report-page {
+        width: 100% !important;
+        height: 100vh !important;
+        box-shadow: none !important;
+        margin: 0 !important;
+        page-break-after: always; /* Force new physical page per .report-page div */
+        padding: 15mm !important;
+    }
+    
+    .report-page:last-child {
+        page-break-after: avoid; /* Don't add a blank page at the end */
+    }
+}

@@ -15,19 +15,25 @@ const PAGE_KEY_MAP = {
     'dashboard.html':           'dashboard',
     'index.html':               'admissions',
     'students.html':            'students',
+    'attendance.html':          'attendance',
+    'monitoring.html':          'monitoring',
     'pending_withdrawn.html':   'pending_withdrawn',
     'create_challan.html':      'challans',
     'collect_fee.html':         'collect_fee',
-    'fee_contacts.html':        'collect_fee', // Maps to the same permission object
+    'fee_contacts.html':        'fee_contacts',
     'classes.html':             'classes',
     'fee_heads.html':           'fee_heads',
     'access_control.html':      'access_control',
-    'attendance.html':          'attendance',
-    'monitoring.html':          'monitoring',
-    'family.html':              'students',
-    'collect_family_fee.html':  'collect_fee',
-    'homework.html':            'students',
-    'complaint_diary.html':     'students'
+    'family.html':              'family',
+    'collect_family_fee.html':  'collect_family_fee',
+    'homework.html':            'homework',
+    'complaint_diary.html':     'complaints',
+    'reports.html':             'reports',
+    'finance.html':             'finance',
+    'staff_hiring.html':        'staff_hiring',
+    'staff_attendance.html':    'staff_attendance',
+    'staff_payroll.html':       'staff_payroll',
+    'staff_payments.html':      'staff_payments'
 };
 
 // Global auth state
@@ -95,7 +101,7 @@ let userPermissions = {};  // { page_key: { can_view, can_create, can_edit, can_
 
         // Auto-grant new module permissions to admin if missing from DB
         if (userRoleName === 'admin') {
-            ['monitoring', 'attendance'].forEach(key => {
+            ['monitoring', 'attendance', 'fee_contacts', 'family', 'collect_family_fee', 'homework', 'complaints', 'reports', 'finance', 'staff_hiring', 'staff_attendance', 'staff_payroll', 'staff_payments'].forEach(key => {
                 if (!userPermissions[key]) {
                     userPermissions[key] = { can_view: true, can_create: true, can_edit: true, can_delete: true };
                 }
@@ -236,19 +242,25 @@ function filterSidebarNav() {
         'dashboard.html':           'dashboard',
         'index.html':               'admissions',
         'students.html':            'students',
+        'attendance.html':          'attendance',
+        'monitoring.html':          'monitoring',
         'pending_withdrawn.html':   'pending_withdrawn',
         'create_challan.html':      'challans',
         'collect_fee.html':         'collect_fee',
-        'fee_contacts.html':        'collect_fee',
+        'fee_contacts.html':        'fee_contacts',
         'classes.html':             'classes',
         'fee_heads.html':           'fee_heads',
         'access_control.html':      'access_control',
-        'attendance.html':          'attendance',
-        'monitoring.html':          'monitoring',
-        'family.html':              'students',
-        'collect_family_fee.html':  'collect_fee',
-        'homework.html':            'students',
-        'complaint_diary.html':     'students'
+        'family.html':              'family',
+        'collect_family_fee.html':  'collect_family_fee',
+        'homework.html':            'homework',
+        'complaint_diary.html':     'complaints',
+        'reports.html':             'reports',
+        'finance.html':             'finance',
+        'staff_hiring.html':        'staff_hiring',
+        'staff_attendance.html':    'staff_attendance',
+        'staff_payroll.html':       'staff_payroll',
+        'staff_payments.html':      'staff_payments'
     };
 
     document.querySelectorAll('.nav-link').forEach(link => {

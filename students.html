@@ -129,20 +129,35 @@
         }
 
         .nav-links {
-            text-align: center;
-            margin-top: 1rem;
-            margin-bottom: 2rem;
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin: 0;
+            align-items: center;
         }
 
         .nav-links a {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            background: #eff6ff;
             color: var(--primary);
             text-decoration: none;
             font-weight: 600;
-            margin: 0 0.5rem;
+            padding: 0.6rem 1.2rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+            border: 1px solid #bfdbfe;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.02);
         }
 
         .nav-links a:hover {
-            text-decoration: underline;
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(37, 99, 235, 0.2);
         }
 
         .empty-state {
@@ -207,9 +222,9 @@
             </div>
             <div class="nav-links" style="margin: 0;">
                 <a href="dashboard.html">📊 Dashboard</a>
-                <a href="index.html">Admission Form</a>
-                <a href="classes.html">Classes</a>
-                <a href="fee_heads.html">Fee Heads</a>
+                <a href="index.html">📝 Admission Form</a>
+                <a href="classes.html">🏫 Classes</a>
+                <a href="fee_heads.html">⚙️ Fee Heads</a>
                 <a href="fee_contacts.html">📞 Fee Contacts</a>
             </div>
         </header>
