@@ -121,7 +121,8 @@ window.processPayment = async function(payrollId, netPayableAmount, monthStr, st
                 amount: netPayableAmount,
                 expense_date: today,
                 description: `Salary: ${staffName} (${monthStr})`,
-                created_by: window.currentUser.id
+                created_by: window.currentUser.id,
+                reference_id: payrollId // Hardlink to ensure clean cascade delete
             });
         
         if (expErr) {
@@ -157,11 +158,10 @@ window.deleteChallan = async function(id, name, month, status) {
 
         // 2. If it was Paid, cascade-delete the matching expense record
         if (status === 'Paid') {
-            const expectedDesc = `Salary: ${name} (${month})`;
             const { error: expErr } = await window.supabaseClient
                 .from('expenses')
                 .delete()
-                .eq('description', expectedDesc);
+                .eq('reference_id', id);
 
             if (expErr) {
                 console.warn('Challan deleted, but expense cleanup failed:', expErr);

@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fee Contacts & Follow-up - Zahid School System</title>
+    <title>Family Fee Contacts - Zahid School System</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
     
     <!-- Supabase JS -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -29,7 +29,7 @@
         /* Main Content */
         .main-content { 
             width: 100%; 
-            padding: 1rem 0.5rem; /* Minimized side padding to use max space */
+            padding: 1rem 0.5rem;
             position: relative; 
             min-height: 100vh;
             box-sizing: border-box;
@@ -37,7 +37,7 @@
         }
 
         .page-header { margin-bottom: 1.5rem; position: relative; z-index: 2; display: flex; justify-content: space-between; align-items: center; }
-        .page-header h1 { font-size: 2.2rem; margin: 0; color: #0f172a; font-weight: 800; letter-spacing: -0.02em; }
+        .page-header h1 { font-size: 2.2rem; margin: 0; color: #0f172a; font-weight: 800; letter-spacing: -0.02em; display:flex; align-items:center; gap:0.5rem; }
         .page-header p { color: #64748b; margin: 0.3rem 0 0 0; font-size: 0.95rem; }
 
         .total-badge {
@@ -50,7 +50,7 @@
             align-items: center;
             gap: 1rem;
         }
-        .total-badge strong { font-size: 1.3rem; color: var(--primary); }
+        .total-badge strong { font-size: 1.3rem; color: #7c3aed; } /* Purple theme for family */
 
         /* Control Panel */
         .control-panel {
@@ -79,7 +79,7 @@
             background: white;
             transition: border-color 0.2s;
         }
-        .control-input:focus { border-color: var(--primary); }
+        .control-input:focus { border-color: #7c3aed; } /* Purple theme */
         
         .btn-action {
             padding: 0.6rem 1rem;
@@ -92,8 +92,6 @@
         }
         .btn-outline { background: white; border: 1px solid #cbd5e1; color: #475569; }
         .btn-outline:hover { background: #f1f5f9; border-color: #94a3b8; }
-        .btn-danger { background: #fee2e2; color: #b91c1c; }
-        .btn-danger:hover { background: #fca5a5; }
         
         /* Table Design */
         .table-container {
@@ -109,20 +107,20 @@
         .dense-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 1.1rem; /* Readable but fits securely */
+            font-size: 1.1rem;
             table-layout: auto;
         }
         
         .dense-table th {
-            background: var(--primary);
+            background: #7c3aed; /* Purple theme */
             color: #ffffff;
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.02em;
             padding: 0.6rem 0.2rem;
             font-size: 0.95rem;
-            border-bottom: 2px solid var(--primary-hover);
-            border: 1px solid var(--primary-hover);
+            border-bottom: 2px solid #6d28d9;
+            border: 1px solid #6d28d9;
             text-align: center;
             position: sticky;
             top: 0;
@@ -139,23 +137,15 @@
         }
         
         .dense-table tr:hover td { background: #f8fafc; }
-        .dense-table tr.pinned td { background: #fffbeb; } /* Highlight for pinned */
-        .dense-table tr.solved td { opacity: 0.4; } /* Solved are dimmed */
+        .dense-table tr.pinned td { background: #f3e8ff; } /* Light purple for pinned */
+        .dense-table tr.solved td { opacity: 0.4; }
 
         /* Column specific styling */
-        .col-roll { font-weight: 700; color: #0f172a; text-align: left !important; padding-left: 0.5rem !important; width: 60px; white-space: nowrap; }
-        .col-name { text-align: left !important; width: 130px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
+        .col-roll { font-weight: 700; color: #475569; text-align: center !important; width: 60px; white-space: nowrap; }
+        .col-name { text-align: left !important; width: 220px; max-width: 220px; line-height: 1.3; }
+        .col-members { width: 80px; font-size: 0.9rem; color: #64748b; }
         .col-balance { font-weight: 800; color: #b91c1c; white-space: nowrap;}
         .col-balance.zero { color: #10b981; }
-
-        /* Attendance Pill */
-        .att-pill {
-            display: inline-flex; justify-content: center; align-items: center;
-            width: 28px; height: 28px; border-radius: 6px; font-weight: 800; font-size: 0.95rem;
-            color: white; background: #cbd5e1; cursor: pointer;
-        }
-        .att-pill.P { background: #10b981; }
-        .att-pill.A { background: #ef4444; }
 
         /* Contact Cell Layout */
         .contact-cell {
@@ -182,18 +172,18 @@
             border-radius: 50%;
             border: none;
             cursor: pointer;
-            background: #e2e8f0; /* Default gray */
+            background: #e2e8f0;
             transition: transform 0.1s, background 0.3s;
             box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
         }
         .c-btn:active { transform: scale(0.85); box-shadow: inset 0 4px 6px rgba(0,0,0,0.2); }
         
         /* Status Colors */
-        .status-C { background: #10b981 !important; color: white; border-color: #10b981 !important;} /* Connected - Green */
-        .status-CN { background: #f59e0b !important; color: white; border-color: #f59e0b !important; } /* Connected No - Yellow */
-        .status-W { background: #ef4444 !important; color: white; border-color: #ef4444 !important; } /* Wrong - Red */
-        .status-NO { background: #f97316 !important; color: white; border-color: #f97316 !important; } /* Number Off - Orange */
-        .status-NN { background: #64748b !important; color: white; border-color: #64748b !important; } /* No Network - Gray/Blue */
+        .status-C  { background: #10b981 !important; color: white; border-color: #10b981 !important;} 
+        .status-CN { background: #f59e0b !important; color: white; border-color: #f59e0b !important; } 
+        .status-W  { background: #ef4444 !important; color: white; border-color: #ef4444 !important; } 
+        .status-NO { background: #f97316 !important; color: white; border-color: #f97316 !important; } 
+        .status-NN { background: #64748b !important; color: white; border-color: #64748b !important; } 
 
         .c-date { font-size: 0.85rem; font-weight: 600; color: #475569; margin-top: 3px; display: block; letter-spacing: -0.02em; }
         .c-date.hidden { opacity: 0; }
@@ -206,7 +196,7 @@
         }
         .action-btn-cell:hover { background: #e2e8f0; }
         
-        .cd-btn { color: #2563eb; font-weight: 800; font-size: 1.15rem; text-transform: uppercase; }
+        .cd-btn { color: #7c3aed; font-weight: 800; font-size: 1.15rem; text-transform: uppercase; }
         .cd-btn.active { background: #ef4444; color: white; }
         .pin-btn { filter: grayscale(1); opacity: 0.5; font-size: 1.3rem; }
         .pin-btn.active { filter: none; opacity: 1; transform: scale(1.2); }
@@ -214,7 +204,7 @@
         /* Commit Notes */
         .commit-input {
             width: 100%;
-            min-width: 200px;
+            min-width: 220px;
             padding: 0.6rem;
             font-size: 1.15rem;
             border: 1px solid transparent;
@@ -224,7 +214,7 @@
             font-family: inherit;
         }
         .commit-input:focus, .commit-input:hover {
-            border-color: var(--primary);
+            border-color: #7c3aed;
             background: white;
             outline: none;
             z-index: 100;
@@ -259,18 +249,35 @@
         
         /* Spinner */
         #loader { text-align: center; padding: 4rem; color: #64748b; font-weight: 500; font-size: 1.2rem; }
+
+        .nav-links { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; margin-left: 1.5rem; }
+        .nav-links a {
+            display: inline-flex; align-items: center; gap: 0.4rem; background: #f3e8ff;
+            color: #7c3aed; text-decoration: none; font-weight: 600; padding: 0.6rem 1.2rem;
+            border-radius: 8px; font-size: 0.9rem; transition: all 0.2s; border: 1px solid #d8b4fe;
+        }
+        .nav-links a:hover { background: #7c3aed; color: white; border-color: #7c3aed; }
     </style>
 </head>
 <body>
 
 
-    <main class="main-content" style="max-width: 1400px; margin: 0 auto;">        <div class="page-header">
-            <div>
-                <h1>📞 Fee Follow-ups & Contacts</h1>
-                <p>Track call statuses, lodge complaints, and record parental commitments.</p>
+    <main class="main-content" style="max-width: 1400px; margin: 0 auto;">        
+        <div class="page-header">
+            <div style="display:flex; align-items:center;">
+                <div>
+                    <h1>👨‍👩‍👧‍👦 Family Fee Contacts</h1>
+                    <p>Track call statuses and aggregated balances per family mobile globally.</p>
+                </div>
+                <div class="nav-links">
+                    <a href="dashboard.html">📊 Dashboard</a>
+                    <a href="collect_family_fee.html">💳 Collect Family Fee</a>
+                    <a href="fee_contacts.html">👤 Individual Contacts</a>
+                </div>
             </div>
+            
             <div class="total-badge">
-                <span style="color:#64748b; font-size:0.9rem; font-weight:600; text-transform:uppercase;">Visible Unpaid Balance</span>
+                <span style="color:#64748b; font-size:0.9rem; font-weight:600; text-transform:uppercase;">Unpaid Family Balances</span>
                 <strong id="totalBalanceBadge">Rs. 0</strong>
             </div>
         </div>
@@ -284,10 +291,7 @@
             </div>
 
             <div class="control-group">
-                <select id="classFilter" class="control-input">
-                    <option value="">All Classes</option>
-                    <!-- Populated dynamically -->
-                </select>
+                <input type="text" id="searchTerm" class="control-input" placeholder="Search Mobile or Father Name..." style="width: 260px;">
             </div>
 
             <div class="control-group">
@@ -296,10 +300,6 @@
                     <option value="Pending">Pending Rows Only</option>
                     <option value="Solved">Solved Rows Only</option>
                 </select>
-            </div>
-
-            <div class="control-group">
-                <input type="text" id="rollFilter" class="control-input" placeholder="Roll No..." style="width: 100px;">
             </div>
 
             <div class="control-group" style="margin-left:auto; gap: 1rem;">
@@ -321,9 +321,8 @@
             <table class="dense-table" id="contactsTable">
                 <thead>
                     <tr>
-                        <th class="col-roll">Roll No</th>
-                        <th class="col-name">Student Name</th>
-                        <th>Att</th>
+                        <th class="col-roll">Fam #</th>
+                        <th class="col-name">Family Details</th>
                         <th>C 1</th>
                         <th>C 2</th>
                         <th>C 3</th>
@@ -332,12 +331,12 @@
                         <th>C 6</th>
                         <th class="col-c7">C 7</th>
                         <th class="col-c8">C 8</th>
-                        <th>Balance</th>
+                        <th>Total Balance</th>
                         <th style="width: 40px;" title="Voice Message (Audio)">Aud</th>
                         <th style="width: 40px;">WA</th>
                         <th>CD</th>
                         <th>Pin</th>
-                        <th style="width: 100px; text-align:left;">Commitment</th>
+                        <th style="width: 110px; text-align:left;">Commitment</th>
                         <th style="width: 80px;">Status</th>
                     </tr>
                 </thead>
@@ -345,7 +344,7 @@
                     <!-- Rows rendered via JS -->
                 </tbody>
             </table>
-            <div id="loader" style="display:none;">🔄 Loading Data...</div>
+            <div id="loader" style="display:none;">🔄 Loading Family Data...</div>
         </div>
     </main>
 
@@ -379,6 +378,6 @@
 
     <!-- Global shared dependencies -->
     <script src="auth.js"></script>
-    <script src="fee_contacts.js"></script>
+    <script src="family_contacts.js"></script>
 </body>
 </html>

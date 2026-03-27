@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Templates - Zahid School System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- Supabase JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <style>
+        body { 
+            display: block; 
+            margin: 0; 
+            min-height: 100vh; 
+            background: #f0f4f8; 
+            font-family: 'Inter', sans-serif;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        body.auth-ready { opacity: 1; }
+
+        .main-content { 
+            max-width: 1000px; 
+            margin: 0 auto; 
+            padding: 2rem;
+        }
+
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+        .header h1 { font-size: 2.2rem; margin: 0; color: #0f172a; font-weight: 800; }
+        .header p { color: #64748b; margin: 0.3rem 0 0 0; }
+        
+        .nav-links { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+        .nav-links a {
+            display: inline-flex; align-items: center; gap: 0.4rem; background: #e2e8f0;
+            color: #475569; text-decoration: none; font-weight: 600; padding: 0.6rem 1.2rem;
+            border-radius: 8px; font-size: 0.9rem; transition: all 0.2s;
+        }
+        .nav-links a:hover { background: #cbd5e1; }
+
+        .panel {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            margin-bottom: 1.5rem;
+        }
+
+        .placeholders-box {
+            background: #f8fafc; padding: 1rem; border-radius: 8px; border: 1px dashed #cbd5e1; margin-bottom: 1.5rem;
+        }
+        .placeholders-box code { color: #2563eb; font-weight: bold; background: #e0e7ff; padding: 2px 6px; border-radius: 4px; }
+
+        .form-group { margin-bottom: 1rem; }
+        .form-group label { display: block; font-size: 0.9rem; font-weight: 600; color: #475569; margin-bottom: 0.4rem; }
+        .form-control {
+            width: 100%; box-sizing: border-box; padding: 0.8rem; border-radius: 8px;
+            border: 1px solid #cbd5e1; font-family: inherit; font-size: 1rem; outline: none; transition: border-color 0.2s;
+        }
+        .form-control:focus { border-color: #7c3aed; }
+        
+        .btn {
+            padding: 0.8rem 1.5rem; border: none; border-radius: 8px; font-weight: 700; cursor: pointer;
+            transition: all 0.2s; display: inline-flex; align-items: center; gap: 0.5rem; font-size: 1rem;
+        }
+        .btn-primary { background: #7c3aed; color: white; }
+        .btn-primary:hover { background: #6d28d9; }
+        
+        .template-card {
+            border: 1px solid #cbd5e1; border-radius: 8px; padding: 1.2rem; margin-bottom: 1rem;
+            display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem; background: #f8fafc;
+        }
+        .template-content { flex: 1; min-width: 250px;}
+        .template-content h3 { margin: 0 0 0.5rem 0; color: #1e293b; font-size: 1.1rem; }
+        .template-content pre { margin: 0; color: #475569; font-size: 0.95rem; white-space: pre-wrap; font-family: inherit; line-height: 1.4; }
+        .template-actions { display: flex; gap: 0.5rem; align-items: flex-start; }
+        .btn-icon { background: white; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0.6rem; cursor: pointer; color: #475569; transition: all 0.2s;}
+        .btn-icon:hover { background: #e2e8f0; }
+        .btn-danger { color: #ef4444; border-color: #fca5a5; }
+        .btn-danger:hover { background: #fee2e2; }
+
+    </style>
+</head>
+<body>
+
+    <main class="main-content">        
+        <div class="header">
+            <div>
+                <h1>📱 WhatsApp Templates</h1>
+                <p>Create and manage your custom messaging templates.</p>
+            </div>
+            <div class="nav-links">
+                <a href="family_contacts.html">⬅ Back to Family Contacts</a>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+            
+            <!-- Form Panel -->
+            <div class="panel">
+                <h2 style="margin-top:0; color:#334155; border-bottom:2px solid #e2e8f0; padding-bottom:0.5rem;" id="formTitle">Create New Template</h2>
+                
+                <div class="placeholders-box">
+                    <strong style="display:block; margin-bottom:0.5rem; color:#334155;">Available Placeholders:</strong>
+                    <ul style="margin:0; padding-left:1.5rem; color:#475569; font-size:0.9rem;">
+                        <li><code>{{BILL_DETAILS}}</code> Details of each student & fee</li>
+                        <li><code>{{GRAND_TOTAL}}</code> Family total amount</li>
+                        <li><code>{{FATHER_NAME}}</code> Returns Father's Name</li>
+                        <li><code>{{TODAY_DATE}}</code> Returns today's date</li>
+                    </ul>
+                </div>
+
+                <input type="hidden" id="editId">
+                <div class="form-group">
+                    <label>Template Name / Title</label>
+                    <input type="text" id="titleInput" class="form-control" placeholder="e.g. Urdu Polite Reminder">
+                </div>
+                
+                <div class="form-group">
+                    <label>WhatsApp Message</label>
+                    <textarea id="messageInput" class="form-control" rows="10" placeholder="Type your template here..."></textarea>
+                </div>
+                
+                <button class="btn btn-primary" id="btnSave">💾 Save Template</button>
+                <button class="btn" id="btnCancel" style="background:#e2e8f0; color:#475569; display:none;">Cancel Edit</button>
+            </div>
+
+            <!-- List Panel -->
+            <div>
+                <h2 style="margin-top:0; color:#334155; margin-bottom:1rem;">Saved Templates</h2>
+                <div id="templatesList">
+                    <p style="color:#94a3b8;">Loading...</p>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script src="auth.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', loadTemplates);
+
+        async function loadTemplates() {
+            try {
+                const { data, error } = await window.supabaseClient.from('wa_templates').select('*').order('created_at', { ascending: false });
+                if (error) throw error;
+                renderTemplates(data);
+            } catch (err) {
+                console.error(err);
+                document.getElementById('templatesList').innerHTML = `<p style="color:red;">Error loading templates</p>`;
+            }
+        }
+
+        function renderTemplates(templates) {
+            const list = document.getElementById('templatesList');
+            if (!templates || templates.length === 0) {
+                list.innerHTML = `<p style="color:#64748b;">No templates found. Create one to get started.</p>`;
+                return;
+            }
+
+            list.innerHTML = templates.map(t => `
+                <div class="template-card">
+                    <div class="template-content">
+                        <h3>${t.title} ${t.is_default ? '<span style="font-size:0.7rem; background:#dcfce7; color:#16a34a; padding:2px 6px; border-radius:4px; margin-left:0.5rem;">Default</span>' : ''}</h3>
+                        <pre>${t.message_text}</pre>
+                    </div>
+                    <div class="template-actions">
+                        <button class="btn-icon" onclick="editTemplate('${t.id}')">✏️ Edit</button>
+                        <button class="btn-icon btn-danger" onclick="deleteTemplate('${t.id}')">🗑️</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        document.getElementById('btnSave').addEventListener('click', async () => {
+            const id = document.getElementById('editId').value;
+            const title = document.getElementById('titleInput').value.trim();
+            const text = document.getElementById('messageInput').value.trim();
+
+            if (!title || !text) return alert("Title and Message Text are required.");
+
+            document.getElementById('btnSave').innerHTML = 'Saving...';
+            try {
+                if (id) {
+                    await window.supabaseClient.from('wa_templates').update({title: title, message_text: text}).eq('id', id);
+                } else {
+                    await window.supabaseClient.from('wa_templates').insert({title: title, message_text: text});
+                }
+                
+                // Clear form
+                document.getElementById('editId').value = '';
+                document.getElementById('titleInput').value = '';
+                document.getElementById('messageInput').value = '';
+                document.getElementById('formTitle').textContent = 'Create New Template';
+                document.getElementById('btnCancel').style.display = 'none';
+                
+                await loadTemplates();
+            } catch (err) {
+                alert(err.message);
+            } finally {
+                document.getElementById('btnSave').innerHTML = '💾 Save Template';
+            }
+        });
+
+        document.getElementById('btnCancel').addEventListener('click', () => {
+            document.getElementById('editId').value = '';
+            document.getElementById('titleInput').value = '';
+            document.getElementById('messageInput').value = '';
+            document.getElementById('formTitle').textContent = 'Create New Template';
+            document.getElementById('btnCancel').style.display = 'none';
+        });
+
+        window.editTemplate = async function(id) {
+            try {
+                const { data } = await window.supabaseClient.from('wa_templates').select('*').eq('id', id).single();
+                if(data) {
+                    document.getElementById('editId').value = data.id;
+                    document.getElementById('titleInput').value = data.title;
+                    document.getElementById('messageInput').value = data.message_text;
+                    document.getElementById('formTitle').textContent = '✏️ Edit Template';
+                    document.getElementById('btnCancel').style.display = 'inline-flex';
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            } catch (err) { console.error(err); }
+        };
+
+        window.deleteTemplate = async function(id) {
+            if(!confirm("Are you sure you want to delete this template?")) return;
+            try {
+                await window.supabaseClient.from('wa_templates').delete().eq('id', id);
+                await loadTemplates();
+            } catch (err) { alert(err.message); }
+        };
+
+    </script>
+</body>
+</html>

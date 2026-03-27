@@ -207,8 +207,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             const matchedClass = cache.classes.find(c => `${c.class_name} ${c.section}`.trim().toLowerCase() === student.applying_for_class.trim().toLowerCase());
             
             if(matchedClass) {
-                const matchedFee = cache.feeHeads.find(f => f.fee_type === type && f.class_id === matchedClass.id);
+                let matchedFee = cache.feeHeads.find(f => f.fee_type === type && f.class_id === matchedClass.id);
+                // Fallback to Global Fee Head
+                if(!matchedFee) {
+                    matchedFee = cache.feeHeads.find(f => f.fee_type === type && f.class_id === null);
+                }
                 if(matchedFee) foundAmount = matchedFee.amount;
+            } else {
+                // Class not found for student, try Global Fee Head anyway
+                const globalFee = cache.feeHeads.find(f => f.fee_type === type && f.class_id === null);
+                if(globalFee) foundAmount = globalFee.amount;
             }
         }
         
@@ -366,10 +374,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                     assignedAmt = s.monthly_fee;
                 } else {
                     const matchedClass = cache.classes.find(c => `${c.class_name} ${c.section}`.trim().toLowerCase() === s.applying_for_class.trim().toLowerCase());
+                    let matchedFee = null;
                     if(matchedClass) {
-                        const matchedFee = cache.feeHeads.find(f => f.fee_type === feeType && f.class_id === matchedClass.id);
-                        if(matchedFee) assignedAmt = matchedFee.amount;
+                        matchedFee = cache.feeHeads.find(f => f.fee_type === feeType && f.class_id === matchedClass.id);
                     }
+                    if(!matchedFee) {
+                        matchedFee = cache.feeHeads.find(f => f.fee_type === feeType && f.class_id === null);
+                    }
+                    if(matchedFee) assignedAmt = matchedFee.amount;
                 }
             }
             

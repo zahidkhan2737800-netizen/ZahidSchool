@@ -33,7 +33,8 @@ const PAGE_KEY_MAP = {
     'staff_hiring.html':        'staff_hiring',
     'staff_attendance.html':    'staff_attendance',
     'staff_payroll.html':       'staff_payroll',
-    'staff_payments.html':      'staff_payments'
+    'staff_payments.html':      'staff_payments',
+    'saas_master_console.html': 'access_control' // Super admin restricted
 };
 
 // Global auth state
@@ -61,17 +62,25 @@ let userPermissions = {};  // { page_key: { can_view, can_create, can_edit, can_
         currentUser = session.user;
         window.currentUser = currentUser;
 
-        // 2. Fetch user's role
+        // 2. Fetch user's role and school status
         const { data: roleData, error: roleError } = await supabaseClient
             .from('user_roles')
-            .select('role_id, roles(id, role_name)')
+            .select('role_id, school_id, schools(is_active, school_name), roles(id, role_name)')
             .eq('user_id', currentUser.id)
             .single();
 
         if (roleError || !roleData) {
-            redirectToLogin('No role assigned. Contact administrator.');
+            redirectToLogin('No role or school assigned. Contact administrator.');
             return;
         }
+
+        // 3. Multi-Tenant Check: Is the school active?
+        const school = roleData.schools;
+        if (school && school.is_active === false) {
+            redirectToLogin('Your school software access has been suspended. Please contact the administrator.');
+            return;
+        }
+        window.currentSchoolName = school ? school.school_name : 'System';
 
         userRole = Array.isArray(roleData.roles) ? roleData.roles[0] : roleData.roles;
         userRoleName = userRole.role_name;
@@ -100,8 +109,8 @@ let userPermissions = {};  // { page_key: { can_view, can_create, can_edit, can_
         });
 
         // Auto-grant new module permissions to admin if missing from DB
-        if (userRoleName === 'admin') {
-            ['monitoring', 'attendance', 'fee_contacts', 'family', 'collect_family_fee', 'homework', 'complaints', 'reports', 'finance', 'staff_hiring', 'staff_attendance', 'staff_payroll', 'staff_payments'].forEach(key => {
+        if (userRoleName === 'admin' || userRoleName === 'super_admin') {
+            ['dashboard', 'admissions', 'classes', 'access_control', 'fee_heads', 'challans', 'students', 'collect_fee', 'monitoring', 'attendance', 'fee_contacts', 'family', 'collect_family_fee', 'homework', 'complaints', 'reports', 'finance', 'staff_hiring', 'staff_attendance', 'staff_payroll', 'staff_payments'].forEach(key => {
                 if (!userPermissions[key]) {
                     userPermissions[key] = { can_view: true, can_create: true, can_edit: true, can_delete: true };
                 }
@@ -110,7 +119,8 @@ let userPermissions = {};  // { page_key: { can_view, can_create, can_edit, can_
 
         // 4. Check if user has VIEW access to current page
         const pageKey = PAGE_KEY_MAP[currentPage];
-        if (pageKey && (!userPermissions[pageKey] || !userPermissions[pageKey].can_view)) {
+        // Only restrict if the user is NOT a super admin. Super admins always bypass UI restrictions.
+        if (userRoleName !== 'super_admin' && pageKey && (!userPermissions[pageKey] || !userPermissions[pageKey].can_view)) {
             window.location.href = 'dashboard.html?denied=1';
             return;
         }
@@ -180,57 +190,26 @@ function injectUserProfile() {
         'staff': '#d97706'
     };
 
-    const profileSection = document.createElement('div');
-    profileSection.className = 'user-profile-section';
-    profileSection.innerHTML = `
-        <div style="
-            padding: 1.2rem 1.5rem;
-            border-top: 1px solid rgba(0,0,0,0.05);
-            display: flex;
-            align-items: center;
-            gap: 0.8rem;
-        ">
-            <div style="
-                width: 38px;
-                height: 38px;
-                border-radius: 50%;
-                background: linear-gradient(135deg, ${roleBadgeColor[userRoleName] || '#64748b'}, #1e293b);
-                color: white;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-weight: 700;
-                font-size: 0.9rem;
-                flex-shrink: 0;
-            ">${(currentUser.email || '?').charAt(0).toUpperCase()}</div>
-            <div style="flex:1; min-width:0;">
-                <div style="font-weight:600; font-size:0.85rem; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                    ${currentUser.email}
-                </div>
-                <span style="
-                    display:inline-block;
-                    background: ${roleBadgeColor[userRoleName] || '#64748b'};
-                    color: white;
-                    font-size: 0.65rem;
-                    padding: 0.15rem 0.5rem;
-                    border-radius: 12px;
-                    font-weight: 700;
-                    text-transform: uppercase;
-                    letter-spacing: 0.05em;
-                ">${userRoleName}</span>
-            </div>
-            <button onclick="logout()" title="Logout" style="
-                background: none;
-                border: none;
-                cursor: pointer;
-                font-size: 1.2rem;
-                padding: 0.3rem;
-                border-radius: 8px;
-                transition: background 0.2s;
-                flex-shrink: 0;
-            " onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='none'">🚪</button>
-        </div>
-    `;
+    // Inject School Name if present
+    if (window.currentSchoolName) {
+        const schoolLabel = document.createElement('div');
+        schoolLabel.style.cssText = 'padding: 0.5rem 1.5rem; font-size: 0.75rem; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; background: #f8fafc; border-bottom: 1px solid #f1f5f9;';
+        schoolLabel.textContent = `🏫 ${window.currentSchoolName}`;
+        sidebar.prepend(schoolLabel);
+    }
+
+    // Inject SaaS Console link for Super Admins
+    if (userRoleName === 'super_admin') {
+        const saasLink = document.createElement('div');
+        saasLink.innerHTML = `
+            <a href="saas_master_console.html" style="
+                display: flex; align-items: center; gap: 0.8rem; padding: 0.8rem 1.5rem;
+                background: #0f172a; color: #38bdf8; text-decoration: none; font-weight: 800; font-size: 0.9rem;
+                border-left: 4px solid #38bdf8; margin: 0.5rem 0;
+            ">👑 SAAS MASTER CONSOLE</a>
+        `;
+        sidebar.prepend(saasLink);
+    }
 
     sidebar.appendChild(profileSection);
 }

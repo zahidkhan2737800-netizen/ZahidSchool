@@ -8,6 +8,9 @@ let monthData = {}; // keyed by student.id
 let classesList = [];
 let studentBalances = {}; // Cache for live balance calculations
 let todayAttendance = {}; // Cache for today's attendance statuses (student_id -> status)
+let allPendingChallans = [];
+let waTemplates = [];
+let currentOpenStudentId = null;
 
 const STATUS_COLORS = {
     'C': 'status-C',
@@ -67,10 +70,10 @@ function changeMonth(offset) {
 // ─── Fetch Base Data (Students & Classes) ────────────────────────────────────
 async function loadBaseData() {
     try {
-        // Fetch specific columns for speed
+        // Fetch specific columns for speed including father contact
         const { data: students, error: sErr } = await supabaseClient
             .from('admissions')
-            .select('id, roll_number, full_name, applying_for_class')
+            .select('id, roll_number, full_name, applying_for_class, father_name, father_mobile')
             .eq('status', 'Active')
             .order('roll_number', { ascending: true });
 
@@ -94,19 +97,22 @@ async function loadBaseData() {
             });
         }
 
-        // Fetch Real Unpaid Balances
+        // Fetch Real Unpaid Balances fully detailed for WhatsApp bills
         const { data: challans, error: bErr } = await supabaseClient
             .from('challans')
-            .select('student_id, amount')
+            .select('*')
             .neq('status', 'Paid')
             .neq('status', 'Cancelled');
             
+        allPendingChallans = challans || [];
         studentBalances = {};
         if (challans && !bErr) {
             challans.forEach(c => {
-                studentBalances[c.student_id] = (studentBalances[c.student_id] || 0) + Number(c.amount || 0);
+                studentBalances[c.student_id] = (studentBalances[c.student_id] || 0) + Number(c.amount || 0) - Number(c.paid_amount || 0);
             });
         }
+        
+        await loadWaTemplates();
 
         // Fetch Today's Attendance
         const todayStr = new Date().toISOString().slice(0, 10);
@@ -211,10 +217,12 @@ function renderTable() {
 
         tr.innerHTML = `
             <td class="col-roll">${student.roll_number}</td>
-            <td class="col-name">${student.full_name}</td>
+            <td class="col-name">${student.full_name}<br><small style="color:#64748b; font-size:0.8rem;">${student.father_mobile||''}</small></td>
             <td>${attHtml}</td>
             ${[1,2,3,4,5,6,7,8].map(idx => generateContactCell(student.id, idx, data)).join('')}
-            <td class="col-balance ${balance === 0 ? 'zero' : ''}">${balance}</td>
+            <td class="col-balance ${balance === 0 ? 'zero' : ''}">${balance.toLocaleString()}</td>
+            <td><button class="action-btn-cell" data-student="${student.id}" title="Send Voice Message" onclick="openAudioChat('${student.id}')">🎙️</button></td>
+            <td><button class="action-btn-cell wa-btn" data-student="${student.id}" title="Send WhatsApp Bill" onclick="openWaModal('${student.id}')"><i class="fab fa-whatsapp" style="color:#25D366; font-size:1.3rem;"></i></button></td>
             <td><button class="action-btn-cell cd-btn ${data.complaint ? 'active' : ''}" data-id="${student.id}" title="Complaint">C</button></td>
             <td><button class="action-btn-cell pin-btn ${data.pinned ? 'active' : ''}" data-id="${student.id}" title="Pin to top">📌</button></td>
             <td><input type="text" class="commit-input" value="${data.commitment_notes || ''}" placeholder="Add notes..." data-id="${student.id}"></td>
@@ -328,6 +336,136 @@ function attachCellEvents(tr, studentId) {
         });
     }
 }
+
+async function loadWaTemplates() {
+    try {
+        const { data, error } = await supabaseClient.from('wa_templates').select('*').order('created_at', { ascending: true });
+        if (!error && data) {
+            waTemplates = data;
+            const dropdown = document.getElementById('waTemplateDropdown');
+            if(dropdown) {
+                dropdown.innerHTML = '';
+                const lastUsed = localStorage.getItem('lastWaTemplate');
+                let selectedId = null;
+                
+                if (lastUsed && waTemplates.find(t => t.id === lastUsed)) {
+                    selectedId = lastUsed;
+                } else if (waTemplates.find(t => t.is_default)) {
+                    selectedId = waTemplates.find(t => t.is_default).id;
+                } else if (waTemplates.length > 0) {
+                    selectedId = waTemplates[0].id;
+                }
+
+                waTemplates.forEach(t => {
+                    const opt = document.createElement('option');
+                    opt.value = t.id;
+                    opt.textContent = t.title;
+                    if(t.id === selectedId) opt.selected = true;
+                    dropdown.appendChild(opt);
+                });
+            }
+        }
+    } catch(e) { console.error("Error loading WA templates", e); }
+}
+
+window.openAudioChat = function(studentId) {
+    const s = allStudents.find(x => x.id === studentId);
+    if(!s || !s.father_mobile) return alert("No valid mobile number for this student.");
+    let phone = String(s.father_mobile).replace(/[^0-9]/g, '');
+    if (phone.startsWith('0') && phone.length === 11) phone = '92' + phone.substring(1);
+    window.open(`https://wa.me/${phone}`, '_blank');
+};
+
+window.openWaModal = function(studentId) {
+    currentOpenStudentId = studentId;
+    applySelectedWaTemplate();
+    document.getElementById('waModal').style.display = 'flex';
+};
+
+window.applySelectedWaTemplate = function() {
+    if(!currentOpenStudentId) return;
+    const s = allStudents.find(x => x.id === currentOpenStudentId);
+    if (!s) return;
+
+    let templateText = "";
+    const dropdown = document.getElementById('waTemplateDropdown');
+    
+    if (dropdown && dropdown.value) {
+        const t = waTemplates.find(x => x.id === dropdown.value);
+        if(t) {
+            templateText = t.message_text;
+            localStorage.setItem('lastWaTemplate', t.id);
+        }
+    }
+
+    if (!templateText) {
+        templateText = "Zahid School System\nDear {{FATHER_NAME}},\n\n{{BILL_DETAILS}}\nTotal: Rs {{GRAND_TOTAL}}";
+    }
+
+    const todayDate = new Date().toLocaleDateString('en-GB', {day: 'numeric', month: 'short', year: 'numeric'});
+    let stuTotal = 0;
+    
+    // Detailed bill block for ONE student
+    let billDetailsLines = [];
+    const stuChallans = allPendingChallans.filter(c => c.student_id === s.id);
+    let stuLines = [];
+
+    stuChallans.forEach(c => {
+        const rem = parseFloat(c.amount || 0) - parseFloat(c.paid_amount || 0);
+        if(rem > 0) {
+            let desc = "";
+            if(c.fee_month && c.fee_month !== 'N/A') {
+                const cleanMonth = c.fee_month.replace(/\s*\d{4}\s*/g, '').trim();
+                if(cleanMonth) desc += `${cleanMonth} `;
+            }
+            desc += c.fee_type;
+            
+            let spaces = 28 - desc.length;
+            if(spaces < 3) spaces = 3;
+            desc += ' '.repeat(spaces) + rem.toLocaleString();
+            
+            stuLines.push(desc);
+            stuTotal += rem;
+        }
+    });
+
+    if (stuLines.length > 0) {
+        billDetailsLines.push(`*${s.full_name.trim()}*`);
+        billDetailsLines.push('```\n' + stuLines.join('\n') + '\n```');
+    }
+    
+    let parsed = templateText.replace(/{{TODAY_DATE}}/g, todayDate)
+                             .replace(/{{FATHER_NAME}}/g, s.father_name || 'Father')
+                             .replace(/{{GRAND_TOTAL}}/g, stuTotal.toLocaleString());
+    
+    if(stuTotal === 0) {
+        parsed = "All dues are clear! Thank you for your continued support.";
+    } else {
+        parsed = parsed.replace(/{{BILL_DETAILS}}/g, billDetailsLines.join('\n').trim());
+    }
+
+    document.getElementById('waMessageText').value = parsed;
+    
+    const btnSend = document.getElementById('btnSendWa');
+    btnSend.onclick = function() {
+        const text = document.getElementById('waMessageText').value;
+        if(!s.father_mobile) {
+            alert("This student has no mobile number registered.");
+            closeWaModal();
+            return;
+        }
+        let phone = String(s.father_mobile).replace(/[^0-9]/g, '');
+        if (phone.startsWith('0') && phone.length === 11) {
+            phone = '92' + phone.substring(1);
+        }
+        window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
+        closeWaModal();
+    };
+};
+
+window.closeWaModal = function() {
+    document.getElementById('waModal').style.display = 'none';
+};
 
 // ─── Database Sync ───────────────────────────────────────────────────────────
 async function saveContactState(studentId, fieldsToUpdate) {

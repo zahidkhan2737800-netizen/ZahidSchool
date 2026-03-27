@@ -46,8 +46,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Wait for auth to be ready
     await waitForAuth();
 
-    // Only admin can use this page (enforced by auth.js, but double-check)
-    if (userRoleName !== 'admin') {
+    // Only admin or super_admin can use this page
+    if (userRoleName !== 'admin' && userRoleName !== 'super_admin') {
         window.location.href = 'dashboard.html?denied=1';
         return;
     }
@@ -344,37 +344,72 @@ async function addNewUser() {
     btn.textContent = '⏳ Creating...';
 
     try {
-        // Create user via Supabase Auth Admin API
-        // NOTE: For client-side, we use signUp (this logs the new user in on their first visit)
-        // In production, you'd use a server-side admin API
+        // Get current admin's school_id so the new user is auto-assigned to same school
+        const { data: myProfile } = await supabaseClient
+            .from('user_roles')
+            .select('school_id')
+            .eq('user_id', window.currentUser.id)
+            .single();
+        const schoolId = myProfile ? myProfile.school_id : null;
+
+        // Step 1: Attempt to create the Auth account
         const { data: signUpData, error: signUpError } = await supabaseClient.auth.signUp({
             email,
             password
         });
 
-        if (signUpError) throw signUpError;
-        if (!signUpData.user) throw new Error('User creation failed.');
+        if (signUpError) {
+            const msg = signUpError.message?.toLowerCase() || '';
+            if (msg.includes('already registered') || msg.includes('already been registered')) {
+                // Check if this email already has a role profile in our system
+                const { data: existingRole } = await supabaseClient
+                    .from('user_roles')
+                    .select('id')
+                    .eq('email', email)
+                    .maybeSingle();
 
-        // Assign role + Save Metadata
+                if (existingRole) {
+                    showToast(`⚠️ "${email}" is already a staff member in the system. Use the table below to change their role.`, 'error');
+                } else {
+                    showToast(`⚠️ This email already exists in Auth. Go to SaaS Master Console → Global User Management to assign them a role there.`, 'error');
+                }
+                return;
+            }
+            throw signUpError;
+        }
+
+        if (!signUpData?.user) throw new Error('User creation failed. Try again.');
+
+        // Step 2: Assign role + school + metadata
         const { error: roleError } = await supabaseClient
             .from('user_roles')
             .insert({ 
                 user_id: signUpData.user.id, 
                 role_id: roleId,
                 full_name: fullName,
-                email: email
+                email: email,
+                school_id: schoolId
             });
 
-        if (roleError) throw roleError;
+        if (roleError) {
+            if (roleError.code === '23505') {
+                // Duplicate — just update instead
+                await supabaseClient
+                    .from('user_roles')
+                    .update({ role_id: roleId, full_name: fullName, school_id: schoolId })
+                    .eq('user_id', signUpData.user.id);
+            } else {
+                throw roleError;
+            }
+        }
 
-        showToast(`✅ User "${fullName}" created successfully!`, 'success');
+        showToast(`✅ User "${fullName}" created! They can log in with: ${email}`, 'success');
 
         // Clear form
         document.getElementById('newUserName').value = '';
         document.getElementById('newUserEmail').value = '';
         document.getElementById('newUserPassword').value = '';
 
-        // Refresh users list
         await loadUsers();
 
     } catch (err) {

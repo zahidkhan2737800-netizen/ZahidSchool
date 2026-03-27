@@ -1,250 +1,379 @@
-// Supabase client is now provided by auth.js (supabaseClient)
+// ═══════════════════════════════════════════════════════════════════════════════
+// fee_heads.js — Fee Head Types + Fee Head Assignment Management
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let editFeeId = null;
+let allFeeHeadsData = [];
 
 document.addEventListener('DOMContentLoaded', () => {
-    const feeForm = document.getElementById('feeForm');
-    const classIdSelect = document.getElementById('classId');
-    const feeBody = document.getElementById('feeBody');
-    const formAlert = document.getElementById('formAlert');
-    const submitBtn = document.getElementById('submitBtn');
-    const cancelEditBtn = document.getElementById('cancelEditBtn');
+    const checkAuth = setInterval(() => {
+        if (window.authReady) {
+            clearInterval(checkAuth);
+            initFeeHeads();
+        }
+    }, 100);
+});
 
-    let editFeeId = null; // Track if we are editing an existing record
+function initFeeHeads() {
+    document.getElementById('feeForm').addEventListener('submit', handleFeeFormSubmit);
+    document.getElementById('searchFee').addEventListener('input', (e) => renderFeeHeads(e.target.value.toLowerCase()));
 
-    // Load necessary data on startup
+    loadFeeHeadTypes();
     loadClasses();
     fetchFeeHeads();
+}
 
-    // Handle Cancel Edit
-    cancelEditBtn.addEventListener('click', () => {
-        resetFormToCreateMode();
-    });
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION 1: Fee Head Types (Tag Manager)
+// ═══════════════════════════════════════════════════════════════════════════════
 
-    function resetFormToCreateMode() {
-        editFeeId = null;
-        document.getElementById('feeType').value = '';
-        document.getElementById('amount').value = '';
-        document.getElementById('isMonthly').checked = false;
-        classIdSelect.value = ''; // Reset select
-        
-        // Reset UI Buttons
-        submitBtn.innerHTML = `
-            <span>Save Fee Head</span>
-            <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" class="btn-icon"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
-        `;
-        cancelEditBtn.style.display = 'none';
+async function loadFeeHeadTypes() {
+    try {
+        const { data, error } = await window.supabaseClient
+            .from('fee_head_types')
+            .select('id, name')
+            .order('name');
+        if (error) throw error;
+
+        renderTypeTags(data || []);
+        populateFeeTypeDropdown(data || []);
+    } catch(err) {
+        console.error('Error loading fee head types:', err);
+        document.getElementById('typeTagsContainer').innerHTML = `<span style="color:red;font-size:0.85rem;">Error loading types. Did you run fee_head_types_setup.sql?</span>`;
     }
+}
 
-    feeForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        formAlert.style.display = 'none';
+function renderTypeTags(types) {
+    const container = document.getElementById('typeTagsContainer');
+    if (types.length === 0) {
+        container.innerHTML = `<span style="color:#94a3b8;font-size:0.85rem;">No types yet. Add one above.</span>`;
+        return;
+    }
+    container.innerHTML = types.map(t => `
+        <span class="type-tag">
+            ${t.name}
+            <button onclick="deleteFeeType('${t.id}', '${t.name.replace(/'/g, "\\'")}')" title="Remove">✕</button>
+        </span>
+    `).join('');
+}
 
-        const classId = classIdSelect.value;
-        const feeType = document.getElementById('feeType').value.trim();
-        const amount = document.getElementById('amount').value.trim();
-        const isMonthly = document.getElementById('isMonthly').checked;
+function populateFeeTypeDropdown(types) {
+    const sel = document.getElementById('feeType');
+    const currentVal = sel.value;
+    sel.innerHTML = `<option value="" disabled selected>-- Select Fee Type --</option>`;
+    types.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t.name;
+        opt.textContent = t.name;
+        sel.appendChild(opt);
+    });
+    if (currentVal) sel.value = currentVal; // Preserve during edits
+}
 
-        if(!classId || !feeType || !amount) {
-            showAlert('All fields are required.', true);
+window.addFeeType = async function() {
+    const input = document.getElementById('newTypeName');
+    const name = input.value.trim();
+    if (!name) { showToast('Please enter a type name.', 'error'); return; }
+
+    try {
+        const { error } = await window.supabaseClient
+            .from('fee_head_types')
+            .insert({ name, created_by: window.currentUser?.id });
+        if (error) {
+            if (error.message.includes('unique') || error.code === '23505') {
+                showToast(`"${name}" already exists.`, 'error');
+            } else { throw error; }
             return;
         }
+        input.value = '';
+        showToast(`"${name}" added to fee types!`, 'success');
+        loadFeeHeadTypes();
+    } catch(err) {
+        showToast('Failed to add: ' + err.message, 'error');
+    }
+};
 
-        const originalText = submitBtn.innerHTML;
-        submitBtn.innerHTML = '<span style="display:inline-block; animation: spin 1s linear infinite;">⏳</span> Saving...';
-        submitBtn.style.opacity = '0.8';
-        submitBtn.style.pointerEvents = 'none';
+window.deleteFeeType = async function(id, name) {
+    if (!confirm(`Remove fee type "${name}"?`)) return;
+    try {
+        const { error } = await window.supabaseClient
+            .from('fee_head_types')
+            .delete()
+            .eq('id', id);
+        if (error) throw error;
+        showToast(`"${name}" removed.`, 'success');
+        loadFeeHeadTypes();
+    } catch(err) {
+        showToast('Failed to delete: ' + err.message, 'error');
+    }
+};
 
-        try {
-            const payload = { 
-                class_id: classId, 
-                fee_type: feeType, 
-                amount: parseFloat(amount),
-                is_monthly: isMonthly
-            };
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION 2: Load Classes into Checkboxes (Multi-select)
+// ═══════════════════════════════════════════════════════════════════════════════
 
-            if (editFeeId) {
-                // Update Existing
-                const { error } = await supabaseClient
-                    .from('fee_heads')
-                    .update(payload)
-                    .eq('id', editFeeId);
-                if (error) throw new Error(error.message);
-                showAlert('✅ Fee Head updated successfully!', false);
+async function loadClasses() {
+    const container = document.getElementById('classListContainer');
+    try {
+        const { data, error } = await window.supabaseClient
+            .from('classes')
+            .select('id, class_name, section')
+            .order('class_name')
+            .order('section');
+        if (error) throw error;
+
+        container.innerHTML = '';
+        (data || []).forEach(cls => {
+            const div = document.createElement('div');
+            div.className = 'class-selector-item';
+            div.innerHTML = `
+                <input type="checkbox" name="classCb" id="cls_${cls.id}" value="${cls.id}">
+                <label for="cls_${cls.id}">${cls.class_name} (${cls.section})</label>
+            `;
+            container.appendChild(div);
+        });
+
+        // Set up "Select All" toggle
+        document.getElementById('selectAllClasses').addEventListener('change', function(e) {
+            const isChecked = e.target.checked;
+            document.querySelectorAll('input[name="classCb"]').forEach(cb => {
+                cb.checked = isChecked;
+            });
+        });
+
+        // Set up "Apply Globally" toggle
+        document.getElementById('globalApplyCb').addEventListener('change', function(e) {
+            const isGlobal = e.target.checked;
+            const specificBox = document.getElementById('specificClassesBox');
+            if (isGlobal) {
+                specificBox.style.opacity = '0.4';
+                specificBox.style.pointerEvents = 'none';
+                document.getElementById('selectAllClasses').checked = false;
+                document.querySelectorAll('input[name="classCb"]').forEach(cb => cb.checked = false);
             } else {
-                // Create New
-                const { error } = await supabaseClient
-                    .from('fee_heads')
-                    .insert([payload]);
-                if (error) throw new Error(error.message);
-                showAlert('✅ Fee Head added successfully!', false);
+                specificBox.style.opacity = '1';
+                specificBox.style.pointerEvents = 'auto';
             }
+        });
 
-            resetFormToCreateMode();
-            fetchFeeHeads(); // Refresh list
-            
-        } catch (error) {
-            console.error('Error:', error);
-            showAlert('❌ Failed to save fee head: ' + error.message, true);
-        } finally {
-            submitBtn.innerHTML = originalText;
-            submitBtn.style.opacity = '1';
-            submitBtn.style.pointerEvents = 'all';
+        // Update "Select All" state if user manually toggles individual boxes
+        container.addEventListener('change', function(e) {
+            if (e.target.name === 'classCb') {
+                const total = document.querySelectorAll('input[name="classCb"]').length;
+                const checked = document.querySelectorAll('input[name="classCb"]:checked').length;
+                document.getElementById('selectAllClasses').checked = (total > 0 && total === checked);
+            }
+        });
+
+    } catch(err) {
+        container.innerHTML = `<div style="color:red;font-size:0.85rem;padding:0.5rem;">Error loading classes</div>`;
+        console.error(err);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION 3: Fee Head Form (Save/Update)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function handleFeeFormSubmit(e) {
+    e.preventDefault();
+    
+    let isGlobal = document.getElementById('globalApplyCb').checked;
+    let selectedClassIds = [];
+    
+    if (editFeeId) { // In edit mode, class selection is locked
+        isGlobal = document.getElementById('feeForm').dataset.editIsGlobal === 'true';
+        if (!isGlobal) selectedClassIds = [ document.getElementById('feeForm').dataset.editClassId ];
+    } else if (!isGlobal) { // In create mode, get checked classes
+        const cbs = document.querySelectorAll('input[name="classCb"]:checked');
+        cbs.forEach(cb => selectedClassIds.push(cb.value));
+    }
+
+    const feeType  = document.getElementById('feeType').value;
+    const amountRaw = document.getElementById('amount').value.trim();
+    const isMonthly = document.getElementById('isMonthly').checked;
+
+    if (!isGlobal && selectedClassIds.length === 0) {
+        showAlert('Please select at least one Target Class, or check Apply Globally.', true);
+        return;
+    }
+    if (!feeType) {
+        showAlert('Please select a Fee Type.', true);
+        return;
+    }
+
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+
+    const payload = {
+        fee_type: feeType,
+        amount: amountRaw !== '' ? parseFloat(amountRaw) : null,
+        is_monthly: isMonthly
+    };
+
+    try {
+        if (editFeeId) {
+            // Updating a single record (Global or Specific)
+            const payloadUpdate = { ...payload, class_id: isGlobal ? null : selectedClassIds[0] };
+            const { error } = await window.supabaseClient
+                .from('fee_heads')
+                .update(payloadUpdate)
+                .eq('id', editFeeId);
+            if (error) throw error;
+            showAlert('✅ Fee Head updated!', false);
+        } else if (isGlobal) {
+            // Single insert for Global fee head
+            const { error } = await window.supabaseClient.from('fee_heads').insert([{ ...payload, class_id: null }]);
+            if (error) throw error;
+            showAlert('✅ Global Fee applied to ALL classes!', false);
+        } else {
+            // Bulk insert for all selected classes
+            const inserts = selectedClassIds.map(cid => ({ ...payload, class_id: cid }));
+            const { error } = await window.supabaseClient.from('fee_heads').insert(inserts);
+            if (error) throw error;
+            showAlert(`✅ Fee applied to ${inserts.length} classes!`, false);
         }
+
+        cancelEdit();
+        fetchFeeHeads();
+    } catch(err) {
+        console.error(err);
+        showAlert('❌ Failed: ' + err.message, true);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-save"></i> Save Fee Head';
+    }
+}
+
+window.cancelEdit = function() {
+    editFeeId = null;
+    document.getElementById('feeForm').reset();
+    delete document.getElementById('feeForm').dataset.editClassId;
+    delete document.getElementById('feeForm').dataset.editIsGlobal;
+    
+    // Unlock UI
+    document.getElementById('classSelectionGroup').style.display = 'block';
+    document.getElementById('globalApplyCb').checked = false;
+    document.getElementById('specificClassesBox').style.opacity = '1';
+    document.getElementById('specificClassesBox').style.pointerEvents = 'auto';
+    document.getElementById('selectAllClasses').checked = false;
+    document.getElementById('formTitle').textContent = '➕ Assign Fee Head';
+    document.getElementById('editBanner').style.display = 'none';
+    document.getElementById('submitBtn').innerHTML = '<i class="fas fa-save"></i> Save Fee Heads';
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION 4: Fee Heads Table
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function fetchFeeHeads() {
+    try {
+        const { data, error } = await window.supabaseClient
+            .from('fee_heads')
+            .select(`id, class_id, fee_type, amount, is_monthly, created_at, classes ( class_name, section )`)
+            .order('created_at', { ascending: false });
+        if (error) throw error;
+
+        allFeeHeadsData = data || [];
+        renderFeeHeads();
+    } catch(err) {
+        document.getElementById('feeBody').innerHTML = `<tr><td colspan="5" style="color:red;text-align:center;">Failed to load: ${err.message}</td></tr>`;
+    }
+}
+
+function renderFeeHeads(searchTerm = '') {
+    const tbody = document.getElementById('feeBody');
+    const filtered = allFeeHeadsData.filter(fee => {
+        const cls = fee.class_id ? (fee.classes ? `${fee.classes.class_name} ${fee.classes.section}` : '') : 'Global All Classes';
+        return `${cls} ${fee.fee_type}`.toLowerCase().includes(searchTerm);
     });
 
-    // Populate dropdown with classes from DB
-    async function loadClasses() {
-        try {
-            const { data, error } = await supabaseClient
-                .from('classes')
-                .select('id, class_name, section')
-                .order('class_name', { ascending: true })
-                .order('section', { ascending: true });
-                
-            if (error) throw error;
-            
-            classIdSelect.innerHTML = '<option value="" disabled selected>Select Target Class</option>';
-            if(data && data.length > 0) {
-                data.forEach(cls => {
-                    const opt = document.createElement('option');
-                    opt.value = cls.id;
-                    opt.textContent = `${cls.class_name} (${cls.section})`;
-                    classIdSelect.appendChild(opt);
-                });
-            } else {
-                classIdSelect.innerHTML = '<option value="" disabled selected>No classes available</option>';
-            }
-        } catch(err) {
-            console.error('Error loading classes:', err);
-            classIdSelect.innerHTML = '<option value="" disabled selected>Error loading classes</option>';
-        }
+    if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:2rem;">No fee heads match your search.</td></tr>`;
+        return;
     }
 
-    // Fetch and display existing fee heads
-    async function fetchFeeHeads() {
-        try {
-            // Using Supabase relation query to get class name directly!
-            const { data, error } = await supabaseClient
-                .from('fee_heads')
-                .select(`
-                    id, 
-                    class_id,
-                    fee_type, 
-                    amount, 
-                    is_monthly,
-                    created_at,
-                    classes ( class_name, section )
-                `)
-                .order('created_at', { ascending: false });
+    tbody.innerHTML = filtered.map(fee => {
+        const cls = fee.class_id ? (fee.classes ? `${fee.classes.class_name} (${fee.classes.section})` : '—') : '🌍 <strong style="color:var(--primary);">Global (All Classes)</strong>';
+        const amtHtml = fee.amount != null
+            ? `<span class="amt-cell">Rs ${Number(fee.amount).toLocaleString()}</span>`
+            : `<span class="amt-na">Set at challan</span>`;
+        const badge = fee.is_monthly
+            ? `<span class="badge badge-green">Monthly</span>`
+            : `<span class="badge badge-gray">One-time</span>`;
 
-            if (error) throw error;
+        return `<tr>
+            <td>${cls}</td>
+            <td>${fee.fee_type}</td>
+            <td>${amtHtml}</td>
+            <td>${badge}</td>
+            <td style="white-space:nowrap;">
+                <button onclick="editFeeHead('${fee.id}')" style="background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;padding:0.35rem 0.65rem;border-radius:6px;cursor:pointer;font-weight:600;font-size:0.8rem;margin-right:0.3rem;">✏️ Edit</button>
+                <button onclick="deleteFeeHead('${fee.id}')" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:0.35rem 0.65rem;border-radius:6px;cursor:pointer;font-weight:600;font-size:0.8rem;">🗑️ Del</button>
+            </td>
+        </tr>`;
+    }).join('');
+}
 
-            feeBody.innerHTML = ''; // Clear loading text
+window.editFeeHead = function(id) {
+    const fee = allFeeHeadsData.find(f => f.id === id);
+    if (!fee) return;
+    editFeeId = id;
 
-            if (data.length === 0) {
-                feeBody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No fee heads configured yet. Add one above!</td></tr>';
-                return;
-            }
-
-            // Keep reference to raw data internally for edit populating
-            window._feeHeadsData = data;
-
-            data.forEach(fee => {
-                const tr = document.createElement('tr');
-                const addedDate = new Date(fee.created_at).toLocaleDateString();
-                const className = fee.classes ? `${fee.classes.class_name} (${fee.classes.section})` : 'Unknown Class';
-                
-                const typeBadge = fee.is_monthly 
-                    ? '<span style="color:var(--secondary); font-size:0.75rem; border:1px solid currentColor; padding:0.1rem 0.4rem; border-radius:12px; margin-left:0.5rem; vertical-align:middle;">Monthly</span>' 
-                    : '<span style="color:var(--text-muted); font-size:0.75rem; border:1px solid currentColor; padding:0.1rem 0.4rem; border-radius:12px; margin-left:0.5rem; vertical-align:middle;">One-time</span>';
-                
-                tr.innerHTML = `
-                    <td><strong>${className}</strong></td>
-                    <td>${fee.fee_type} ${typeBadge}</td>
-                    <td><span class="fee-badge">Rs ${fee.amount}</span></td>
-                    <td>${addedDate}</td>
-                    <td>
-                        <button type="button" class="edit-btn" data-id="${fee.id}" style="background:var(--secondary); color:white; border:none; padding:0.3rem 0.6rem; border-radius:6px; cursor:pointer; font-size:0.8rem; margin-right:0.3rem;">Edit</button>
-                        <button type="button" class="del-btn" data-id="${fee.id}" style="background:var(--error); color:white; border:none; padding:0.3rem 0.6rem; border-radius:6px; cursor:pointer; font-size:0.8rem;">Delete</button>
-                    </td>
-                `;
-                feeBody.appendChild(tr);
-            });
-            
-            attachActionListeners();
-            
-        } catch (error) {
-            console.error('Error fetching fee heads:', error);
-            feeBody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: red;">Failed to load fee heads. (Did you run the SQL script for fee_heads table?)</td></tr>';
-        }
+    // Lock class selection UI to prevent changing class during edit
+    document.getElementById('classSelectionGroup').style.display = 'none';
+    if (!fee.class_id) {
+        document.getElementById('feeForm').dataset.editIsGlobal = 'true';
+        document.getElementById('editingClassBadge').textContent = '🌍 Global (All Classes)';
+    } else {
+        document.getElementById('feeForm').dataset.editIsGlobal = 'false';
+        document.getElementById('feeForm').dataset.editClassId = fee.class_id;
+        const className = fee.classes ? `${fee.classes.class_name} (${fee.classes.section})` : '';
+        document.getElementById('editingClassBadge').textContent = className;
     }
 
-    function attachActionListeners() {
-        // Edit listening
-        document.querySelectorAll('.edit-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const id = e.target.getAttribute('data-id');
-                const p = window._feeHeadsData.find(f => f.id === id);
-                if(!p) return;
+    document.getElementById('feeType').value = fee.fee_type;
+    document.getElementById('amount').value = fee.amount != null ? fee.amount : '';
+    document.getElementById('isMonthly').checked = fee.is_monthly;
 
-                // Enter edit mode
-                editFeeId = p.id;
-                document.getElementById('feeType').value = p.fee_type;
-                document.getElementById('amount').value = p.amount;
-                document.getElementById('isMonthly').checked = p.is_monthly;
-                
-                // Select matching class via text/id reverse lookup (actually we can just query the DOM or relation)
-                // Wait, our query didn't fetch class_id! Let's just fix the fetch query to include class_id.
-                // Assuming we fetched class_id:
-                if (p.class_id) classIdSelect.value = p.class_id;
-                
-                // Update UI Buttons
-                submitBtn.innerHTML = `<span>🔄 Update Fee Head</span>`;
-                cancelEditBtn.style.display = 'inline-block';
-                
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            });
-        });
+    document.getElementById('formTitle').textContent = '✏️ Edit Fee Head';
+    document.getElementById('editBanner').style.display = 'block';
+    document.getElementById('submitBtn').innerHTML = '<i class="fas fa-save"></i> Update Fee Head';
 
-        // Delete listening
-        document.querySelectorAll('.del-btn').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                const id = e.target.getAttribute('data-id');
-                if(!confirm('Are you sure you want to delete this Fee Head? Existing challans will not be affected.')) return;
+    document.getElementById('feeForm').scrollIntoView({ behavior: 'smooth' });
+};
 
-                e.target.innerHTML = '...';
-                e.target.disabled = true;
-
-                try {
-                    const { error } = await supabaseClient.from('fee_heads').delete().eq('id', id);
-                    if (error) throw error;
-                    
-                    fetchFeeHeads(); // Refresh List
-                    showAlert('✅ Fee Head deleted successfully!', false);
-                    
-                    if(editFeeId === id) resetFormToCreateMode(); // If deleting currently editing item
-                } catch(err) {
-                    alert('Failed to delete: ' + err.message);
-                    fetchFeeHeads(); 
-                }
-            });
-        });
+window.deleteFeeHead = async function(id) {
+    if (!confirm('Delete this fee head? Existing challans will not be affected.')) return;
+    try {
+        const { error } = await window.supabaseClient.from('fee_heads').delete().eq('id', id);
+        if (error) throw error;
+        showToast('Fee Head deleted.', 'success');
+        if (editFeeId === id) cancelEdit();
+        fetchFeeHeads();
+    } catch(err) {
+        showToast('Delete failed: ' + err.message, 'error');
     }
+};
 
-    function showAlert(msg, isError) {
-        formAlert.textContent = msg;
-        formAlert.style.background = isError ? 'var(--error)' : 'var(--success)';
-        formAlert.style.display = 'block';
-        setTimeout(() => { formAlert.style.display = 'none'; }, 5000);
-    }
-    
-    if (!document.getElementById('spin-style')) {
-        const style = document.createElement('style');
-        style.id = 'spin-style';
-        style.innerHTML = `
-            @keyframes spin {
-                100% { transform: rotate(360deg); }
-            }
-        `;
-        document.head.appendChild(style);
-    }
-});
+// ═══════════════════════════════════════════════════════════════════════════════
+// Utils
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function showAlert(msg, isError) {
+    const el = document.getElementById('formAlert');
+    el.textContent = msg;
+    el.style.background = isError ? '#fee2e2' : '#dcfce7';
+    el.style.color = isError ? '#991b1b' : '#166534';
+    el.style.display = 'block';
+    setTimeout(() => el.style.display = 'none', 4000);
+}
+
+function showToast(msg, type) {
+    const toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.className = `toast ${type}`;
+    toast.style.display = 'block';
+    setTimeout(() => toast.style.display = 'none', 3000);
+}
