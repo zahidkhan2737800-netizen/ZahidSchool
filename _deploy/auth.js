@@ -17,6 +17,7 @@ const PAGE_KEY_MAP = {
     'pending_withdrawn.html':   'pending_withdrawn',
     'create_challan.html':      'challans',
     'collect_fee.html':         'collect_fee',
+    'fee_paid_log.html':        'collect_fee',
     'fee_contacts.html':        'collect_fee', // Maps to the same permission object
     'classes.html':             'classes',
     'fee_heads.html':           'fee_heads',
@@ -217,6 +218,7 @@ function filterSidebarNav() {
         'pending_withdrawn.html':   'pending_withdrawn',
         'create_challan.html':      'challans',
         'collect_fee.html':         'collect_fee',
+        'fee_paid_log.html':        'collect_fee',
         'fee_contacts.html':        'collect_fee',
         'classes.html':             'classes',
         'fee_heads.html':           'fee_heads',

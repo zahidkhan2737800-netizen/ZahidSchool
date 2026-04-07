@@ -5,6 +5,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const searchNameInput = document.getElementById('searchName');
     const searchRollInput = document.getElementById('searchRoll');
     const searchClassSelect = document.getElementById('searchClass');
+    const currentSchoolId = window.currentSchoolId || null;
+    const applySchoolScope = (query) => currentSchoolId ? query.eq('school_id', currentSchoolId) : query;
 
     let allAvailableClasses = [];
 
@@ -29,10 +31,10 @@ document.addEventListener('DOMContentLoaded', () => {
         
         try {
             // Start building the query
-            let query = supabaseClient
+            let query = applySchoolScope(supabaseClient
                 .from('admissions')
                 .select('id, roll_number, full_name, father_name, father_mobile, father_whatsapp, admission_date, applying_for_class')
-                .eq('status', 'Active'); // ALWAYS filter by Active status!
+                .eq('status', 'Active')); // ALWAYS filter by Active status!
 
             // Apply exact filter: Roll Number
             const searchRoll = searchRollInput.value.trim();
@@ -132,13 +134,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     e.target.disabled = true;
                     try {
-                        const { error } = await supabaseClient
+                        const { error } = await applySchoolScope(supabaseClient
                             .from('admissions')
                             .update({ 
                                 status: newStatus,
                                 updated_at: new Date().toISOString()
                             })
-                            .eq('id', studentId);
+                            .eq('id', studentId));
                             
                         if(error) throw error;
                         
@@ -176,10 +178,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         updateData[colName] = currentText;
                         updateData['updated_at'] = new Date().toISOString();
 
-                        const { error } = await supabaseClient
+                        const { error } = await applySchoolScope(supabaseClient
                             .from('admissions')
                             .update(updateData)
-                            .eq('id', studentId);
+                            .eq('id', studentId));
 
                         if (error) throw error;
                         
@@ -212,13 +214,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const studentId = e.target.getAttribute('data-id');
                 
                 try {
-                    const { error } = await supabaseClient
+                    const { error } = await applySchoolScope(supabaseClient
                         .from('admissions')
                         .update({ 
                             applying_for_class: newClass,
                             updated_at: new Date().toISOString()
                         })
-                        .eq('id', studentId);
+                        .eq('id', studentId));
                         
                     if (error) throw error;
                     
@@ -248,10 +250,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     e.target.disabled = true;
 
                     try {
-                        const { error } = await supabaseClient
+                        const { error } = await applySchoolScope(supabaseClient
                             .from('admissions')
                             .delete()
-                            .eq('id', studentId);
+                            .eq('id', studentId));
                             
                         if (error) throw error;
                         
@@ -270,10 +272,10 @@ document.addEventListener('DOMContentLoaded', () => {
     async function fetchClasses() {
         try {
             // Fetch unique classes currently active in admissions
-            const { data, error } = await supabaseClient
+            const { data, error } = await applySchoolScope(supabaseClient
                 .from('admissions')
                 .select('applying_for_class')
-                .eq('status', 'Active');
+                .eq('status', 'Active'));
             
             if (error) throw error;
             

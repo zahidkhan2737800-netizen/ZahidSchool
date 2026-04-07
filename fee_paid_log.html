@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zahid School - Paid Fee Log</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="fee_paid_log.css">
+</head>
+<body>
+    <div class="page-wrap">
+        <header class="top-head">
+            <div class="title-wrap">
+                <div class="icon">💰</div>
+                <div>
+                    <h1>Paid Fee Log</h1>
+                    <p>Date-wise challan payments with student details</p>
+                </div>
+            </div>
+            <div class="head-links">
+                <a href="dashboard.html"><i class="fas fa-chart-line"></i> Dashboard</a>
+                <a href="collect_fee.html"><i class="fas fa-hand-holding-usd"></i> Collect Fee</a>
+            </div>
+        </header>
+
+        <section class="filters">
+            <div class="field">
+                <label for="feeDate">Select Date</label>
+                <input type="date" id="feeDate">
+            </div>
+            <div class="field search-field">
+                <label for="searchText">Search Student / Roll / Father</label>
+                <input type="text" id="searchText" placeholder="Type student name, roll number, or father name">
+            </div>
+            <div class="field slider-field">
+                <label for="fontSizeRange">Font Size <span id="fontSizeValue">8.5px</span></label>
+                <input type="range" id="fontSizeRange" min="7" max="20" step="0.5" value="8.5">
+            </div>
+            <div class="field slider-field">
+                <label for="compactnessRange">Compactness <span id="compactnessValue">80%</span></label>
+                <input type="range" id="compactnessRange" min="0" max="100" step="5" value="80">
+            </div>
+            <div class="actions">
+                <button id="loadBtn" class="btn-primary"><i class="fas fa-sync"></i> Load</button>
+                <button id="printBtn" class="btn-primary"><i class="fas fa-print"></i> Print</button>
+            </div>
+        </section>
+
+        <section class="summary" id="summaryBar">
+            <div class="card">
+                <span class="lbl">Rows</span>
+                <strong id="rowCount">0</strong>
+            </div>
+            <div class="card">
+                <span class="lbl">Total Amount</span>
+                <strong id="totalAmount">Rs 0</strong>
+            </div>
+        </section>
+
+        <section class="table-wrap">
+            <div id="printDateHeader" class="print-date-header"></div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Time (12h)</th>
+                        <th>Roll No</th>
+                        <th>Student Name</th>
+                        <th>Class</th>
+                        <th>Fee Head / Month</th>
+                        <th>Payment Type</th>
+                        <th>Amount</th>
+                    </tr>
+                </thead>
+                <tbody id="paidLogBody">
+                    <tr>
+                        <td colspan="8" class="empty">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+    </div>
+
+    <script src="auth.js"></script>
+    <script src="fee_paid_log.js"></script>
+</body>
+</html>

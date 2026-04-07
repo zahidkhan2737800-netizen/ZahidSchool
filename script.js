@@ -4,6 +4,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('admissionForm');
     const successMessage = document.getElementById('successMessage');
     const formAlert = document.getElementById('formAlert');
+    const currentSchoolId = window.currentSchoolId || null;
+    const applySchoolScope = (query) => currentSchoolId ? query.eq('school_id', currentSchoolId) : query;
     
     let editingStudentRecordId = null;
     let originalSubmitBtnHtml = '';
@@ -13,11 +15,11 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadClasses() {
         if(!classSelect) return;
         try {
-            const { data, error } = await supabaseClient
+            const { data, error } = await applySchoolScope(supabaseClient
                 .from('classes')
                 .select('*')
                 .order('class_name', { ascending: true })
-                .order('section', { ascending: true });
+                .order('section', { ascending: true }));
                 
             if (error) throw error;
             
@@ -202,10 +204,10 @@ document.addEventListener('DOMContentLoaded', () => {
     async function isRollNumberDuplicate(roll, excludeId = null) {
         if (!roll) return false;
         try {
-            let query = supabaseClient
+            let query = applySchoolScope(supabaseClient
                 .from('admissions')
                 .select('id')
-                .eq('roll_number', roll);
+                .eq('roll_number', roll));
                 
             if (excludeId) {
                 query = query.neq('id', excludeId);
@@ -275,10 +277,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const safeQuery = query.replace(/[,\(\)]/g, ' ').trim();
             
             try {
-                const { data, error } = await supabaseClient
+                const { data, error } = await applySchoolScope(supabaseClient
                     .from('admissions')
                     .select('*')
-                    .or(`full_name.ilike.%${safeQuery}%,roll_number.eq.${safeQuery}`);
+                    .or(`full_name.ilike.%${safeQuery}%,roll_number.eq.${safeQuery}`));
                     
                 if (error) throw error;
                 
@@ -470,6 +472,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     status: getVal('status') || 'Pending'
                 };
+                if (currentSchoolId) formData.school_id = currentSchoolId;
 
                 // Final Duplicate Check Before Save
                 const isDuplicate = await isRollNumberDuplicate(formData.roll_number, editingStudentRecordId);

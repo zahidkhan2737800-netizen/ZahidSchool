@@ -20,7 +20,9 @@ const PAGE_KEY_MAP = {
     'pending_withdrawn.html':   'pending_withdrawn',
     'create_challan.html':      'challans',
     'collect_fee.html':         'collect_fee',
+    'fee_paid_log.html':        'collect_fee',
     'fee_contacts.html':        'fee_contacts',
+    'family_contacts.html':     'fee_contacts',
     'classes.html':             'classes',
     'fee_heads.html':           'fee_heads',
     'access_control.html':      'access_control',
@@ -81,6 +83,7 @@ let userPermissions = {};  // { page_key: { can_view, can_create, can_edit, can_
             return;
         }
         window.currentSchoolName = school ? school.school_name : 'System';
+        window.currentSchoolId = roleData.school_id || null; // ← expose for tenant isolation
 
         userRole = Array.isArray(roleData.roles) ? roleData.roles[0] : roleData.roles;
         userRoleName = userRole.role_name;
@@ -226,7 +229,9 @@ function filterSidebarNav() {
         'pending_withdrawn.html':   'pending_withdrawn',
         'create_challan.html':      'challans',
         'collect_fee.html':         'collect_fee',
+        'fee_paid_log.html':        'collect_fee',
         'fee_contacts.html':        'fee_contacts',
+        'family_contacts.html':     'fee_contacts',
         'classes.html':             'classes',
         'fee_heads.html':           'fee_heads',
         'access_control.html':      'access_control',

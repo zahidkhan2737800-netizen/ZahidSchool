@@ -2,6 +2,7 @@ let allStudents = [];
 let allAttendance = [];
 let selectedDate = '';
 let currentAbsenceMap = {}; 
+const currentSchoolId = window.currentSchoolId || null;
 
 document.addEventListener('DOMContentLoaded', async () => {
     const picker = document.getElementById('globalDate');
@@ -42,6 +43,9 @@ async function fetchAllPages(table, selectCols, filters = []) {
 
         for (const [col, val] of filters) {
             query = query.eq(col, val);
+        }
+        if (currentSchoolId) {
+            query = query.eq('school_id', currentSchoolId);
         }
 
         const { data, error } = await query;
@@ -115,13 +119,17 @@ async function handleEntrySubmit(e) {
 
 async function performUpsert(payloadArray) {
     try {
+        const scopedPayload = currentSchoolId
+            ? payloadArray.map(item => ({ ...item, school_id: currentSchoolId }))
+            : payloadArray;
+
         const { error } = await supabaseClient
             .from('attendance')
-            .upsert(payloadArray, { onConflict: 'student_id, date' });
+            .upsert(scopedPayload, { onConflict: 'student_id, date' });
         
         if (error) throw error;
         
-        payloadArray.forEach(payload => {
+        scopedPayload.forEach(payload => {
             const existingIdx = allAttendance.findIndex(a => a.student_id === payload.student_id && a.date === payload.date);
             if(existingIdx >= 0) {
                 allAttendance[existingIdx] = payload;

@@ -1,5 +1,7 @@
 // Supabase client is now provided by auth.js (supabaseClient)
 const db = supabaseClient;
+const currentSchoolId = window.currentSchoolId || null;
+const applySchoolScope = (query) => currentSchoolId ? query.eq('school_id', currentSchoolId) : query;
 
 // ─── State ────────────────────────────────────────────────────────────────────
 let allStudents   = [];   // full admissions cache
@@ -147,10 +149,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 async function loadStudents() {
     searchStatus.textContent = '⏳ Loading student database...';
     try {
-        const { data, error } = await db
+        const { data, error } = await applySchoolScope(db
             .from('admissions')
             .select('id, roll_number, full_name, father_name, father_mobile, applying_for_class, status')
-            .order('roll_number');
+            .order('roll_number'));
         if (error) throw error;
         allStudents = data || [];
         searchStatus.textContent = `✅ ${allStudents.length} students loaded. Use the filters above to search.`;
@@ -247,11 +249,11 @@ async function openStudent(student) {
 async function loadHistory(uuid) {
     historyBody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#94a3b8;">Loading...</td></tr>';
     try {
-        const { data, error } = await db
+        const { data, error } = await applySchoolScope(db
             .from('receipts')
             .select('*')
             .eq('student_id', uuid)
-            .order('created_at', { ascending: false });
+            .order('created_at', { ascending: false }));
         if (error) throw error;
 
         receiptCache = data || [];
@@ -310,12 +312,12 @@ async function loadDues(uuid) {
     challansList.innerHTML = '<p style="color:#94a3b8;">Loading pending dues...</p>';
     selectedIds.clear();
     try {
-        const { data, error } = await db
+        const { data, error } = await applySchoolScope(db
             .from('challans')
             .select('*')
             .eq('student_id', uuid)
             .in('status', ['Unpaid', 'Partially Paid'])
-            .order('due_date', { ascending: true });
+            .order('due_date', { ascending: true }));
         if (error) throw error;
 
         pendingDues = data || [];
@@ -519,7 +521,8 @@ async function submitPayment() {
                 discount_amount:   appliedDisc,
                 payment_method:    method,
                 payment_reference: ref || null,
-                remarks:           remarks || null
+                remarks:           remarks || null,
+                school_id:         currentSchoolId
             });
 
             wallet -= debit;
@@ -544,7 +547,8 @@ async function submitPayment() {
             remaining:         remaining,
             payment_method:    method,
             payment_reference: ref || null,
-            remarks:           remarks || null
+            remarks:           remarks || null,
+            school_id:         currentSchoolId
         };
         const { error: rctErr } = await db.from('receipts').insert([receiptRecord]);
         if (rctErr) console.warn('Receipt save warning:', rctErr.message); // non-fatal

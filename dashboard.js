@@ -22,7 +22,9 @@ var NAV_CATEGORIES = [
     items: [
       { href: 'create_challan.html', label: 'Create Challans', icon: 'fas fa-file-invoice-dollar', key: 'challans' },
       { href: 'collect_fee.html', label: 'Collect Student Fee', icon: 'fas fa-hand-holding-usd', key: 'collect_fee' },
+    { href: 'fee_paid_log.html', label: 'Paid Fee Log', icon: 'fas fa-list-check', key: 'collect_fee' },
       { href: 'collect_family_fee.html', label: 'Collect Family Fee', icon: 'fas fa-users-cog', key: 'collect_family_fee' },
+            { href: 'family_contacts.html', label: 'Family Fee Contacts', icon: 'fas fa-users', key: 'fee_contacts' },
       { href: 'fee_contacts.html', label: 'Fee Contacts', icon: 'fas fa-phone-alt', key: 'fee_contacts' },
       { href: 'fee_heads.html', label: 'Fee Config', icon: 'fas fa-cogs', key: 'fee_heads' },
       { href: 'finance.html', label: 'Finance & Cash Flow', icon: 'fas fa-chart-pie', key: 'finance' }
@@ -87,49 +89,66 @@ async function bootDashboard() {
     loadRecentAdmissions();
     loadCashFlowStats();
     loadStaffTodayStats();
+    loadTodayPaidFeesWidget();
+    loadFamilyContactsSnapshot();
 }
 
 // ─── Cash Flow Overview ────────────────────────────────────────────────────────
 async function loadCashFlowStats() {
     try {
         const now = new Date();
-        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-        const lastDay  = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+        const fmtDate = (d) => {
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        };
+        const firstDay = fmtDate(new Date(now.getFullYear(), now.getMonth(), 1));
+        const lastDay  = fmtDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+        const schoolId = window.currentSchoolId;
 
         const fmt = n => 'Rs ' + Math.round(n || 0).toLocaleString();
 
-        // 1. Student Fee Revenue this month
-        const { data: feeData } = await window.supabaseClient
+        // 1. Student Fee Revenue this month (scoped to school)
+        let feeQ = window.supabaseClient
             .from('transactions')
             .select('amount_paid')
             .gte('created_at', firstDay + 'T00:00:00')
             .lte('created_at', lastDay + 'T23:59:59');
+        if (schoolId) feeQ = feeQ.eq('school_id', schoolId);
+        const { data: feeData } = await feeQ;
         const feeRevenue = (feeData || []).reduce((s, r) => s + Number(r.amount_paid || 0), 0);
 
-        // 2. Other Revenue this month
-        const { data: revData } = await window.supabaseClient
+        // 2. Other Revenue this month (scoped to school)
+        let revQ = window.supabaseClient
             .from('other_revenue')
             .select('amount')
             .gte('revenue_date', firstDay)
             .lte('revenue_date', lastDay);
+        if (schoolId) revQ = revQ.eq('school_id', schoolId);
+        const { data: revData } = await revQ;
         const otherRevenue = (revData || []).reduce((s, r) => s + Number(r.amount || 0), 0);
 
-        // 3. Expenses this month
-        const { data: expData } = await window.supabaseClient
+        // 3. Expenses this month (scoped to school)
+        let expQ = window.supabaseClient
             .from('expenses')
             .select('amount, category')
             .gte('expense_date', firstDay)
             .lte('expense_date', lastDay);
+        if (schoolId) expQ = expQ.eq('school_id', schoolId);
+        const { data: expData } = await expQ;
         const totalExpenses = (expData || []).reduce((s, r) => s + Number(r.amount || 0), 0);
         const salariesPaid = (expData || [])
             .filter(r => r.category === 'Salaries')
             .reduce((s, r) => s + Number(r.amount || 0), 0);
 
-        // 4. Unpaid salary challans
-        const { data: unpaidData } = await window.supabaseClient
+        // 4. Unpaid salary challans (scoped to school)
+        let unpaidQ = window.supabaseClient
             .from('staff_payroll')
             .select('id')
             .eq('status', 'Unpaid');
+        if (schoolId) unpaidQ = unpaidQ.eq('school_id', schoolId);
+        const { data: unpaidData } = await unpaidQ;
 
         const totalRevenue = feeRevenue + otherRevenue;
         const netProfit = totalRevenue - totalExpenses;
@@ -164,20 +183,20 @@ async function loadCashFlowStats() {
 // ─── Staff Today Stats ─────────────────────────────────────────────────────────
 async function loadStaffTodayStats() {
     try {
-        const today = new Date().toISOString().split('T')[0];
+        const now = new Date();
+        const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        const schoolId = window.currentSchoolId;
 
-        // Total active staff
-        const { data: staffData } = await window.supabaseClient
-            .from('staff')
-            .select('id')
-            .eq('status', 'Active');
+        // Total active staff (scoped to school)
+        let staffQ = window.supabaseClient.from('staff').select('id').eq('status', 'Active');
+        if (schoolId) staffQ = staffQ.eq('school_id', schoolId);
+        const { data: staffData } = await staffQ;
         const totalStaff = (staffData || []).length;
 
-        // Today's attendance
-        const { data: attData } = await window.supabaseClient
-            .from('staff_attendance')
-            .select('status')
-            .eq('date', today);
+        // Today's staff attendance (scoped to school)
+        let attQ = window.supabaseClient.from('staff_attendance').select('status').eq('date', today);
+        if (schoolId) attQ = attQ.eq('school_id', schoolId);
+        const { data: attData } = await attQ;
 
         const counts = { Present: 0, Absent: 0, Leave: 0 };
         (attData || []).forEach(r => { if (counts[r.status] !== undefined) counts[r.status]++; });
@@ -252,43 +271,57 @@ function buildQuickLinks() {}
 async function loadStats() {
     try {
         const now = new Date();
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-        const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
-        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-        const todayEnd   = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
-        const todayStr   = now.toISOString().slice(0, 10); // YYYY-MM-DD
+        const fmtDate = (d) => {
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        };
+
+        const monthStartDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        const monthEndDate   = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        const todayDate      = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const tomorrowDate   = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+
+        const monthStart = `${fmtDate(monthStartDate)}T00:00:00`;
+        const monthEnd   = `${fmtDate(monthEndDate)}T00:00:00`;
+        const todayStart = `${fmtDate(todayDate)}T00:00:00`;
+        const todayEnd   = `${fmtDate(tomorrowDate)}T00:00:00`;
+        const todayStr   = fmtDate(todayDate);
+        const sid        = window.currentSchoolId; // tenant isolation
+
+        // Helper: add school_id filter only when available
+        const sc = (q) => sid ? q.eq('school_id', sid) : q;
 
         const [activeRes, withdrawnRes, feesRes, challansRes, unpaidChallansRes, dailyFeesRes, balanceRes, attendanceRes, admittedRes] = await Promise.all([
-            window.supabaseClient.from('admissions')
-                .select('*', { count: 'exact', head: true }).eq('status', 'Active'),
-            window.supabaseClient.from('admissions')
+            sc(window.supabaseClient.from('admissions')
+                .select('*', { count: 'exact', head: true }).eq('status', 'Active')),
+            sc(window.supabaseClient.from('admissions')
                 .select('*', { count: 'exact', head: true })
                 .eq('status', 'Withdrawn')
-                .gte('updated_at', monthStart).lt('updated_at', monthEnd),
-            window.supabaseClient.from('transactions')
+                .gte('updated_at', monthStart).lt('updated_at', monthEnd)),
+            sc(window.supabaseClient.from('transactions')
                 .select('amount_paid')
-                .gte('created_at', monthStart).lt('created_at', monthEnd),
-            window.supabaseClient.from('challans')
+                .gte('created_at', monthStart).lt('created_at', monthEnd)),
+            sc(window.supabaseClient.from('challans')
                 .select('*', { count: 'exact', head: true })
-                .gte('created_at', monthStart).lt('created_at', monthEnd),
-            window.supabaseClient.from('challans')
+                .gte('created_at', monthStart).lt('created_at', monthEnd)),
+            sc(window.supabaseClient.from('challans')
                 .select('*', { count: 'exact', head: true })
-                .eq('status', 'Unpaid'),
-            window.supabaseClient.from('transactions')
+                .eq('status', 'Unpaid')),
+            sc(window.supabaseClient.from('transactions')
                 .select('amount_paid')
-                .gte('created_at', todayStart).lt('created_at', todayEnd),
-            window.supabaseClient.from('challans')
+                .gte('created_at', todayStart).lt('created_at', todayEnd)),
+            sc(window.supabaseClient.from('challans')
                 .select('amount, paid_amount')
-                .in('status', ['Unpaid', 'Partially Paid']),
-            // Today's attendance
-            window.supabaseClient.from('attendance')
+                .in('status', ['Unpaid', 'Partially Paid'])),
+            sc(window.supabaseClient.from('attendance')
                 .select('status')
-                .eq('date', todayStr),
-            // Admitted this month count
-            window.supabaseClient.from('admissions')
+                .eq('date', todayStr)),
+            sc(window.supabaseClient.from('admissions')
                 .select('*', { count: 'exact', head: true })
-                .gte('admission_date', monthStart.slice(0, 10))
-                .lt('admission_date', monthEnd.slice(0, 10))
+                .gte('admission_date', fmtDate(monthStartDate))
+                .lt('admission_date', fmtDate(monthEndDate)))
         ]);
 
         const activeCount    = activeRes.count || 0;
@@ -325,7 +358,6 @@ async function loadStats() {
 async function loadMonthlyFeeBalance() {
     const tbody = document.getElementById('monthlyFeeBody');
     try {
-        // Build last 6 months array
         const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
         const now = new Date();
         const months = [];
@@ -334,11 +366,14 @@ async function loadMonthlyFeeBalance() {
             months.push(`${monthNames[d.getMonth()]} ${d.getFullYear()}`);
         }
 
-        // Fetch all challans for those months (any fee_month matching)
-        const { data, error } = await window.supabaseClient
+        // Fetch challans scoped to this school
+        const schoolId = window.currentSchoolId;
+        let q = window.supabaseClient
             .from('challans')
             .select('fee_month, amount, paid_amount, status')
             .in('fee_month', months);
+        if (schoolId) q = q.eq('school_id', schoolId);
+        const { data, error } = await q;
 
         if (error) throw error;
 
@@ -396,12 +431,15 @@ document.getElementById('logoutBtn').addEventListener('click', async function ()
 async function loadRecentAdmissions() {
     const tbody = document.getElementById('recentAdmissionsBody');
     try {
-        const { data, error } = await window.supabaseClient
+        const schoolId = window.currentSchoolId;
+        let q = window.supabaseClient
             .from('admissions')
             .select('roll_number, full_name, father_name, applying_for_class, admission_date')
             .eq('status', 'Active')
             .order('admission_date', { ascending: false })
             .limit(6);
+        if (schoolId) q = q.eq('school_id', schoolId);
+        const { data, error } = await q;
 
         if (error) throw error;
 
@@ -425,6 +463,128 @@ async function loadRecentAdmissions() {
         }).join('');
     } catch(e) {
         tbody.innerHTML = `<tr><td colspan="5" style="color:red;">Error: ${e.message}</td></tr>`;
+    }
+}
+
+async function loadTodayPaidFeesWidget() {
+    const tbody = document.getElementById('todayPaidFeeBody');
+    if (!tbody) return;
+
+    try {
+        const now = new Date();
+        const fmtDate = (d) => {
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        };
+
+        const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const tomorrowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        const todayStart = `${fmtDate(todayDate)}T00:00:00`;
+        const todayEnd = `${fmtDate(tomorrowDate)}T00:00:00`;
+        const schoolId = window.currentSchoolId;
+
+        let txQ = window.supabaseClient
+            .from('transactions')
+            .select('created_at, student_id, roll_number, challan_id, fee_details, amount_paid')
+            .gte('created_at', todayStart)
+            .lt('created_at', todayEnd)
+            .order('created_at', { ascending: false })
+            .limit(15);
+        if (schoolId) txQ = txQ.eq('school_id', schoolId);
+        const { data: txData, error: txErr } = await txQ;
+        if (txErr) throw txErr;
+
+        const rows = txData || [];
+        if (rows.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#94a3b8; padding:1.5rem;">No fee paid entries today.</td></tr>';
+            return;
+        }
+
+        const studentIds = [...new Set(rows.map(r => r.student_id).filter(Boolean))];
+        const challanIds = [...new Set(rows.map(r => r.challan_id).filter(Boolean))];
+
+        let stuMap = new Map();
+        let challanMap = new Map();
+
+        if (studentIds.length > 0) {
+            let stuQ = window.supabaseClient
+                .from('admissions')
+                .select('id, full_name, applying_for_class, roll_number')
+                .in('id', studentIds);
+            if (schoolId) stuQ = stuQ.eq('school_id', schoolId);
+            const { data: sData, error: sErr } = await stuQ;
+            if (!sErr) stuMap = new Map((sData || []).map(s => [s.id, s]));
+        }
+
+        if (challanIds.length > 0) {
+            let chQ = window.supabaseClient
+                .from('challans')
+                .select('id, fee_type, fee_month')
+                .in('id', challanIds);
+            if (schoolId) chQ = chQ.eq('school_id', schoolId);
+            const { data: cData, error: cErr } = await chQ;
+            if (!cErr) challanMap = new Map((cData || []).map(c => [c.id, c]));
+        }
+
+        tbody.innerHTML = rows.map(r => {
+            const stu = stuMap.get(r.student_id) || {};
+            const ch = challanMap.get(r.challan_id) || {};
+            const feeHead = ch.fee_type ? `${ch.fee_type}${ch.fee_month ? ` (${ch.fee_month})` : ''}` : (r.fee_details || 'N/A');
+            const dt = new Date(r.created_at);
+            const time12 = dt.toLocaleTimeString('en-PK', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
+
+            return `<tr>
+                <td>${time12}</td>
+                <td><strong>${r.roll_number || stu.roll_number || '—'}</strong></td>
+                <td>${stu.full_name || '—'}</td>
+                <td>${stu.applying_for_class || '—'}</td>
+                <td>${feeHead}</td>
+                <td style="color:#16a34a; font-weight:700;">Rs ${Math.round(Number(r.amount_paid || 0)).toLocaleString()}</td>
+            </tr>`;
+        }).join('');
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#dc2626; padding:1.5rem;">Failed to load today's paid fee log: ${e.message}</td></tr>`;
+    }
+}
+
+async function loadFamilyContactsSnapshot() {
+    try {
+        const schoolId = window.currentSchoolId;
+
+        let famQ = window.supabaseClient
+            .from('admissions')
+            .select('father_mobile')
+            .eq('status', 'Active');
+        if (schoolId) famQ = famQ.eq('school_id', schoolId);
+        const { data: famData, error: famErr } = await famQ;
+        if (famErr) throw famErr;
+
+        const uniqueFamilies = new Set((famData || []).map(r => (r.father_mobile || '').trim()).filter(Boolean));
+        const totalFamilies = uniqueFamilies.size;
+
+        const now = new Date();
+        const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        let contactQ = window.supabaseClient
+            .from('family_contacts')
+            .select('row_status')
+            .eq('month_key', monthKey);
+        if (schoolId) contactQ = contactQ.eq('school_id', schoolId);
+
+        const { data: contactData } = await contactQ;
+        const pending = (contactData || []).filter(r => (r.row_status || 'Pending') !== 'Solved').length;
+
+        const familyCountEl = document.getElementById('statFamilyCount');
+        const familyPendingEl = document.getElementById('statFamilyPending');
+        if (familyCountEl) familyCountEl.textContent = totalFamilies.toLocaleString();
+        if (familyPendingEl) familyPendingEl.textContent = pending.toLocaleString();
+    } catch (e) {
+        const familyCountEl = document.getElementById('statFamilyCount');
+        const familyPendingEl = document.getElementById('statFamilyPending');
+        if (familyCountEl) familyCountEl.textContent = '--';
+        if (familyPendingEl) familyPendingEl.textContent = '--';
+        console.warn('Family contacts snapshot error:', e);
     }
 }
 
