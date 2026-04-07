@@ -91,6 +91,21 @@
         </header>
 
         <form id="admissionForm" class="glass-panel" novalidate>
+            <!-- Search / Edit Section -->
+            <section class="form-section admin-section" style="background:#e0f2fe; border-color:#bae6fd;">
+                <h2>🔍 Search Student (For Editing)</h2>
+                <div class="input-grid">
+                    <div class="input-group">
+                        <label for="searchQuery">Search by Name or Exact Roll Number</label>
+                        <div style="display:flex; gap:0.5rem; align-items:flex-end;">
+                            <input type="text" id="searchQuery" placeholder="Enter partial name or exact roll no">
+                            <button type="button" id="searchStudentBtn" class="action-btn" style="white-space:nowrap; height: 42px; background: var(--primary); color: white; border: none; border-radius: 6px; padding: 0 1.5rem; cursor: pointer; font-weight: 500;">Search</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="searchResults" style="margin-top:1rem; display:none; flex-direction:column; gap:0.5rem;"></div>
+            </section>
+
             <!-- 12. Office Use Only -->
             <section class="form-section admin-section">
                 <h2>🏢 Office Use Only</h2>
@@ -177,8 +192,8 @@
                 <h3 class="sub-heading">Father Information</h3>
                 <div class="input-grid">
                     <div class="input-group">
-                        <label for="fatherName">Name</label>
-                        <input type="text" id="fatherName" name="fatherName">
+                        <label for="fatherName">Name <span style="color:red">*</span></label>
+                        <input type="text" id="fatherName" name="fatherName" required>
                     </div>
                     <div class="input-group">
                         <label for="fatherCnic">CNIC Number</label>
@@ -263,8 +278,8 @@
                 <h2>🏫 Admission Details</h2>
                 <div class="input-grid">
                     <div class="input-group">
-                        <label for="admissionClass">Applying for Class</label>
-                        <select id="admissionClass" name="admissionClass">
+                        <label for="admissionClass">Applying for Class <span style="color:red">*</span></label>
+                        <select id="admissionClass" name="admissionClass" required>
                             <option value="" disabled selected>Loading classes...</option>
                         </select>
                         <small style="margin-top:0.3rem; font-size:0.75rem;"><a href="classes.html"

@@ -5,6 +5,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const successMessage = document.getElementById('successMessage');
     const formAlert = document.getElementById('formAlert');
     
+    let editingStudentRecordId = null;
+    let originalSubmitBtnHtml = '';
+    
     // Fetch and populate classes dynamically
     const classSelect = document.getElementById('admissionClass');
     async function loadClasses() {
@@ -193,6 +196,202 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Roll Number Uniqueness Check Logic
+    const rollNumberInput = document.getElementById('rollNumber');
+    
+    async function isRollNumberDuplicate(roll, excludeId = null) {
+        if (!roll) return false;
+        try {
+            let query = supabaseClient
+                .from('admissions')
+                .select('id')
+                .eq('roll_number', roll);
+                
+            if (excludeId) {
+                query = query.neq('id', excludeId);
+            }
+                
+            const { data, error } = await query.limit(1);
+            if (error) throw error;
+            return data && data.length > 0;
+        } catch (err) {
+            console.error("Error checking roll number duplicate:", err);
+            return false; // Fail open to not block UI completely on network drop, but DB RLS/constraints usually catch it anyway.
+        }
+    }
+
+    if (rollNumberInput) {
+        rollNumberInput.addEventListener('blur', async () => {
+            const val = rollNumberInput.value.trim();
+            if (val) {
+                const group = rollNumberInput.closest('.input-group');
+                const isDup = await isRollNumberDuplicate(val, editingStudentRecordId);
+                if (isDup) {
+                    group.classList.add('invalid');
+                    let errorSpan = group.querySelector('.error-msg');
+                    if (!errorSpan) {
+                        errorSpan = document.createElement('span');
+                        errorSpan.className = 'error-msg';
+                        group.appendChild(errorSpan);
+                    }
+                    errorSpan.textContent = 'Roll number already exists. Duplicates are not allowed.';
+                    errorSpan.style.display = 'block';
+                } else {
+                    // if it was invalid just because of the dup check, remove it (re-run standard validation)
+                    validateInput(rollNumberInput);
+                }
+            }
+        });
+    }
+
+    // Search and Load Student for Editing
+    const searchStudentBtn = document.getElementById('searchStudentBtn');
+    const searchQueryInput = document.getElementById('searchQuery');
+    const searchResultsContainer = document.getElementById('searchResults');
+    
+    if (searchQueryInput) {
+        searchQueryInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault(); // Prevent form submission
+                if (searchStudentBtn) searchStudentBtn.click();
+            }
+        });
+    }
+
+    if (searchStudentBtn) {
+        searchStudentBtn.addEventListener('click', async () => {
+            const query = searchQueryInput.value.trim();
+            if (!query) {
+                alert('Please enter a name or roll number to search.');
+                return;
+            }
+            
+            searchStudentBtn.textContent = 'Searching...';
+            searchStudentBtn.disabled = true;
+            searchResultsContainer.style.display = 'none';
+            searchResultsContainer.innerHTML = '';
+            
+            // Remove characters that might break PostgREST .or() syntax like commas
+            const safeQuery = query.replace(/[,\(\)]/g, ' ').trim();
+            
+            try {
+                const { data, error } = await supabaseClient
+                    .from('admissions')
+                    .select('*')
+                    .or(`full_name.ilike.%${safeQuery}%,roll_number.eq.${safeQuery}`);
+                    
+                if (error) throw error;
+                
+                if (data && data.length > 0) {
+                    searchResultsContainer.style.display = 'flex';
+                    searchResultsContainer.innerHTML = `<p style="margin:0; font-weight:500;">Found ${data.length} student(s):</p>`;
+                    
+                    data.forEach(student => {
+                        const row = document.createElement('div');
+                        row.style.cssText = 'display:flex; justify-content:space-between; align-items:center; background:white; padding:0.5rem 1rem; border-radius:6px; border:1px solid #e2e8f0;';
+                        row.innerHTML = `
+                            <div>
+                                <strong style="color:var(--primary);">${student.full_name}</strong>
+                                <span style="color:#64748b; font-size:0.9rem; margin-left:0.5rem;">Roll No: ${student.roll_number} | Class: ${student.applying_for_class || 'N/A'}</span>
+                            </div>
+                            <button type="button" class="edit-btn" style="background:#10b981; color:white; border:none; padding:0.3rem 0.8rem; border-radius:4px; cursor:pointer;" data-id="${student.id}">Edit</button>
+                        `;
+                        searchResultsContainer.appendChild(row);
+                        
+                        row.querySelector('.edit-btn').addEventListener('click', () => {
+                            populateFormForEditing(student);
+                            searchResultsContainer.style.display = 'none';
+                            searchQueryInput.value = '';
+                        });
+                    });
+                } else {
+                    searchResultsContainer.style.display = 'flex';
+                    searchResultsContainer.innerHTML = `<p style="margin:0; color:#ef4444;">No students found matching "${query}".</p>`;
+                }
+            } catch (err) {
+                console.error('Error searching students:', err);
+                alert('Error searching students. See console for details.');
+            } finally {
+                searchStudentBtn.textContent = 'Search';
+                searchStudentBtn.disabled = false;
+            }
+        });
+    }
+
+    function populateFormForEditing(student) {
+        editingStudentRecordId = student.id;
+        
+        const setVal = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.value = val !== null && val !== undefined ? val : '';
+                // Trigger change to update validation states or cascaded queries
+                el.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+        };
+        
+        setVal('studentId', student.student_id);
+        setVal('rollNumber', student.roll_number);
+        setVal('status', student.status);
+        setVal('fullName', student.full_name);
+        setVal('dob', student.dob);
+        setVal('gender', student.gender);
+        setVal('placeOfBirth', student.place_of_birth);
+        setVal('bformNumber', student.bform_number);
+        setVal('address', student.home_address);
+        
+        setVal('fatherName', student.father_name);
+        setVal('fatherCnic', student.father_cnic);
+        setVal('fatherOcc', student.father_occ);
+        setVal('fatherMobile', student.father_mobile);
+        setVal('fatherWhatsapp', student.father_whatsapp);
+        
+        setVal('motherName', student.mother_name);
+        setVal('motherCnic', student.mother_cnic);
+        setVal('motherOcc', student.mother_occ);
+        setVal('motherMobile', student.mother_mobile);
+        
+        setVal('guardianName', student.guardian_name);
+        setVal('guardianRel', student.guardian_rel);
+        setVal('guardianContact', student.guardian_contact);
+        
+        setVal('lastSchool', student.last_school);
+        setVal('classPassed', student.class_passed);
+        setVal('transferCert', student.transfer_cert);
+        
+        if (student.applying_for_class) setVal('admissionClass', student.applying_for_class);
+        setVal('session', student.session);
+        setVal('admissionDate', student.admission_date);
+        setVal('campus', student.campus);
+        setVal('medicalCondition', student.medical_condition);
+        
+        // Fee fields might be overwritten by the class Select trigger, wait a bit
+        setTimeout(() => {
+            setVal('admissionFee', student.admission_fee);
+            setVal('monthlyFee', student.monthly_fee);
+            setVal('discount', student.discount);
+        }, 300);
+        
+        setVal('siblingInSchool', student.sibling_in_school);
+        
+        const submitBtn = document.getElementById('submitBtn');
+        if (submitBtn) {
+            if (!originalSubmitBtnHtml) originalSubmitBtnHtml = submitBtn.innerHTML;
+            submitBtn.innerHTML = `
+                <span>Update Application</span>
+                <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="btn-icon">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                </svg>
+            `;
+            submitBtn.style.background = '#10b981'; // Green for update
+            submitBtn.style.boxShadow = '0 4px 14px rgba(16, 185, 129, 0.4)';
+        }
+        
+        // Scroll back to form top
+        document.querySelector('.admin-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
         
@@ -272,9 +471,45 @@ document.addEventListener('DOMContentLoaded', () => {
                     status: getVal('status') || 'Pending'
                 };
 
-                const { data, error } = await supabaseClient
-                    .from('admissions')
-                    .insert([formData]);
+                // Final Duplicate Check Before Save
+                const isDuplicate = await isRollNumberDuplicate(formData.roll_number, editingStudentRecordId);
+                if (isDuplicate) {
+                    formAlert.textContent = '❌ Cannot save student: Roll number already exists in the system.';
+                    formAlert.style.display = 'block';
+                    formAlert.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    
+                    const group = rollNumberInput.closest('.input-group');
+                    if (group) {
+                        group.classList.add('invalid');
+                        let errorSpan = group.querySelector('.error-msg');
+                        if (!errorSpan) {
+                            errorSpan = document.createElement('span');
+                            errorSpan.className = 'error-msg';
+                            group.appendChild(errorSpan);
+                        }
+                        errorSpan.textContent = 'Roll number already exists. Duplicates are not allowed.';
+                        errorSpan.style.display = 'block';
+                    }
+                    
+                    // Reset button state and abort submission
+                    submitBtn.innerHTML = originalText;
+                    submitBtn.style.opacity = '1';
+                    submitBtn.style.pointerEvents = 'all';
+                    return;
+                }
+
+                let actionResult;
+                if (editingStudentRecordId) {
+                    actionResult = await supabaseClient
+                        .from('admissions')
+                        .update(formData)
+                        .eq('id', editingStudentRecordId);
+                } else {
+                    actionResult = await supabaseClient
+                        .from('admissions')
+                        .insert([formData]);
+                }
+                const { error } = actionResult;
 
                 if (error) {
                     console.error('Supabase Error details:', error);
@@ -283,10 +518,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 document.getElementById('successStudentId').textContent = studentIdInput.value;
                 document.getElementById('successRollNo').textContent = formData.roll_number;
+                
+                const smText = successMessage.querySelector('h3');
+                if (smText) {
+                    smText.textContent = editingStudentRecordId ? 'Application Updated!' : 'Application Saved!';
+                }
+                
                 showSuccessMessage();
                 
                 // Reset form
                 form.reset();
+                editingStudentRecordId = null;
+                if (originalSubmitBtnHtml) {
+                    submitBtn.innerHTML = originalSubmitBtnHtml;
+                    submitBtn.style.background = '';
+                    submitBtn.style.boxShadow = '';
+                }
+                
                 // Regenerate ID for next student
                 studentIdInput.value = `ZSM-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
                 if(photoPreview) photoPreview.innerHTML = 'No image selected';

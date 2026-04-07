@@ -596,8 +596,36 @@ document.addEventListener('DOMContentLoaded', async () => {
                 e.target.disabled = true;
                 e.target.innerHTML = '...';
                 try {
+                    // 1. Find associated transactions to get the receipt numbers (Payment History)
+                    const { data: txData } = await supabaseClient
+                        .from('transactions')
+                        .select('receipt_number')
+                        .eq('challan_id', id);
+
+                    let baseReceiptsToDelete = [];
+                    if (txData && txData.length > 0) {
+                        for (const tx of txData) {
+                            if (tx.receipt_number) {
+                                // Extract base receipt (RCT-1234567 from RCT-1234567-1)
+                                const base = tx.receipt_number.replace(/-\d+$/, '');
+                                if (base && !baseReceiptsToDelete.includes(base)) {
+                                    baseReceiptsToDelete.push(base);
+                                }
+                            }
+                        }
+                    }
+
+                    // 2. Delete the challan (transactions might cascade, but we explicitly delete history)
                     const {error} = await supabaseClient.from('challans').delete().eq('id', id);
                     if(error) throw error;
+                    
+                    // 3. Delete the orphaned receipts from the history
+                    if (baseReceiptsToDelete.length > 0) {
+                        for (const baseRct of baseReceiptsToDelete) {
+                            await supabaseClient.from('receipts').delete().eq('receipt_number', baseRct);
+                        }
+                    }
+
                     // Reload current page from DB
                     await loadChallansPage(currentChallanPage, filterTextInput.value.trim());
                 } catch(err) {
