@@ -29,23 +29,45 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadDatabase();
 });
 
+async function fetchAllPages(table, selectCols, filters = []) {
+    const PAGE_SIZE = 1000;
+    let allData = [];
+    let from = 0;
+
+    while (true) {
+        let query = supabaseClient
+            .from(table)
+            .select(selectCols)
+            .range(from, from + PAGE_SIZE - 1);
+
+        for (const [col, val] of filters) {
+            query = query.eq(col, val);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+
+        allData = allData.concat(data);
+        if (data.length < PAGE_SIZE) break; // last page
+        from += PAGE_SIZE;
+    }
+
+    return allData;
+}
+
 async function loadDatabase() {
     document.getElementById('loader').style.display = 'block';
     document.getElementById('attendanceTable').style.opacity = '0.3';
     
     try {
-        const { data: students, error: sErr } = await supabaseClient
-            .from('admissions')
-            .select('id, roll_number, full_name, applying_for_class')
-            .eq('status', 'Active');
-        if(sErr) throw sErr;
-        allStudents = students || [];
+        allStudents = await fetchAllPages(
+            'admissions',
+            'id, roll_number, full_name, applying_for_class',
+            [['status', 'Active']]
+        );
 
-        const { data: attData, error: aErr } = await supabaseClient
-            .from('attendance')
-            .select('*');
-        if(aErr) throw aErr;
-        allAttendance = attData || [];
+        allAttendance = await fetchAllPages('attendance', '*');
 
     } catch (err) {
         showToast("Database Connection Error", "error");
