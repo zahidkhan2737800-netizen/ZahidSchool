@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zahid School - Fee Register</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="fee_register.css">
+</head>
+<body>
+    <div class="page-wrap">
+
+        <header class="top-head">
+            <div class="title-wrap">
+                <div class="icon">📋</div>
+                <div>
+                    <h1>Fee Register</h1>
+                    <p>Monthly fee status per student — paid, partial, pending, or no challan</p>
+                </div>
+            </div>
+            <div class="head-links">
+                <a href="dashboard.html"><i class="fas fa-chart-line"></i> Dashboard</a>
+                <a href="collect_fee.html"><i class="fas fa-hand-holding-usd"></i> Collect Fee</a>
+                <a href="fee_paid_log.html"><i class="fas fa-list-check"></i> Paid Log</a>
+                <a href="create_challan.html"><i class="fas fa-file-invoice-dollar"></i> Create Challans</a>
+            </div>
+        </header>
+
+        <section class="filters">
+            <div class="field">
+                <label for="fromMonth">From Month</label>
+                <input type="month" id="fromMonth">
+            </div>
+            <div class="field">
+                <label for="toMonth">To Month</label>
+                <input type="month" id="toMonth">
+            </div>
+            <div class="field">
+                <label for="classFilter">Class</label>
+                <select id="classFilter">
+                    <option value="">All Classes</option>
+                </select>
+            </div>
+            <div class="field grow">
+                <label for="searchText">Search Student / Roll No.</label>
+                <input type="text" id="searchText" placeholder="Type name or roll number…">
+            </div>
+            <div class="field">
+                <label for="showFilter">Show</label>
+                <select id="showFilter">
+                    <option value="all">All Students</option>
+                    <option value="pending">With Pending Dues</option>
+                    <option value="nochallan">No Challan (any month)</option>
+                </select>
+            </div>
+            <div class="actions">
+                <button id="loadBtn" class="btn-primary"><i class="fas fa-sync"></i> Load</button>
+                <button id="printBtn" class="btn-primary btn-outline"><i class="fas fa-print"></i> Print</button>
+            </div>
+        </section>
+
+        <section class="summary" id="summaryBar" style="display:none;">
+            <div class="card">
+                <span class="lbl">Students Shown</span>
+                <strong class="sum-students" id="sumStudents">0</strong>
+            </div>
+            <div class="card">
+                <span class="lbl">With Pending Dues</span>
+                <strong class="sum-dues" id="sumWithDues">0</strong>
+            </div>
+            <div class="card">
+                <span class="lbl">Total Remaining</span>
+                <strong class="sum-total" id="sumTotal">Rs 0</strong>
+            </div>
+            <div class="card">
+                <span class="lbl">No Challan Cells</span>
+                <strong class="sum-none" id="sumNoChallan">0</strong>
+            </div>
+        </section>
+
+        <div class="table-scroll" id="tableScroll" style="display:none;">
+            <table class="reg-table" id="regTable">
+                <thead id="regHead"></thead>
+                <tbody id="regBody"></tbody>
+            </table>
+        </div>
+
+        <div id="placeholder" class="placeholder">
+            <i class="fas fa-file-invoice-dollar"></i>
+            <p>Select a date range and click <strong>Load</strong> to view the fee register.</p>
+        </div>
+
+    </div>
+
+    <script src="auth.js"></script>
+    <script src="fee_register.js"></script>
+</body>
+</html>

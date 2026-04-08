@@ -1,0 +1,261 @@
+:root {
+    --bg: #f1f5f9;
+    --panel: #ffffff;
+    --line: #e2e8f0;
+    --ink: #0f172a;
+    --muted: #64748b;
+    --brand: #7c3aed;
+    --brand-dark: #6d28d9;
+    --ok: #16a34a;
+    --amber: #d97706;
+    --red: #dc2626;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(140deg, #f5f3ff 0%, #f8fafc 45%, #ecfdf5 100%);
+    color: var(--ink);
+}
+
+.page-wrap {
+    max-width: 1700px;
+    margin: 0 auto;
+    padding: 1.25rem;
+}
+
+/* ─── Header ────────────────────────────────────────────────────────────── */
+.top-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 1rem 1.2rem;
+}
+
+.title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+}
+
+.title-wrap .icon {
+    width: 46px;
+    height: 46px;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    background: #ede9fe;
+    font-size: 1.35rem;
+}
+
+.title-wrap h1 { margin: 0; font-size: 1.35rem; }
+.title-wrap p  { margin: 0.2rem 0 0; color: var(--muted); font-size: 0.9rem; }
+
+.head-links { display: flex; gap: 0.7rem; flex-wrap: wrap; }
+
+.head-links a {
+    text-decoration: none;
+    color: var(--brand-dark);
+    font-weight: 600;
+    font-size: 0.88rem;
+    border: 1px solid #ddd6fe;
+    background: #f5f3ff;
+    padding: 0.45rem 0.7rem;
+    border-radius: 8px;
+}
+
+/* ─── Filters ───────────────────────────────────────────────────────────── */
+.filters {
+    margin-top: 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+    align-items: flex-end;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 0.9rem;
+}
+
+.field { display: flex; flex-direction: column; min-width: 140px; }
+.field.grow { flex: 1 1 200px; }
+
+.field label {
+    display: block;
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin-bottom: 0.25rem;
+    font-weight: 600;
+}
+
+.field input,
+.field select {
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 0.6rem 0.7rem;
+    font-size: 0.9rem;
+    background: #fff;
+    width: 100%;
+}
+
+.field input:focus,
+.field select:focus { outline: none; border-color: var(--brand); }
+
+.actions { display: flex; gap: 0.45rem; align-self: flex-end; }
+
+.btn-primary {
+    border: none;
+    border-radius: 8px;
+    background: var(--brand);
+    color: #fff;
+    font-weight: 700;
+    padding: 0.68rem 1rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+.btn-primary:hover { background: var(--brand-dark); }
+.btn-outline {
+    background: #fff;
+    color: var(--brand);
+    border: 1.5px solid var(--brand);
+}
+.btn-outline:hover { background: #f5f3ff; }
+
+/* ─── Summary ───────────────────────────────────────────────────────────── */
+.summary {
+    margin-top: 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+}
+
+.summary .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 0.7rem 1rem;
+    min-width: 160px;
+}
+
+.summary .lbl { display: block; color: var(--muted); font-size: 0.8rem; margin-bottom: 0.2rem; }
+.summary strong { font-size: 1.05rem; }
+.sum-students { color: #2563eb; }
+.sum-dues     { color: var(--red); }
+.sum-total    { color: var(--amber); }
+.sum-none     { color: var(--muted); }
+
+/* ─── Table ─────────────────────────────────────────────────────────────── */
+.table-scroll {
+    margin-top: 1rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    overflow: auto;
+    max-height: 75vh;
+}
+
+.reg-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+}
+
+.reg-table thead th {
+    text-align: left;
+    padding: 0.55rem 0.75rem;
+    font-size: 0.78rem;
+    color: #334155;
+    border-bottom: 2px solid var(--line);
+    background: #f8fafc;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    white-space: nowrap;
+}
+
+.reg-table thead th.month-col {
+    text-align: center;
+    min-width: 120px;
+}
+
+.reg-table tbody td {
+    padding: 0.45rem 0.75rem;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+}
+
+.reg-table tbody tr:hover { background: #faf5ff; }
+
+.reg-table td.month-cell {
+    text-align: center;
+    font-size: 0.8rem;
+}
+
+.reg-table td.total-cell {
+    text-align: right;
+    font-weight: 700;
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
+/* ─── Cell Badges ───────────────────────────────────────────────────────── */
+.badge {
+    display: inline-block;
+    padding: 0.2rem 0.55rem;
+    border-radius: 20px;
+    font-size: 0.73rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.badge-paid    { background: #dcfce7; color: #166534; }
+.badge-partial { background: #fef3c7; color: #92400e; }
+.badge-unpaid  { background: #fee2e2; color: #991b1b; }
+.badge-none    { background: #f1f5f9; color: #94a3b8; font-weight: 400; font-style: italic; }
+
+/* ─── Placeholder ───────────────────────────────────────────────────────── */
+.placeholder {
+    margin-top: 2rem;
+    text-align: center;
+    color: var(--muted);
+    padding: 3rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+}
+.placeholder i { font-size: 2.5rem; margin-bottom: 0.75rem; display: block; color: #c4b5fd; }
+.placeholder p  { font-size: 1rem; }
+
+/* ─── Print ─────────────────────────────────────────────────────────────── */
+@media print {
+    body { background: white; }
+    .top-head .head-links,
+    .filters,
+    .actions,
+    .placeholder { display: none !important; }
+
+    .page-wrap { padding: 4mm; max-width: 100%; }
+
+    .top-head { border: none; padding: 0; margin-bottom: 4mm; box-shadow: none; }
+
+    .summary .card { border: 1px solid #ccc; padding: 3mm 4mm; }
+
+    .table-scroll {
+        max-height: none;
+        border: none;
+        border-radius: 0;
+        overflow: visible;
+    }
+
+    .reg-table { font-size: 8px; }
+    .reg-table thead th { font-size: 7.5px; padding: 2px 4px; background: #f0f0f0; }
+    .reg-table tbody td { padding: 2px 4px; }
+
+    .badge { padding: 0.1rem 0.35rem; font-size: 7px; }
+}

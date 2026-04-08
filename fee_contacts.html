@@ -52,6 +52,35 @@
         }
         .total-badge strong { font-size: 1.3rem; color: var(--primary); }
 
+        .stats-cards {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(160px, 1fr));
+            gap: 0.8rem;
+            margin-bottom: 1rem;
+        }
+        .stats-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 0.75rem 0.9rem;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+        }
+        .stats-card .lbl {
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #64748b;
+            letter-spacing: 0.04em;
+        }
+        .stats-card .val {
+            margin-top: 0.2rem;
+            font-size: 1.3rem;
+            font-weight: 800;
+            color: #0f172a;
+        }
+        .stats-card.pending .val { color: #b91c1c; }
+        .stats-card.solved .val { color: #059669; }
+
         /* Control Panel */
         .control-panel {
             background: #ffffff;
@@ -272,6 +301,21 @@
             <div class="total-badge">
                 <span style="color:#64748b; font-size:0.9rem; font-weight:600; text-transform:uppercase;">Visible Unpaid Balance</span>
                 <strong id="totalBalanceBadge">Rs. 0</strong>
+            </div>
+        </div>
+
+        <div class="stats-cards">
+            <div class="stats-card">
+                <div class="lbl">Total Students</div>
+                <div class="val" id="cardTotalStudents">0</div>
+            </div>
+            <div class="stats-card pending">
+                <div class="lbl">Pending</div>
+                <div class="val" id="cardPendingStudents">0</div>
+            </div>
+            <div class="stats-card solved">
+                <div class="lbl">Solved</div>
+                <div class="val" id="cardSolvedStudents">0</div>
             </div>
         </div>
 

@@ -18,13 +18,19 @@ var NAV_CATEGORIES = [
     ]
   },
   {
+    id: 'fee_tools', label: 'Fee Tools', icon: 'fas fa-bolt',
+    items: [
+      { href: 'fee_paid_log.html', label: 'Open Paid Fee Log', icon: 'fas fa-list-check', key: 'collect_fee' },
+      { href: 'fee_register.html', label: 'Fee Register', icon: 'fas fa-table', key: 'collect_fee' },
+      { href: 'family_contacts.html', label: 'Open Family Fee Contacts', icon: 'fas fa-phone-volume', key: 'fee_contacts' },
+    ]
+  },
+  {
     id: 'fees', label: 'Fee Management', icon: 'fas fa-money-bill-wave',
     items: [
       { href: 'create_challan.html', label: 'Create Challans', icon: 'fas fa-file-invoice-dollar', key: 'challans' },
       { href: 'collect_fee.html', label: 'Collect Student Fee', icon: 'fas fa-hand-holding-usd', key: 'collect_fee' },
-    { href: 'fee_paid_log.html', label: 'Paid Fee Log', icon: 'fas fa-list-check', key: 'collect_fee' },
       { href: 'collect_family_fee.html', label: 'Collect Family Fee', icon: 'fas fa-users-cog', key: 'collect_family_fee' },
-            { href: 'family_contacts.html', label: 'Family Fee Contacts', icon: 'fas fa-users', key: 'fee_contacts' },
       { href: 'fee_contacts.html', label: 'Fee Contacts', icon: 'fas fa-phone-alt', key: 'fee_contacts' },
       { href: 'fee_heads.html', label: 'Fee Config', icon: 'fas fa-cogs', key: 'fee_heads' },
       { href: 'finance.html', label: 'Finance & Cash Flow', icon: 'fas fa-chart-pie', key: 'finance' }
@@ -89,8 +95,6 @@ async function bootDashboard() {
     loadRecentAdmissions();
     loadCashFlowStats();
     loadStaffTodayStats();
-    loadTodayPaidFeesWidget();
-    loadFamilyContactsSnapshot();
 }
 
 // ─── Cash Flow Overview ────────────────────────────────────────────────────────
@@ -463,128 +467,6 @@ async function loadRecentAdmissions() {
         }).join('');
     } catch(e) {
         tbody.innerHTML = `<tr><td colspan="5" style="color:red;">Error: ${e.message}</td></tr>`;
-    }
-}
-
-async function loadTodayPaidFeesWidget() {
-    const tbody = document.getElementById('todayPaidFeeBody');
-    if (!tbody) return;
-
-    try {
-        const now = new Date();
-        const fmtDate = (d) => {
-            const y = d.getFullYear();
-            const m = String(d.getMonth() + 1).padStart(2, '0');
-            const day = String(d.getDate()).padStart(2, '0');
-            return `${y}-${m}-${day}`;
-        };
-
-        const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const tomorrowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-        const todayStart = `${fmtDate(todayDate)}T00:00:00`;
-        const todayEnd = `${fmtDate(tomorrowDate)}T00:00:00`;
-        const schoolId = window.currentSchoolId;
-
-        let txQ = window.supabaseClient
-            .from('transactions')
-            .select('created_at, student_id, roll_number, challan_id, fee_details, amount_paid')
-            .gte('created_at', todayStart)
-            .lt('created_at', todayEnd)
-            .order('created_at', { ascending: false })
-            .limit(15);
-        if (schoolId) txQ = txQ.eq('school_id', schoolId);
-        const { data: txData, error: txErr } = await txQ;
-        if (txErr) throw txErr;
-
-        const rows = txData || [];
-        if (rows.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#94a3b8; padding:1.5rem;">No fee paid entries today.</td></tr>';
-            return;
-        }
-
-        const studentIds = [...new Set(rows.map(r => r.student_id).filter(Boolean))];
-        const challanIds = [...new Set(rows.map(r => r.challan_id).filter(Boolean))];
-
-        let stuMap = new Map();
-        let challanMap = new Map();
-
-        if (studentIds.length > 0) {
-            let stuQ = window.supabaseClient
-                .from('admissions')
-                .select('id, full_name, applying_for_class, roll_number')
-                .in('id', studentIds);
-            if (schoolId) stuQ = stuQ.eq('school_id', schoolId);
-            const { data: sData, error: sErr } = await stuQ;
-            if (!sErr) stuMap = new Map((sData || []).map(s => [s.id, s]));
-        }
-
-        if (challanIds.length > 0) {
-            let chQ = window.supabaseClient
-                .from('challans')
-                .select('id, fee_type, fee_month')
-                .in('id', challanIds);
-            if (schoolId) chQ = chQ.eq('school_id', schoolId);
-            const { data: cData, error: cErr } = await chQ;
-            if (!cErr) challanMap = new Map((cData || []).map(c => [c.id, c]));
-        }
-
-        tbody.innerHTML = rows.map(r => {
-            const stu = stuMap.get(r.student_id) || {};
-            const ch = challanMap.get(r.challan_id) || {};
-            const feeHead = ch.fee_type ? `${ch.fee_type}${ch.fee_month ? ` (${ch.fee_month})` : ''}` : (r.fee_details || 'N/A');
-            const dt = new Date(r.created_at);
-            const time12 = dt.toLocaleTimeString('en-PK', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
-
-            return `<tr>
-                <td>${time12}</td>
-                <td><strong>${r.roll_number || stu.roll_number || '—'}</strong></td>
-                <td>${stu.full_name || '—'}</td>
-                <td>${stu.applying_for_class || '—'}</td>
-                <td>${feeHead}</td>
-                <td style="color:#16a34a; font-weight:700;">Rs ${Math.round(Number(r.amount_paid || 0)).toLocaleString()}</td>
-            </tr>`;
-        }).join('');
-    } catch (e) {
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#dc2626; padding:1.5rem;">Failed to load today's paid fee log: ${e.message}</td></tr>`;
-    }
-}
-
-async function loadFamilyContactsSnapshot() {
-    try {
-        const schoolId = window.currentSchoolId;
-
-        let famQ = window.supabaseClient
-            .from('admissions')
-            .select('father_mobile')
-            .eq('status', 'Active');
-        if (schoolId) famQ = famQ.eq('school_id', schoolId);
-        const { data: famData, error: famErr } = await famQ;
-        if (famErr) throw famErr;
-
-        const uniqueFamilies = new Set((famData || []).map(r => (r.father_mobile || '').trim()).filter(Boolean));
-        const totalFamilies = uniqueFamilies.size;
-
-        const now = new Date();
-        const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-        let contactQ = window.supabaseClient
-            .from('family_contacts')
-            .select('row_status')
-            .eq('month_key', monthKey);
-        if (schoolId) contactQ = contactQ.eq('school_id', schoolId);
-
-        const { data: contactData } = await contactQ;
-        const pending = (contactData || []).filter(r => (r.row_status || 'Pending') !== 'Solved').length;
-
-        const familyCountEl = document.getElementById('statFamilyCount');
-        const familyPendingEl = document.getElementById('statFamilyPending');
-        if (familyCountEl) familyCountEl.textContent = totalFamilies.toLocaleString();
-        if (familyPendingEl) familyPendingEl.textContent = pending.toLocaleString();
-    } catch (e) {
-        const familyCountEl = document.getElementById('statFamilyCount');
-        const familyPendingEl = document.getElementById('statFamilyPending');
-        if (familyCountEl) familyCountEl.textContent = '--';
-        if (familyPendingEl) familyPendingEl.textContent = '--';
-        console.warn('Family contacts snapshot error:', e);
     }
 }
 

@@ -17,6 +17,8 @@ const STATUS_COLORS = {
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
+    await waitForAuthContext();
+
     // 1. Initialize Month Picker
     const today = new Date();
     currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
@@ -54,6 +56,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadData();
 });
 
+async function waitForAuthContext(timeoutMs = 10000) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+        if (window.authReady === true && window.supabaseClient) return;
+        await new Promise(r => setTimeout(r, 80));
+    }
+}
+
 function changeMonth(offset) {
     if (!currentMonth) return;
     const [year, month] = currentMonth.split('-').map(Number);
@@ -67,11 +77,23 @@ function changeMonth(offset) {
 async function loadBaseData() {
     try {
         // Fetch specific columns for speed
-        const { data: students, error: sErr } = await supabaseClient
+        let schoolId = window.currentSchoolId;
+        if ((schoolId === null || schoolId === undefined) && window.currentUser?.id) {
+            const { data: roleData } = await supabaseClient
+                .from('user_roles')
+                .select('school_id')
+                .eq('user_id', window.currentUser.id)
+                .single();
+            schoolId = roleData?.school_id ?? null;
+            window.currentSchoolId = schoolId;
+        }
+        let studentsQ = supabaseClient
             .from('admissions')
             .select('id, roll_number, full_name, applying_for_class')
             .eq('status', 'Active')
             .order('roll_number', { ascending: true });
+        if (schoolId) studentsQ = studentsQ.eq('school_id', schoolId);
+        const { data: students, error: sErr } = await studentsQ;
 
         if (sErr) throw sErr;
         allStudents = students || [];

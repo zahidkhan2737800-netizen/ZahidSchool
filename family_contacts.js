@@ -20,6 +20,8 @@ const STATUS_COLORS = {
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
+    await waitForAuthContext();
+
     // 1. Initialize Month Picker
     const today = new Date();
     currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
@@ -55,6 +57,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadData();
 });
 
+async function waitForAuthContext(timeoutMs = 10000) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+        if (window.authReady === true && window.supabaseClient) return;
+        await new Promise(r => setTimeout(r, 80));
+    }
+}
+
 function changeMonth(offset) {
     if (!currentMonth) return;
     const [year, month] = currentMonth.split('-').map(Number);
@@ -68,11 +78,23 @@ function changeMonth(offset) {
 async function loadBaseData() {
     try {
         // Fetch specific columns for speed
-        const { data: students, error: sErr } = await window.supabaseClient
+        let schoolId = window.currentSchoolId;
+        if ((schoolId === null || schoolId === undefined) && window.currentUser?.id) {
+            const { data: roleData } = await window.supabaseClient
+                .from('user_roles')
+                .select('school_id')
+                .eq('user_id', window.currentUser.id)
+                .single();
+            schoolId = roleData?.school_id ?? null;
+            window.currentSchoolId = schoolId;
+        }
+        let studentsQ = window.supabaseClient
             .from('admissions')
             .select('id, roll_number, full_name, father_name, father_mobile, applying_for_class, family_id_manual')
             .eq('status', 'Active')
             .order('roll_number', { ascending: true });
+        if (schoolId) studentsQ = studentsQ.eq('school_id', schoolId);
+        const { data: students, error: sErr } = await studentsQ;
 
         if (sErr) throw sErr;
         
@@ -88,6 +110,8 @@ async function loadBaseData() {
         allFamilies = [];
         Object.keys(groups).forEach(mobile => {
             const members = groups[mobile];
+            // Only include as a family if 2+ active students share the same mobile
+            if (members.length < 2) return;
             const names = [...new Set(members.map(m => m.father_name).filter(n => n && n.trim() !== ''))];
             const primaryName = names.length > 0 ? names[0] : 'Unknown Father';
             const familyNos = [...new Set(members.map(m => m.family_id_manual).filter(n => n && n.trim() !== ''))];
@@ -206,6 +230,11 @@ function renderTable() {
     const searchT = document.getElementById('searchTerm').value.toLowerCase().trim();
 
     let totalBalance = 0;
+    let pendingCount = 0;
+    let solvedCount = 0;
+    let totalStudentsVisible = 0;
+    let pendingBalance = 0;
+    let solvedBalance = 0;
     
     // Convert to rich objects with pinned state to allow sorting
     let rowsToRender = allFamilies.map(fam => {
@@ -234,13 +263,23 @@ function renderTable() {
 
     // 3. Render
     rowsToRender.forEach(({ fam, data }) => {
+        const balance = familyBalances[fam.mobile] || 0;
+        totalBalance += balance;
+        totalStudentsVisible += (fam.members || []).length;
+
+        if (data.row_status === 'Solved') {
+            solvedCount++;
+            solvedBalance += balance;
+        } else {
+            pendingCount++;
+            pendingBalance += balance;
+        }
+
         const tr = document.createElement('tr');
         if (data.pinned) tr.classList.add('pinned');
         if (data.row_status === 'Solved') tr.classList.add('solved');
 
         // Fetch true balance from cached family balances
-        const balance = familyBalances[fam.mobile] || 0;
-        totalBalance += balance;
 
         // Build member list HTML
         const membersHtml = fam.members.map(m => `<div style="font-size:0.85rem; color:#475569; padding:2px 0;">• ${m.full_name} <b>(${m.roll_number})</b></div>`).join('');
@@ -280,6 +319,23 @@ function renderTable() {
 
     // Update Counter
     document.getElementById('totalBalanceBadge').textContent = `Rs. ${totalBalance.toLocaleString()}`;
+
+    const totalEl = document.getElementById('cardTotalFamilies');
+    const pendingEl = document.getElementById('cardPendingFamilies');
+    const solvedEl = document.getElementById('cardSolvedFamilies');
+    const studentsEl = document.getElementById('cardTotalStudents');
+    const totalBalEl = document.getElementById('cardTotalFamiliesBalance');
+    const pendingBalEl = document.getElementById('cardPendingBalance');
+    const solvedBalEl = document.getElementById('cardSolvedBalance');
+
+    const allFamiliesStudents = allFamilies.reduce((s, f) => s + (f.members || []).length, 0);
+    if (totalEl) totalEl.textContent = allFamilies.length.toLocaleString();
+    if (pendingEl) pendingEl.textContent = pendingCount.toLocaleString();
+    if (solvedEl) solvedEl.textContent = solvedCount.toLocaleString();
+    if (studentsEl) studentsEl.textContent = allFamiliesStudents.toLocaleString();
+    if (totalBalEl) totalBalEl.textContent = `Rs ${totalBalance.toLocaleString()}`;
+    if (pendingBalEl) pendingBalEl.textContent = `Rs ${pendingBalance.toLocaleString()}`;
+    if (solvedBalEl) solvedBalEl.textContent = `Rs ${solvedBalance.toLocaleString()}`;
 }
 
 // ─── Generators & Helpers ────────────────────────────────────────────────────

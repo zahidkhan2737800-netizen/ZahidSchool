@@ -11,6 +11,10 @@ let todayAttendance = {}; // Cache for today's attendance statuses (student_id -
 let allPendingChallans = [];
 let waTemplates = [];
 let currentOpenStudentId = null;
+let refreshInFlight = false;
+let refreshQueued = false;
+let syncTimer = null;
+let syncChannels = [];
 
 const STATUS_COLORS = {
     'C': 'status-C',
@@ -21,6 +25,8 @@ const STATUS_COLORS = {
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
+    await waitForAuthContext();
+
     // 1. Initialize Month Picker
     const today = new Date();
     currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
@@ -56,7 +62,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Initial Load
     await loadBaseData();
     await loadData();
+
+    // Keep list synced automatically when membership changes in other pages/tabs.
+    setupAutoSync();
 });
+
+async function waitForAuthContext(timeoutMs = 10000) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+        if (window.authReady === true && window.supabaseClient) return;
+        await new Promise(r => setTimeout(r, 80));
+    }
+}
 
 function changeMonth(offset) {
     if (!currentMonth) return;
@@ -70,15 +87,42 @@ function changeMonth(offset) {
 // ─── Fetch Base Data (Students & Classes) ────────────────────────────────────
 async function loadBaseData() {
     try {
-        // Fetch specific columns for speed including father contact
-        const { data: students, error: sErr } = await supabaseClient
+        // Fetch specific columns for speed.
+        let schoolId = window.currentSchoolId;
+        if ((schoolId === null || schoolId === undefined) && window.currentUser?.id) {
+            const { data: roleData } = await supabaseClient
+                .from('user_roles')
+                .select('school_id')
+                .eq('user_id', window.currentUser.id)
+                .single();
+            schoolId = roleData?.school_id ?? null;
+            window.currentSchoolId = schoolId;
+        }
+        let studentsQ = supabaseClient
             .from('admissions')
             .select('id, roll_number, full_name, applying_for_class, father_name, father_mobile')
             .eq('status', 'Active')
             .order('roll_number', { ascending: true });
+        if (schoolId) studentsQ = studentsQ.eq('school_id', schoolId);
+        const { data: students, error: sErr } = await studentsQ;
 
         if (sErr) throw sErr;
-        allStudents = students || [];
+
+        // Exclude students who belong to a family (father_mobile shared by 2+ active students).
+        // Those students are managed in family_contacts, so they should not appear here.
+        const mobileCount = {};
+        (students || []).forEach(s => {
+            const mob = (s.father_mobile || '').trim();
+            if (mob) mobileCount[mob] = (mobileCount[mob] || 0) + 1;
+        });
+        const familyMobiles = new Set(
+            Object.entries(mobileCount).filter(([, cnt]) => cnt >= 2).map(([mob]) => mob)
+        );
+
+        allStudents = (students || []).filter(s => {
+            const mob = (s.father_mobile || '').trim();
+            return !mob || !familyMobiles.has(mob);
+        });
 
         // Fetch classes for dropdown
         const { data: classes, error: cErr } = await supabaseClient
@@ -88,6 +132,7 @@ async function loadBaseData() {
         if (!cErr && classes) {
             classesList = classes;
             const classSelect = document.getElementById('classFilter');
+            classSelect.innerHTML = '<option value="">All Classes</option>';
             classes.forEach(c => {
                 const opt = document.createElement('option');
                 const str = `${c.class_name} ${c.section}`.trim();
@@ -171,6 +216,8 @@ function renderTable() {
     const rollF = document.getElementById('rollFilter').value.toLowerCase().trim();
 
     let totalBalance = 0;
+    let pendingCount = 0;
+    let solvedCount = 0;
     
     // Convert to rich objects with pinned state to allow sorting
     let rowsToRender = allStudents.map(student => {
@@ -196,6 +243,9 @@ function renderTable() {
 
     // 3. Render
     rowsToRender.forEach(({ student, data }) => {
+        if (data.row_status === 'Solved') solvedCount++;
+        else pendingCount++;
+
         const tr = document.createElement('tr');
         if (data.pinned) tr.classList.add('pinned');
         if (data.row_status === 'Solved') tr.classList.add('solved');
@@ -245,6 +295,12 @@ function renderTable() {
 
     // Update Counter
     document.getElementById('totalBalanceBadge').textContent = `Rs. ${totalBalance.toLocaleString()}`;
+    const totalEl = document.getElementById('cardTotalStudents');
+    const pendingEl = document.getElementById('cardPendingStudents');
+    const solvedEl = document.getElementById('cardSolvedStudents');
+    if (totalEl) totalEl.textContent = allStudents.length.toLocaleString();
+    if (pendingEl) pendingEl.textContent = pendingCount.toLocaleString();
+    if (solvedEl) solvedEl.textContent = solvedCount.toLocaleString();
 }
 
 // ─── Generators & Helpers ────────────────────────────────────────────────────
@@ -488,4 +544,61 @@ async function saveContactState(studentId, fieldsToUpdate) {
     } catch (err) {
         console.error("Save error:", err);
     }
+}
+
+async function refreshContactsMembership() {
+    if (refreshInFlight) {
+        refreshQueued = true;
+        return;
+    }
+
+    refreshInFlight = true;
+    try {
+        await loadBaseData();
+        await loadData();
+    } finally {
+        refreshInFlight = false;
+        if (refreshQueued) {
+            refreshQueued = false;
+            refreshContactsMembership();
+        }
+    }
+}
+
+function queueSyncRefresh() {
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(() => {
+        refreshContactsMembership();
+    }, 250);
+}
+
+function setupAutoSync() {
+    // Refresh when user returns to this tab.
+    window.addEventListener('focus', queueSyncRefresh);
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') queueSyncRefresh();
+    });
+
+    // Live updates from DB changes.
+    const admissionsChannel = supabaseClient
+        .channel('fee-contacts-sync-admissions')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'admissions' }, () => {
+            queueSyncRefresh();
+        })
+        .subscribe();
+
+    const familyContactsChannel = supabaseClient
+        .channel('fee-contacts-sync-family-contacts')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'family_contacts' }, () => {
+            queueSyncRefresh();
+        })
+        .subscribe();
+
+    syncChannels = [admissionsChannel, familyContactsChannel];
+
+    window.addEventListener('beforeunload', () => {
+        syncChannels.forEach(ch => {
+            try { supabaseClient.removeChannel(ch); } catch (_) {}
+        });
+    });
 }
