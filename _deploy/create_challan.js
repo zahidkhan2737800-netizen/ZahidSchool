@@ -489,8 +489,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
             if (filterTerm) {
-                // Filter by student name OR roll number
-                query = query.or(`student_name.ilike.%${filterTerm}%,roll_number.ilike.%${filterTerm}%`);
+                // Roll number: exact match | Student name: partial match
+                query = query.or(`student_name.ilike.%${filterTerm}%,roll_number.eq.${filterTerm}`);
             }
 
             const { data, count, error } = await query;
