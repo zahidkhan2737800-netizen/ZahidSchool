@@ -52,20 +52,43 @@ function toDateLabel(dateString) {
     });
 }
 
+function toCurrencyLabel(amount) {
+    return `Rs ${Math.round(Number(amount) || 0).toLocaleString()}`;
+}
+
+function getFilteredRows() {
+    const q = (searchTextInput.value || '').trim().toLowerCase();
+
+    return allRows.filter(r => {
+        return !q || (
+            String(r.rollNo).toLowerCase().includes(q) ||
+            String(r.studentName).toLowerCase().includes(q) ||
+            String(r.fatherName).toLowerCase().includes(q)
+        );
+    });
+}
+
 function updatePrintHeader() {
     const selected = feeDateInput.value;
     if (!selected) {
-        printDateHeader.textContent = 'Date:';
+        printDateHeader.textContent = 'Date:  | Time:  | Total Balance: Rs 0';
         return;
     }
 
     const d = new Date(`${selected}T00:00:00`);
-    const label = d.toLocaleDateString('en-PK', {
+    const dateLabel = d.toLocaleDateString('en-PK', {
         day: '2-digit',
         month: 'short',
         year: 'numeric'
     });
-    printDateHeader.textContent = `Date: ${label}`;
+    const timeLabel = new Date().toLocaleTimeString('en-PK', {
+        hour: 'numeric',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true
+    });
+    const total = getFilteredRows().reduce((sum, row) => sum + row.amount, 0);
+    printDateHeader.textContent = `Date: ${dateLabel} | Time: ${timeLabel} | Total Balance: ${toCurrencyLabel(total)}`;
 }
 
 function applyLayoutControls() {
@@ -221,20 +244,13 @@ async function loadPaidFees() {
 }
 
 function renderRows() {
-    const q = (searchTextInput.value || '').trim().toLowerCase();
-
-    const filtered = allRows.filter(r => {
-        return !q || (
-            String(r.rollNo).toLowerCase().includes(q) ||
-            String(r.studentName).toLowerCase().includes(q) ||
-            String(r.fatherName).toLowerCase().includes(q)
-        );
-    });
+    const filtered = getFilteredRows();
 
     if (filtered.length === 0) {
         paidLogBody.innerHTML = '<tr><td colspan="8" class="empty">No paid fee records found for this filter.</td></tr>';
         rowCountEl.textContent = '0';
         totalAmountEl.textContent = 'Rs 0';
+        updatePrintHeader();
         return;
     }
 
@@ -254,5 +270,6 @@ function renderRows() {
     `).join('');
 
     rowCountEl.textContent = filtered.length.toLocaleString();
-    totalAmountEl.textContent = `Rs ${Math.round(total).toLocaleString()}`;
+    totalAmountEl.textContent = toCurrencyLabel(total);
+    updatePrintHeader();
 }

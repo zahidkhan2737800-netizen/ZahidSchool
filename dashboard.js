@@ -109,6 +109,8 @@ async function loadCashFlowStats() {
         };
         const firstDay = fmtDate(new Date(now.getFullYear(), now.getMonth(), 1));
         const lastDay  = fmtDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+        const today = fmtDate(now);
+        const tomorrow = fmtDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
         const schoolId = window.currentSchoolId;
 
         const fmt = n => 'Rs ' + Math.round(n || 0).toLocaleString();
@@ -123,6 +125,16 @@ async function loadCashFlowStats() {
         const { data: feeData } = await feeQ;
         const feeRevenue = (feeData || []).reduce((s, r) => s + Number(r.amount_paid || 0), 0);
 
+        // 1A. Student Fee Revenue today (scoped to school)
+        let todayFeeQ = window.supabaseClient
+            .from('transactions')
+            .select('amount_paid')
+            .gte('created_at', today + 'T00:00:00')
+            .lt('created_at', tomorrow + 'T00:00:00');
+        if (schoolId) todayFeeQ = todayFeeQ.eq('school_id', schoolId);
+        const { data: todayFeeData } = await todayFeeQ;
+        const todayFeeRevenue = (todayFeeData || []).reduce((s, r) => s + Number(r.amount_paid || 0), 0);
+
         // 2. Other Revenue this month (scoped to school)
         let revQ = window.supabaseClient
             .from('other_revenue')
@@ -132,6 +144,15 @@ async function loadCashFlowStats() {
         if (schoolId) revQ = revQ.eq('school_id', schoolId);
         const { data: revData } = await revQ;
         const otherRevenue = (revData || []).reduce((s, r) => s + Number(r.amount || 0), 0);
+
+        // 2A. Other Revenue today (scoped to school)
+        let todayRevQ = window.supabaseClient
+            .from('other_revenue')
+            .select('amount')
+            .eq('revenue_date', today);
+        if (schoolId) todayRevQ = todayRevQ.eq('school_id', schoolId);
+        const { data: todayRevData } = await todayRevQ;
+        const todayOtherRevenue = (todayRevData || []).reduce((s, r) => s + Number(r.amount || 0), 0);
 
         // 3. Expenses this month (scoped to school)
         let expQ = window.supabaseClient
@@ -146,6 +167,15 @@ async function loadCashFlowStats() {
             .filter(r => r.category === 'Salaries')
             .reduce((s, r) => s + Number(r.amount || 0), 0);
 
+        // 3A. Expenses today (scoped to school)
+        let todayExpQ = window.supabaseClient
+            .from('expenses')
+            .select('amount')
+            .eq('expense_date', today);
+        if (schoolId) todayExpQ = todayExpQ.eq('school_id', schoolId);
+        const { data: todayExpData } = await todayExpQ;
+        const todayExpenses = (todayExpData || []).reduce((s, r) => s + Number(r.amount || 0), 0);
+
         // 4. Unpaid salary challans (scoped to school)
         let unpaidQ = window.supabaseClient
             .from('staff_payroll')
@@ -154,11 +184,14 @@ async function loadCashFlowStats() {
         if (schoolId) unpaidQ = unpaidQ.eq('school_id', schoolId);
         const { data: unpaidData } = await unpaidQ;
 
+        const todayRevenue = todayFeeRevenue + todayOtherRevenue;
         const totalRevenue = feeRevenue + otherRevenue;
         const netProfit = totalRevenue - totalExpenses;
 
         // Write to UI
         const el = id => document.getElementById(id);
+        if (el('statTodayRevenue')) el('statTodayRevenue').textContent = fmt(todayRevenue);
+        if (el('statTodayExpenses')) el('statTodayExpenses').textContent = fmt(todayExpenses);
         if (el('statTotalRevenue')) el('statTotalRevenue').textContent = fmt(totalRevenue);
         if (el('statTotalExpenses')) el('statTotalExpenses').textContent = fmt(totalExpenses);
         if (el('statSalariesPaid')) el('statSalariesPaid').textContent = fmt(salariesPaid);

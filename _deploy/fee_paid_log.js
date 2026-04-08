@@ -5,6 +5,8 @@ let allRows = [];
 
 const feeDateInput = document.getElementById('feeDate');
 const searchTextInput = document.getElementById('searchText');
+const printBtn = document.getElementById('printBtn');
+const printDateHeader = document.getElementById('printDateHeader');
 const loadBtn = document.getElementById('loadBtn');
 const paidLogBody = document.getElementById('paidLogBody');
 const rowCountEl = document.getElementById('rowCount');
@@ -40,9 +42,51 @@ function toDateLabel(dateString) {
     });
 }
 
+function toCurrencyLabel(amount) {
+    return `Rs ${Math.round(Number(amount) || 0).toLocaleString()}`;
+}
+
+function getFilteredRows() {
+    const q = (searchTextInput.value || '').trim().toLowerCase();
+
+    return allRows.filter(r => {
+        if (!q) return true;
+        return (
+            String(r.rollNo).toLowerCase().includes(q) ||
+            String(r.studentName).toLowerCase().includes(q)
+        );
+    });
+}
+
+function updatePrintHeader() {
+    if (!printDateHeader) return;
+
+    const selected = feeDateInput.value;
+    if (!selected) {
+        printDateHeader.textContent = 'Date:  | Time:  | Total Balance: Rs 0';
+        return;
+    }
+
+    const d = new Date(`${selected}T00:00:00`);
+    const dateLabel = d.toLocaleDateString('en-PK', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+    });
+    const timeLabel = new Date().toLocaleTimeString('en-PK', {
+        hour: 'numeric',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true
+    });
+    const total = getFilteredRows().reduce((sum, row) => sum + row.amount, 0);
+    printDateHeader.textContent = `Date: ${dateLabel} | Time: ${timeLabel} | Total Balance: ${toCurrencyLabel(total)}`;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const today = new Date();
     feeDateInput.value = fmtDateOnly(today);
+    updatePrintHeader();
 
     const waitAuth = setInterval(() => {
         if (window.authReady && window.supabaseClient) {
@@ -57,7 +101,15 @@ document.addEventListener('DOMContentLoaded', () => {
         renderRows();
     });
 
+    if (printBtn) {
+        printBtn.addEventListener('click', () => {
+            updatePrintHeader();
+            window.print();
+        });
+    }
+
     feeDateInput.addEventListener('change', () => {
+        updatePrintHeader();
         loadPaidFees();
     });
 });
@@ -153,20 +205,13 @@ async function loadPaidFees() {
 }
 
 function renderRows() {
-    const q = (searchTextInput.value || '').trim().toLowerCase();
-
-    const filtered = allRows.filter(r => {
-        if (!q) return true;
-        return (
-            String(r.rollNo).toLowerCase().includes(q) ||
-            String(r.studentName).toLowerCase().includes(q)
-        );
-    });
+    const filtered = getFilteredRows();
 
     if (filtered.length === 0) {
         paidLogBody.innerHTML = '<tr><td colspan="9" class="empty">No paid fee records found for this filter.</td></tr>';
         rowCountEl.textContent = '0';
         totalAmountEl.textContent = 'Rs 0';
+        updatePrintHeader();
         return;
     }
 
@@ -187,5 +232,6 @@ function renderRows() {
     `).join('');
 
     rowCountEl.textContent = filtered.length.toLocaleString();
-    totalAmountEl.textContent = `Rs ${Math.round(total).toLocaleString()}`;
+    totalAmountEl.textContent = toCurrencyLabel(total);
+    updatePrintHeader();
 }
