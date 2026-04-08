@@ -28,6 +28,30 @@ const currentSubjectLabel = document.getElementById('currentSubjectLabel');
 const tableHead           = document.getElementById('tableHead');
 const tableBody           = document.getElementById('tableBody');
 
+// ── Wait for auth context (school_id) to be ready ──
+async function waitForAuthContext(timeoutMs = 10000) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+        if (window.authReady === true && window.supabaseClient) return;
+        await new Promise(r => setTimeout(r, 80));
+    }
+    // Fallback: try to resolve school_id directly
+    if ((window.currentSchoolId === null || window.currentSchoolId === undefined) && window.currentUser?.id) {
+        const { data: roleData } = await supabaseClient
+            .from('user_roles')
+            .select('school_id')
+            .eq('user_id', window.currentUser.id)
+            .single();
+        window.currentSchoolId = roleData?.school_id ?? null;
+    }
+}
+
+// ── Apply school scope to a query ──
+function applySchoolScope(query) {
+    const sid = window.currentSchoolId || null;
+    return sid ? query.eq('school_id', sid) : query;
+}
+
 // ── Boot ─────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
     // Dropdown toggle
@@ -40,14 +64,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    await waitForAuthContext();
     await loadClasses();
 });
 
 // ── 1. Load Classes — directly from classes table ──
 async function loadClasses() {
-    const { data, error } = await supabaseClient
-        .from('classes')
-        .select('*')
+    const { data, error } = await applySchoolScope(
+        supabaseClient
+            .from('classes')
+            .select('*')
+    )
         .order('class_name', { ascending: true })
         .order('section', { ascending: true });
 
@@ -99,9 +126,11 @@ studentSearchInput.addEventListener('input', () => {
 // ── 3. Load Students & Subjects for Selected Class ──
 async function loadClassData(className) {
     // Students — from admissions table, Active only
-    const { data: sData, error: sErr } = await supabaseClient
-        .from('admissions')
-        .select('id, roll_number, full_name, applying_for_class')
+    const { data: sData, error: sErr } = await applySchoolScope(
+        supabaseClient
+            .from('admissions')
+            .select('id, roll_number, full_name, applying_for_class')
+    )
         .eq('applying_for_class', className)
         .eq('status', 'Active');
 
@@ -110,9 +139,11 @@ async function loadClassData(className) {
     students.sort((a, b) => parseFloat(a.roll_number || 0) - parseFloat(b.roll_number || 0));
 
     // Subjects — from monitoring_subjects table
-    const { data: subData, error: subErr } = await supabaseClient
-        .from('monitoring_subjects')
-        .select('*')
+    const { data: subData, error: subErr } = await applySchoolScope(
+        supabaseClient
+            .from('monitoring_subjects')
+            .select('*')
+    )
         .eq('applying_for_class', className)
         .order('created_at', { ascending: true });
 
@@ -145,9 +176,15 @@ addSubjectBtn.addEventListener('click', async () => {
     const subName = prompt("Enter a new Subject name (e.g., 'Math', 'Science'):");
     if (!subName || !subName.trim()) return;
 
+    const payload = {
+        applying_for_class: className,
+        subject_name: subName.trim()
+    };
+    if (window.currentSchoolId) payload.school_id = window.currentSchoolId;
+
     const { data: inserted, error } = await supabaseClient
         .from('monitoring_subjects')
-        .insert({ applying_for_class: className, subject_name: subName.trim() })
+        .insert(payload)
         .select();
 
     if (error) { alert('Failed to add subject: ' + error.message); return; }
@@ -169,18 +206,22 @@ function selectSubject(sub) {
 async function loadColumnsAndScores(subjectId) {
     tableBody.innerHTML = '<tr><td colspan="100%" class="loading-text">Loading topics and scores...</td></tr>';
 
-    const { data: cData, error: cErr } = await supabaseClient
-        .from('monitoring_topics')
-        .select('*')
+    const { data: cData, error: cErr } = await applySchoolScope(
+        supabaseClient
+            .from('monitoring_topics')
+            .select('*')
+    )
         .eq('subject_id', subjectId)
         .order('created_at', { ascending: true });
 
     if (cErr) { console.error('Topics error:', cErr); return; }
     progressColumns = cData || [];
 
-    const { data: scData, error: scErr } = await supabaseClient
-        .from('monitoring_scores')
-        .select('*')
+    const { data: scData, error: scErr } = await applySchoolScope(
+        supabaseClient
+            .from('monitoring_scores')
+            .select('*')
+    )
         .eq('subject_id', subjectId);
 
     if (scErr) { console.error('Scores error:', scErr); return; }
@@ -332,12 +373,15 @@ function renderTable() {
 
             scoreInput.addEventListener('change', async () => {
                 scoresMap[mapKey] = scoreInput.value;
-                const { error } = await supabaseClient.from('monitoring_scores').upsert({
+                const payload = {
                     student_id: student.id,
                     topic_id: col.id,
                     subject_id: selectedSubject.id,
                     score: scoreInput.value
-                }, { onConflict: 'student_id, topic_id' });
+                };
+                if (window.currentSchoolId) payload.school_id = window.currentSchoolId;
+
+                const { error } = await supabaseClient.from('monitoring_scores').upsert(payload, { onConflict: 'student_id, topic_id' });
                 if (error) alert('Failed to save score: ' + error.message);
             });
 
@@ -352,8 +396,11 @@ function renderTable() {
 // ── 10. Add Topic Column ──
 addColBtn.addEventListener('click', async () => {
     if (!selectedSubject) return;
+    const payload = { subject_id: selectedSubject.id, topic_name: 'New Topic', criteria: '' };
+    if (window.currentSchoolId) payload.school_id = window.currentSchoolId;
+
     const { data: newCol, error } = await supabaseClient.from('monitoring_topics')
-        .insert({ subject_id: selectedSubject.id, topic_name: 'New Topic', criteria: '' })
+        .insert(payload)
         .select();
 
     if (error) { alert('Failed to add topic: ' + error.message); return; }
