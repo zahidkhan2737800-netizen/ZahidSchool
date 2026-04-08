@@ -199,25 +199,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         let foundAmount = null;
         const isMonthlyType = cache.feeHeads.some(f => f.fee_type === type && f.is_monthly);
 
-        // Prioritize student's specific monthly fee if configured
-        if (isMonthlyType && student.monthly_fee) {
-            foundAmount = student.monthly_fee;
-        } else {
-            // 1. Convert applying_for_class ("Class 1 A") to a class_id
-            const matchedClass = cache.classes.find(c => `${c.class_name} ${c.section}`.trim().toLowerCase() === student.applying_for_class.trim().toLowerCase());
-            
-            if(matchedClass) {
-                let matchedFee = cache.feeHeads.find(f => f.fee_type === type && f.class_id === matchedClass.id);
-                // Fallback to Global Fee Head
-                if(!matchedFee) {
-                    matchedFee = cache.feeHeads.find(f => f.fee_type === type && f.class_id === null);
-                }
-                if(matchedFee) foundAmount = matchedFee.amount;
-            } else {
-                // Class not found for student, try Global Fee Head anyway
-                const globalFee = cache.feeHeads.find(f => f.fee_type === type && f.class_id === null);
-                if(globalFee) foundAmount = globalFee.amount;
+        // 1. Resolve from class/global fee head first (source of truth)
+        const matchedClass = cache.classes.find(c => `${c.class_name} ${c.section}`.trim().toLowerCase() === student.applying_for_class.trim().toLowerCase());
+        
+        if(matchedClass) {
+            let matchedFee = cache.feeHeads.find(f => f.fee_type === type && f.class_id === matchedClass.id);
+            if(!matchedFee) {
+                matchedFee = cache.feeHeads.find(f => f.fee_type === type && f.class_id === null);
             }
+            if(matchedFee) foundAmount = matchedFee.amount;
+        } else {
+            const globalFee = cache.feeHeads.find(f => f.fee_type === type && f.class_id === null);
+            if(globalFee) foundAmount = globalFee.amount;
+        }
+
+        // 2. Fallback to student's monthly_fee only if no configured fee head exists
+        if (foundAmount === null && isMonthlyType && student.monthly_fee) {
+            foundAmount = student.monthly_fee;
         }
         
         if(foundAmount !== null) {
@@ -368,20 +366,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         for(let s of studentsArray) {
             let assignedAmt = manualOverrideBase;
             
-            // If manual amount isn't globally provided, we compute per-class dynamically or per-student if monthly
+            // If manual amount isn't globally provided, compute from fee heads first.
             if(assignedAmt === null || isNaN(assignedAmt)) {
-                if (isMonthlyType && s.monthly_fee) {
+                const matchedClass = cache.classes.find(c => `${c.class_name} ${c.section}`.trim().toLowerCase() === s.applying_for_class.trim().toLowerCase());
+                let matchedFee = null;
+                if(matchedClass) {
+                    matchedFee = cache.feeHeads.find(f => f.fee_type === feeType && f.class_id === matchedClass.id);
+                }
+                if(!matchedFee) {
+                    matchedFee = cache.feeHeads.find(f => f.fee_type === feeType && f.class_id === null);
+                }
+                if(matchedFee) {
+                    assignedAmt = matchedFee.amount;
+                } else if (isMonthlyType && s.monthly_fee) {
+                    // Fallback only when no fee head is configured
                     assignedAmt = s.monthly_fee;
-                } else {
-                    const matchedClass = cache.classes.find(c => `${c.class_name} ${c.section}`.trim().toLowerCase() === s.applying_for_class.trim().toLowerCase());
-                    let matchedFee = null;
-                    if(matchedClass) {
-                        matchedFee = cache.feeHeads.find(f => f.fee_type === feeType && f.class_id === matchedClass.id);
-                    }
-                    if(!matchedFee) {
-                        matchedFee = cache.feeHeads.find(f => f.fee_type === feeType && f.class_id === null);
-                    }
-                    if(matchedFee) assignedAmt = matchedFee.amount;
                 }
             }
             

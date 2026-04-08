@@ -1,12 +1,16 @@
 // Supabase client is now provided by auth.js (supabaseClient)
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     const studentsBody = document.getElementById('studentsBody');
     const searchNameInput = document.getElementById('searchName');
     const searchRollInput = document.getElementById('searchRoll');
     const searchClassSelect = document.getElementById('searchClass');
-    const currentSchoolId = window.currentSchoolId || null;
-    const applySchoolScope = (query) => currentSchoolId ? query.eq('school_id', currentSchoolId) : query;
+    const applySchoolScope = (query) => {
+        const sid = window.currentSchoolId || null;
+        return sid ? query.eq('school_id', sid) : query;
+    };
+
+    await waitForAuthContext();
 
     let allAvailableClasses = [];
 
@@ -25,6 +29,23 @@ document.addEventListener('DOMContentLoaded', () => {
     searchNameInput.addEventListener('input', handleSearchInput);
     searchRollInput.addEventListener('input', handleSearchInput);
     searchClassSelect.addEventListener('change', fetchStudents);
+
+    async function waitForAuthContext(timeoutMs = 10000) {
+        const start = Date.now();
+        while (Date.now() - start < timeoutMs) {
+            if (window.authReady === true && window.supabaseClient) return;
+            await new Promise(r => setTimeout(r, 80));
+        }
+
+        if ((window.currentSchoolId === null || window.currentSchoolId === undefined) && window.currentUser?.id) {
+            const { data: roleData } = await supabaseClient
+                .from('user_roles')
+                .select('school_id')
+                .eq('user_id', window.currentUser.id)
+                .single();
+            window.currentSchoolId = roleData?.school_id ?? null;
+        }
+    }
 
     async function fetchStudents() {
         studentsBody.innerHTML = '<tr><td colspan="6" class="empty-state">🔄 Fetching records...</td></tr>';
@@ -250,6 +271,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     e.target.disabled = true;
 
                     try {
+                        const { error: monErr } = await supabaseClient
+                            .from('monitoring_students')
+                            .delete()
+                            .eq('id', studentId);
+                        if (monErr) throw monErr;
+
                         const { error } = await applySchoolScope(supabaseClient
                             .from('admissions')
                             .delete()
