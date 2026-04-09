@@ -63,6 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         Object.keys(groups).forEach(mobile => {
             const members = groups[mobile];
+            if (members.length < 2) return;
             
             const uniqueFatherNames = [...new Set(members.map(m => m.father_name).filter(n => n && n.trim() !== ''))];
             const familyNos = [...new Set(members.map(m => m.family_id_manual).filter(n => n && n.trim() !== ''))];
@@ -105,7 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         if (filtered.length === 0) {
-            grid.innerHTML = `<div style="grid-column: 1/-1; text-align:center; padding:3rem; color:#64748b; font-size:1.2rem;">No families found matching "${filterText}".</div>`;
+            grid.innerHTML = `<div style="grid-column: 1/-1; text-align:center; padding:3rem; color:#64748b; font-size:1.2rem;">No valid families found. A family appears only when 2 or more active students share the same mobile number.</div>`;
             return;
         }
 

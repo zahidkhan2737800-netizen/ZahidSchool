@@ -166,7 +166,7 @@ function processFamilies(students) {
     familiesData = [];
     Object.keys(groups).forEach(mobile => {
         const members = groups[mobile];
-        // List all that have a mobile, so a single student can also just be paid this way.
+        if (members.length < 2) return;
         const names = [...new Set(members.map(m => m.father_name).filter(n => n && n.trim() !== ''))];
         const primaryName = names.length === 1 ? names[0] : (names.length > 0 ? names[0] : 'Unknown Father');
         const familyNos = [...new Set(members.map(m => m.family_id_manual).filter(n => n && n.trim() !== ''))];
