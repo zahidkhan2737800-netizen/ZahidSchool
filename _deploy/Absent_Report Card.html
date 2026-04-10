@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Monthly Absent Days Report — Report Cards (Template)</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <style>
+    body { padding:18px; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
+    .smallnote { color:#666; font-size:0.9rem; margin-top:6px; }
+    table th, table td { vertical-align: middle; text-align:center; }
+    .roll-col { text-align:left; white-space:nowrap; }
+    .high { font-weight:700; color:#dc3545; }
+    .controls { gap:8px; display:flex; flex-wrap:wrap; align-items:center; margin-bottom:12px; }
+    .muted { color:#666; font-size:.9rem; margin-left:6px; }
+    .mono { font-family: monospace; font-size:0.9rem; }
+    #debugPanel { margin-top:12px; }
+
+    /* small styling for on-screen table */
+    .table td, .table th { font-size:13px; }
+  </style>
+</head>
+<body>
+  <h2>Monthly Absent Days Report — Template Print</h2>
+  <p class="smallnote">Print uses your provided template (bilingual header, remarks, signature line, comments) and fills student details. Cards are printed five per A4 page.</p>
+
+  <div class="controls mb-3">
+    <label class="form-label mb-0">Year</label>
+    <select id="yearSelect" class="form-select" style="width:120px"></select>
+
+    <label class="form-label mb-0">From</label>
+    <select id="monthFrom" class="form-select" style="width:130px"></select>
+
+    <label class="form-label mb-0">To</label>
+    <select id="monthTo" class="form-select" style="width:130px"></select>
+
+    <label class="form-label mb-0">Class</label>
+    <select id="classSelect" class="form-select" style="width:160px">
+      <option value="">— All classes —</option>
+    </select>
+    <button id="refreshClassesBtn" class="btn btn-outline-secondary" title="Reload classes from Firestore">Refresh classes</button>
+    <button id="buildFromAttendanceBtn" class="btn btn-outline-warning" title="Scan attendance to build class list">Build from attendance</button>
+
+    <label class="form-label mb-0">Roll / name</label>
+    <input id="studentFilter" class="form-control" placeholder="roll or partial name" style="width:200px"/>
+
+    <button id="loadBtn" class="btn btn-primary">Load data</button>
+    <button id="loadAllBtn" class="btn btn-outline-secondary">Load full attendance (all years)</button>
+
+    <div class="ms-auto">
+      <button id="exportBtn" class="btn btn-success">Export CSV</button>
+      <button id="printBtn" class="btn btn-secondary">Print (cards)</button>
+      <button id="debugBtn" class="btn btn-info">Show month debug</button>
+      <button id="clearBtn" class="btn btn-outline-danger">Clear</button>
+    </div>
+  </div>
+
+  <div id="summary" class="mb-2"></div>
+  <div id="reportContainer"></div>
+
+  <div id="debugPanel" style="display:none;">
+    <h5>Month Debug — Raw rows</h5>
+    <p class="smallnote">Rows in <span class="mono">red</span> = unparsed date; <span class="mono">cyan</span> = not counted because status not recognized as absent.</p>
+    <div id="debugInfo" class="mb-2"></div>
+    <div id="debugTableContainer"></div>
+  </div>
+
+  <!-- Firebase + logic -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, collection, getDocs, query, where, orderBy, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    // --- Firebase config (use your project's config) ---
+    const firebaseConfig = {
+      apiKey: "AIzaSyDLMYKxUgCOZbb3EZvjD8btGVWVBWWaXrc",
+      authDomain: "atte-c81bd.firebaseapp.com",
+      projectId: "atte-c81bd",
+      storageBucket: "atte-c81bd.firebasestorage.app",
+      messagingSenderId: "608788631971",
+      appId: "1:608788631971:web:cdc3168f18385f7cfc4a16",
+      measurementId: "G-GD5VBXE7DH"
+    };
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // DOM
+    const yearSelect = document.getElementById('yearSelect');
+    const monthFrom = document.getElementById('monthFrom');
+    const monthTo = document.getElementById('monthTo');
+    const classSelect = document.getElementById('classSelect');
+    const refreshClassesBtn = document.getElementById('refreshClassesBtn');
+    const buildFromAttendanceBtn = document.getElementById('buildFromAttendanceBtn');
+    const studentFilter = document.getElementById('studentFilter');
+    const loadBtn = document.getElementById('loadBtn');
+    const loadAllBtn = document.getElementById('loadAllBtn');
+    const reportContainer = document.getElementById('reportContainer');
+    const summary = document.getElementById('summary');
+    const exportBtn = document.getElementById('exportBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const debugBtn = document.getElementById('debugBtn');
+    const debugPanel = document.getElementById('debugPanel');
+    const debugTableContainer = document.getElementById('debugTableContainer');
+    const debugInfo = document.getElementById('debugInfo');
+    const printBtn = document.getElementById('printBtn');
+
+    // helper data
+    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+    // populate years & months
+    const now = new Date();
+    const curYear = now.getFullYear();
+    for(let y = curYear; y >= curYear-5; y--){
+      const opt = document.createElement('option'); opt.value = String(y); opt.textContent = y;
+      yearSelect.appendChild(opt);
+    }
+    yearSelect.value = String(curYear);
+
+    for(let i=0;i<12;i++){
+      const o1 = document.createElement('option'); o1.value = String(i); o1.textContent = MONTHS[i];
+      const o2 = document.createElement('option'); o2.value = String(i); o2.textContent = MONTHS[i];
+      monthFrom.appendChild(o1);
+      monthTo.appendChild(o2);
+    }
+    monthFrom.value = '0';
+    monthTo.value = String(now.getMonth());
+
+    function escapeHtml(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+    function normalizeClassName(c) { return (c || '').toString().trim().toLowerCase(); }
+
+    // robust date parser
+    function parseDateToYearMonth(dateField) {
+      if(!dateField && dateField !== 0) return null;
+      try {
+        if(typeof dateField.toDate === 'function') {
+          const dt = dateField.toDate(); return { year: dt.getFullYear(), monthIndex: dt.getMonth(), dateObj: dt };
+        }
+        if(dateField && typeof dateField.seconds === 'number') {
+          const dt = new Date(dateField.seconds * 1000); return { year: dt.getFullYear(), monthIndex: dt.getMonth(), dateObj: dt };
+        }
+        if(dateField instanceof Date) {
+          return { year: dateField.getFullYear(), monthIndex: dateField.getMonth(), dateObj: dateField };
+        }
+        if(typeof dateField === 'string') {
+          const iso = dateField.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+          if(iso) { const dt = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3])); return { year: dt.getFullYear(), monthIndex: dt.getMonth(), dateObj: dt }; }
+          const dmy = dateField.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+          if(dmy) { const dt = new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1])); return { year: dt.getFullYear(), monthIndex: dt.getMonth(), dateObj: dt }; }
+          const dt = new Date(dateField);
+          if(!isNaN(dt)) return { year: dt.getFullYear(), monthIndex: dt.getMonth(), dateObj: dt };
+          return null;
+        }
+        return null;
+      } catch(e) {
+        console.warn('parseDateToYearMonth error', e, dateField);
+        return null;
+      }
+    }
+
+    function isAbsentStatus(status) {
+      if(!status && status !== 0) return false;
+      const s = String(status).trim().toLowerCase();
+      return s === 'absent' || s === 'a' || s.startsWith('abs');
+    }
+
+    // classes loaders
+    async function loadClassesFromCollection() {
+      summary.textContent = 'Loading classes...';
+      try {
+        const snap = await getDocs(collection(db,'classes'));
+        const classes = snap.docs.map(d => { const data = d.data(); return (data && (data.name || data.className)) || d.id; }).filter(Boolean);
+        classes.sort((a,b)=>a.localeCompare(b));
+        populateClassSelect(classes);
+        summary.innerHTML = `<span class="text-success">Loaded ${classes.length} classes.</span>`;
+      } catch(err) { console.error(err); summary.innerHTML = `<span class="text-danger">Failed to load classes</span>`; }
+    }
+    async function buildClassesFromAttendance() {
+      if(!confirm('Scan attendance to discover classes? This may read many docs.')) return;
+      summary.textContent = 'Scanning attendance...';
+      try {
+        const snap = await getDocs(collection(db,'attendance'));
+        const set = new Set();
+        for(const d of snap.docs) {
+          const data = d.data();
+          const cname = (data && (data.className || data.class || data.cls)) || '';
+          if(cname) set.add(String(cname));
+        }
+        const classes = Array.from(set).sort((a,b)=>a.localeCompare(b));
+        populateClassSelect(classes);
+        summary.innerHTML = `<span class="text-success">Found ${classes.length} classes.</span>`;
+      } catch(err){ console.error(err); summary.innerHTML = `<span class="text-danger">Scan failed</span>`; }
+    }
+    function populateClassSelect(list) {
+      classSelect.innerHTML = `<option value="">— All classes —</option>`;
+      list.forEach(c => { const opt = document.createElement('option'); opt.value = c; opt.textContent = c; classSelect.appendChild(opt); });
+    }
+
+    // load attendance with both string & timestamp range and merge
+    async function loadAttendanceForYearMerged(year) {
+      const fromStr = `${year}-01-01`; const toStr = `${year}-12-31`;
+      const fromTs = Timestamp.fromDate(new Date(Number(year),0,1,0,0,0,0));
+      const toTs   = Timestamp.fromDate(new Date(Number(year),11,31,23,59,59,999));
+      try {
+        const q1 = query(collection(db,'attendance'), where('date','>=', fromStr), where('date','<=', toStr), orderBy('date'));
+        const snap1 = await getDocs(q1);
+        const q2 = query(collection(db,'attendance'), where('date','>=', fromTs), where('date','<=', toTs), orderBy('date'));
+        const snap2 = await getDocs(q2);
+        const map = new Map();
+        for(const d of snap1.docs) map.set(d.id, { id:d.id, ...d.data() });
+        for(const d of snap2.docs) {
+          if(!map.has(d.id)) map.set(d.id, { id:d.id, ...d.data() });
+          else { const ex = map.get(d.id); const fn = d.data(); map.set(d.id, Object.assign({}, ex, fn)); }
+        }
+        if(map.size === 0) {
+          const snapAll = await getDocs(collection(db,'attendance'));
+          for(const d of snapAll.docs) map.set(d.id, { id:d.id, ...d.data() });
+        }
+        return Array.from(map.values());
+      } catch(e) { console.error(e); throw e; }
+    }
+    async function loadFullAttendanceAll() {
+      const snap = await getDocs(collection(db,'attendance'));
+      return snap.docs.map(d=>({ id:d.id, ...d.data() }));
+    }
+
+    // compute counts for month range
+    function computeMonthlyAbsentCounts(rows, yearFilter = null, classFilterVal = '', studentFilterVal = '', mFrom = 0, mTo = 11) {
+      let mf = Number(mFrom), mt = Number(mTo);
+      if(isNaN(mf)) mf = 0; if(isNaN(mt)) mt = 11; if(mf > mt){ const t=mf; mf=mt; mt=t; }
+      const map = new Map(); const yr = yearFilter ? Number(yearFilter) : null;
+      const sq = (studentFilterVal||'').trim().toLowerCase();
+      for(const r of rows) {
+        if(!r || !r.date) continue;
+        const pm = parseDateToYearMonth(r.date);
+        if(!pm) continue;
+        if(yr && pm.year !== yr) continue;
+        if(pm.monthIndex < mf || pm.monthIndex > mt) continue;
+        const cln = normalizeClassName(r.className || r.class || r.cls || '');
+        if(classFilterVal && cln !== normalizeClassName(classFilterVal)) continue;
+        const nameLower = (r.name||'').toLowerCase();
+        const rollLower = (r.roll||'').toString().toLowerCase();
+        if(sq) { if(!(rollLower === sq || nameLower.includes(sq))) continue; }
+        if(!isAbsentStatus(r.status)) continue;
+        const mm = pm.monthIndex;
+        const key = `${r.roll}||${r.className || r.class || r.cls || ''}`;
+        if(!map.has(key)) map.set(key, { roll: r.roll || '', name: r.name || '', className: r.className || r.class || r.cls || '', months: Array(12).fill(0), total:0 });
+        const obj = map.get(key);
+        obj.months[mm] = (obj.months[mm] || 0) + 1;
+        obj.total = (obj.total || 0) + 1;
+      }
+      return { map, monthFrom: mf, monthTo: mt };
+    }
+
+    // on-screen render (unchanged)
+    function renderTable(resultObj, year) {
+      const { map, monthFrom: mf, monthTo: mt } = resultObj;
+      const months = MONTHS.slice(mf, mt+1);
+      let html = "<div class='table-responsive'><table class='table table-striped table-bordered'><thead><tr>";
+      html += "<th style='min-width:120px'>Roll / Name</th><th>Class</th>";
+      months.forEach(m => html += `<th>${m}</th>`);
+      html += "<th>Total</th></tr></thead><tbody>";
+      const arr = Array.from(map.values()).sort((a,b)=> (a.className||'').localeCompare(b.className||'') || (a.roll||'').localeCompare(b.roll||''));
+      arr.forEach(row => {
+        html += `<tr>`;
+        html += `<td class="roll-col"><strong>${escapeHtml(row.roll)}</strong><div style="font-size:.9rem;color:#333">${escapeHtml(row.name||'')}</div></td>`;
+        html += `<td>${escapeHtml(row.className||'')}</td>`;
+        for(let m=mf;m<=mt;m++) html += `<td>${row.months[m] || 0}</td>`;
+        html += `<td>${row.total||0}</td>`;
+        html += `</tr>`;
+      });
+      html += "</tbody></table></div>";
+      reportContainer.innerHTML = html;
+      summary.innerHTML = `<strong>Report:</strong> ${arr.length} student(s) — Year: ${year || 'All'} — Months: ${MONTHS[mf]} → ${MONTHS[mt]} — Generated: ${new Date().toLocaleString()}`;
+    }
+
+    // export CSV (respecting month range)
+    function exportMapToCSV(resultObj, year) {
+      const { map, monthFrom: mf, monthTo: mt } = resultObj;
+      const months = MONTHS.slice(mf, mt+1);
+      const headers = ['roll','name','class'].concat(months).concat(['total']);
+      const rows = [headers];
+      for(const v of map.values()){
+        const row = [v.roll, v.name || '', v.className || ''];
+        for(let m=mf;m<=mt;m++) row.push(String(v.months[m] || 0));
+        row.push(String(v.total || 0));
+        rows.push(row);
+      }
+      const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = `monthly_absent_${year || 'all'}_${MONTHS[mf]}-${MONTHS[mt]}.csv`; document.body.appendChild(a);
+      a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1500);
+    }
+
+    // debug view
+    function showMonthDebug(rows, year, mFrom, mTo, classFilterVal='', studentFilterVal='') {
+      debugPanel.style.display = 'block'; debugTableContainer.innerHTML = '';
+      const info = { totalRows: rows.length, parsedInRange:0, unparsed:0, notAbsent:0, includedCount:0 };
+      const tableRows = [];
+      for(const r of rows) {
+        const parsed = parseDateToYearMonth(r.date);
+        const parsedStr = parsed ? `${parsed.year}-${String(parsed.monthIndex+1).padStart(2,'0')} (${parsed.dateObj.toISOString().slice(0,10)})` : 'UNPARSED';
+        const inRange = parsed && parsed.year === Number(year) && parsed.monthIndex >= Number(mFrom) && parsed.monthIndex <= Number(mTo);
+        const cln = normalizeClassName(r.className || r.class || r.cls || '');
+        const classExcluded = classFilterVal && cln !== normalizeClassName(classFilterVal);
+        const studentQ = (studentFilterVal||'').trim().toLowerCase();
+        const studentExcluded = studentQ && !((r.roll||'').toString().toLowerCase() === studentQ || (r.name||'').toLowerCase().includes(studentQ));
+        const absent = isAbsentStatus(r.status);
+        let reason = '';
+        if(!parsed) reason = 'unparsed-date';
+        else if(!inRange) reason = 'not-in-range';
+        else if(classExcluded) reason = 'class-filtered';
+        else if(studentExcluded) reason = 'student-filtered';
+        else if(!absent) reason = 'status-not-absent';
+        else reason = 'counted';
+        if(parsed) {
+          if(parsed.year === Number(year) && parsed.monthIndex >= Number(mFrom) && parsed.monthIndex <= Number(mTo)) info.parsedInRange++;
+        } else info.unparsed++;
+        if(!absent) info.notAbsent++;
+        if(reason === 'counted') info.includedCount++;
+        tableRows.push({ id: r.id, rawDate:r.date, parsed: parsedStr, roll:r.roll, name:r.name, className: r.className||r.class||r.cls, status:r.status, reason });
+      }
+      let html = `<div class="mb-2"><strong>Debug:</strong> total docs scanned: ${info.totalRows}, parsed-in-range: ${info.parsedInRange}, included: ${info.includedCount}, unparsed: ${info.unparsed}, not-absent: ${info.notAbsent}</div>`;
+      html += `<div class="table-responsive"><table class="table table-sm table-bordered"><thead><tr><th>id</th><th>raw date</th><th>parsed</th><th>roll</th><th>name</th><th>class</th><th>status</th><th>reason</th></tr></thead><tbody>`;
+      for(const r of tableRows) {
+        let cls = '';
+        if(r.reason === 'unparsed-date') cls = 'dbg-unparsed';
+        else if(r.reason === 'status-not-absent') cls = 'dbg-notabsent';
+        else if(r.reason !== 'counted') cls = 'dbg-bad';
+        html += `<tr class="${cls}"><td class="mono">${escapeHtml(r.id)}</td><td class="mono">${escapeHtml(String(r.rawDate))}</td><td class="mono">${escapeHtml(r.parsed)}</td><td>${escapeHtml(r.roll)}</td><td>${escapeHtml(r.name||'')}</td><td>${escapeHtml(r.className||'')}</td><td>${escapeHtml(String(r.status||''))}</td><td>${escapeHtml(r.reason)}</td></tr>`;
+      }
+      html += `</tbody></table></div>`;
+      debugInfo.innerHTML = html;
+      debugPanel.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // PRINT: use the user-provided template for each student and place 5 cards per A4 page
+    async function handlePrintWithUserTemplate() {
+      const year = yearSelect.value;
+      const mf = Number(monthFrom.value);
+      const mt = Number(monthTo.value);
+      const cls = classSelect.value || '';
+      const studentQ = studentFilter.value.trim();
+
+      summary.textContent = 'Preparing printable report cards (template)...';
+      try {
+        const rows = await loadAttendanceForYearMerged(year);
+        const result = computeMonthlyAbsentCounts(rows, year, cls, studentQ, mf, mt);
+        const map = result.map;
+        const monthFromUsed = result.monthFrom;
+        const monthToUsed = result.monthTo;
+
+        const students = Array.from(map.values()).sort((a,b) => (a.className||'').localeCompare(b.className||'') || (a.roll||'').localeCompare(b.roll||''));
+        if(students.length === 0) { alert('No students to print.'); summary.textContent = 'Nothing to print.'; return; }
+
+        // Chunk into pages of 5
+        const perPage = 5;
+        const pages = [];
+        for(let i=0;i<students.length;i+=perPage) pages.push(students.slice(i,i+perPage));
+
+        // Build pages html using the template you provided
+        let pagesHtml = '';
+        for(const pageStudents of pages) {
+          let pageHtml = `<div class="print-page">`;
+          for(const s of pageStudents) {
+            // Template layout:
+            // Absent Days/غير حاضر ڏينهن
+            // Name and Class :____________________________            Parent’s Signature :____________________
+            // Attendance Remarks:      Excellent   Very Good      Low
+            // <months...> Total Absent Days
+            // Comments__________________________________________________________________
+            pageHtml += `<div class="rcard">`;
+            pageHtml += `<div style="text-align:center; font-weight:700; font-size:15px; margin-bottom:4px;">Absent Days / غير حاضر ڏينهن</div>`;
+
+            pageHtml += `<div style="display:flex; justify-content:space-between; align-items:center; font-size:13px; margin-bottom:6px;">`;
+            pageHtml += `<div style="width:65%"><strong>Name and Class :</strong> ${escapeHtml((s.name || '') + ' — ' + (s.className || ''))}</div>`;
+            pageHtml += `<div style="width:35%; text-align:right"><strong>Parent’s Signature :</strong> ____________________</div>`;
+            pageHtml += `</div>`;
+
+            // Attendance Remarks line
+            pageHtml += `<div style="font-size:13px; margin-bottom:6px;">Attendance Remarks:&nbsp;&nbsp;[ ] Excellent &nbsp;&nbsp; [ ] Very Good &nbsp;&nbsp; [ ] Low</div>`;
+
+            // months row: show selected months in order (user template had Aug..Mar — we use selected range)
+            pageHtml += `<table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:6px;"><thead><tr>`;
+            // small left column label (Roll)
+            pageHtml += `<th style="border:1px solid #333; padding:4px; min-width:60px;">Roll</th>`;
+            // Name printed in earlier line; still show for alignment? We'll show months
+            for(let m=monthFromUsed;m<=monthToUsed;m++) {
+              pageHtml += `<th style="border:1px solid #333; padding:4px;">${escapeHtml(MONTHS[m])}</th>`;
+            }
+            pageHtml += `<th style="border:1px solid #333; padding:4px;">Total Absent Days</th>`;
+            pageHtml += `</tr></thead><tbody><tr>`;
+            // Roll cell (show roll on left)
+            pageHtml += `<td style="border:1px solid #333; padding:6px; text-align:left; font-weight:700;">${escapeHtml(String(s.roll || ''))}</td>`;
+            // month values
+            for(let m=monthFromUsed;m<=monthToUsed;m++){
+              pageHtml += `<td style="border:1px solid #333; padding:6px;">${String(s.months[m] || 0)}</td>`;
+            }
+            pageHtml += `<td style="border:1px solid #333; padding:6px; font-weight:700;">${String(s.total || 0)}</td>`;
+            pageHtml += `</tr></tbody></table>`;
+
+            // Comments line
+            pageHtml += `<div style="margin-top:6px; font-size:13px;"><strong>Comments</strong> __________________________________________________________________</div>`;
+
+            // cut line
+            pageHtml += `<div style="border-top:1px dashed #000; margin-top:8px;"></div>`;
+
+            pageHtml += `</div>`; // end rcard
+          }
+          pageHtml += `</div>`; // end print-page
+          pagesHtml += pageHtml;
+        }
+
+        // print CSS: 5 stacked cards per A4
+        const style = `
+          <style>
+            @page { size: A4 portrait; margin: 10mm; }
+            body { font-family: Arial, Helvetica, sans-serif; margin:0; padding:0; }
+            .print-page { width:210mm; height:297mm; box-sizing:border-box; padding:10mm 12mm; margin:0 auto; display:block; }
+            /* available height approx 277mm; 5 cards -> ~55mm each (minus gaps). We use fixed heights so 5 fit */
+            .rcard { box-sizing:border-box; width:100%; height: calc((277mm / 5) - 6mm); padding:6px 8px; margin-bottom:6mm; }
+            .rcard table th, .rcard table td { border:1px solid #333; padding:4px; font-size:12px; text-align:center; }
+            @media print {
+              .print-page { page-break-after: always; }
+            }
+          </style>
+        `;
+
+        const html = `<!doctype html><html><head><meta charset="utf-8"/><title>Print — Report Cards (Template)</title>${style}</head><body>${pagesHtml}</body></html>`;
+
+        const w = window.open('', '_blank', 'toolbar=0,location=0,menubar=0,width=900,height=700');
+        if(!w) { alert('Popup blocked. Allow popups for this site to use Print.'); return; }
+        w.document.open();
+        w.document.write(html);
+        w.document.close();
+        w.focus();
+        setTimeout(()=>{ w.print(); /* w.close(); */ }, 600);
+
+        summary.textContent = `Prepared ${students.length} report card(s).`;
+      } catch(err) {
+        console.error('Print error', err);
+        alert('Failed to prepare print: ' + (err.message || err));
+        summary.textContent = 'Print failed.';
+      }
+    }
+
+    // wiring events
+    refreshClassesBtn.addEventListener('click', loadClassesFromCollection);
+    buildFromAttendanceBtn.addEventListener('click', buildClassesFromAttendance);
+
+    loadBtn.addEventListener('click', async ()=> {
+      const year = yearSelect.value;
+      const mf = Number(monthFrom.value);
+      const mt = Number(monthTo.value);
+      const cls = classSelect.value || '';
+      const studentQ = studentFilter.value.trim();
+      summary.textContent = 'Loading...';
+      try {
+        const rows = await loadAttendanceForYearMerged(year);
+        const result = computeMonthlyAbsentCounts(rows, year, cls, studentQ, mf, mt);
+        renderTable(result, year);
+      } catch(e){ summary.innerHTML = `<span class="text-danger">Load failed</span>`; console.error(e); }
+    });
+
+    loadAllBtn.addEventListener('click', async ()=> {
+      if(!confirm('Load entire attendance (may be large)?')) return;
+      summary.textContent = 'Loading full attendance...';
+      try {
+        const all = await loadFullAttendanceAll();
+        const cls = classSelect.value || '';
+        const studentQ = studentFilter.value.trim();
+        const mf = Number(monthFrom.value), mt = Number(monthTo.value);
+        const yearSelected = yearSelect.value || null;
+        const result = computeMonthlyAbsentCounts(all, yearSelected ? String(yearSelected) : null, cls, studentQ, mf, mt);
+        renderTable(result, yearSelected ? yearSelected : 'All');
+      } catch(e){ summary.innerHTML = `<span class="text-danger">Load failed</span>`; console.error(e); }
+    });
+
+    exportBtn.addEventListener('click', async ()=> {
+      const year = yearSelect.value;
+      const mf = Number(monthFrom.value);
+      const mt = Number(monthTo.value);
+      const cls = classSelect.value || '';
+      const studentQ = studentFilter.value.trim();
+      summary.textContent = 'Exporting...';
+      try {
+        const rows = await loadAttendanceForYearMerged(year);
+        const result = computeMonthlyAbsentCounts(rows, year, cls, studentQ, mf, mt);
+        exportMapToCSV(result, year);
+        summary.textContent = 'Export started';
+      } catch(e){ summary.innerHTML = `<span class="text-danger">Export failed</span>`; console.error(e); }
+    });
+
+    debugBtn.addEventListener('click', async ()=> {
+      const year = yearSelect.value;
+      const mf = Number(monthFrom.value);
+      const mt = Number(monthTo.value);
+      debugPanel.style.display = 'block';
+      debugInfo.innerHTML = 'Loading debug...';
+      try {
+        const rows = await loadAttendanceForYearMerged(year);
+        const cls = classSelect.value || '';
+        const studentQ = studentFilter.value.trim();
+        showMonthDebug(rows, year, mf, mt, cls, studentQ);
+      } catch(e){ debugInfo.innerHTML = `<span class="text-danger">Debug load failed</span>`; console.error(e); }
+    });
+
+    clearBtn.addEventListener('click', ()=> {
+      classSelect.value = '';
+      studentFilter.value = '';
+      reportContainer.innerHTML = '';
+      summary.innerHTML = '';
+      debugPanel.style.display = 'none';
+      debugTableContainer.innerHTML = '';
+      debugInfo.innerHTML = '';
+    });
+
+    printBtn.addEventListener('click', handlePrintWithUserTemplate);
+
+    // initial load classes
+    (async ()=> { try { await loadClassesFromCollection(); } catch(e){} })();
+
+  </script>
+</body>
+</html>

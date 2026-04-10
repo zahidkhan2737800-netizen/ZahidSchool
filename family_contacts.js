@@ -254,11 +254,25 @@ function renderTable() {
         return true;
     });
 
-    // 2. Sort (Pinned first, then by Family Name)
+    // 2. Sort by Family Number ascending: 1,2,8,9,14,15...
+    // Numeric family numbers come first, then non-numeric/blank values.
     rowsToRender.sort((a, b) => {
-        if (a.data.pinned && !b.data.pinned) return -1;
-        if (!a.data.pinned && b.data.pinned) return 1;
-        return a.fam.primaryName.localeCompare(b.fam.primaryName); 
+        const aNoRaw = (a.fam.familyNo || '').toString().trim();
+        const bNoRaw = (b.fam.familyNo || '').toString().trim();
+
+        const aNo = Number.parseInt(aNoRaw, 10);
+        const bNo = Number.parseInt(bNoRaw, 10);
+        const aIsNum = Number.isFinite(aNo);
+        const bIsNum = Number.isFinite(bNo);
+
+        if (aIsNum && bIsNum && aNo !== bNo) return aNo - bNo;
+        if (aIsNum && !bIsNum) return -1;
+        if (!aIsNum && bIsNum) return 1;
+
+        const noCmp = aNoRaw.localeCompare(bNoRaw, undefined, { numeric: true, sensitivity: 'base' });
+        if (noCmp !== 0) return noCmp;
+
+        return a.fam.primaryName.localeCompare(b.fam.primaryName, undefined, { sensitivity: 'base' });
     });
 
     // 3. Render

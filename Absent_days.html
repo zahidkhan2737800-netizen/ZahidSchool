@@ -1,0 +1,545 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Absent Days - Supabase</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root{
+      --bg:#f6f8fb; --card:#fff; --accent:#0b73ff; --muted:#667085; --danger:#d9534f;
+      --radius:8px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial;
+      background:var(--bg); color:#0a0a0a; padding:18px;
+    }
+    .container{ max-width:1200px; margin:0 auto; }
+    header{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+    h1{ margin:0; font-size:18px; }
+    .card{ background:var(--card); border-radius:var(--radius); padding:12px; box-shadow:0 6px 18px rgba(11,19,40,0.06); }
+    form{ display:flex; gap:8px; flex-wrap:wrap; align-items:end; }
+    label{ font-size:12px; color:var(--muted); display:block; margin-bottom:6px; }
+    .field{ display:flex; flex-direction:column; min-width:140px; }
+    input[type="text"], input[type="number"], select{
+      padding:6px 8px; border-radius:6px; border:1px solid #e6eef8; font-size:13px;
+      background:white;
+    }
+    button{ background:var(--accent); color:white; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; font-weight:600; }
+    button.ghost{ background:transparent; color:var(--accent); border:1px solid rgba(11,115,255,0.12); }
+    .controls{ display:flex; gap:8px; align-items:center; }
+    .table-wrap{ margin-top:12px; border-radius:8px; }
+    table{
+      width:100%;
+      border-collapse:collapse;
+      background:var(--card);
+      table-layout:fixed;
+      font-size:13px;
+    }
+    th, td{ padding:6px 6px; text-align:center; border-bottom:1px solid #f0f3f8; vertical-align:middle; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+    thead th{ position:sticky; top:0; background:#0b73ff; color:white; z-index:2; font-weight:600; font-size:12px; padding:8px 6px; }
+    .table-input{ width:100%; padding:8px 6px; font-size:14px; border-radius:6px; border:1px solid #e6eef8; box-sizing:border-box; text-align:center; color:#0b0b0b; background:#fff; }
+    .month-input{
+      font-weight:700;
+      font-size:16px;
+      line-height:1.1;
+      min-width:42px;
+      padding:10px 6px;
+      -moz-appearance:textfield;
+    }
+    input[type=number].month-input::-webkit-outer-spin-button,
+    input[type=number].month-input::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    .small{ font-size:12px; color:var(--muted); }
+    .delete{ color:var(--danger); cursor:pointer; font-weight:700; }
+    .controls-row{ display:flex; gap:12px; align-items:center; margin-top:12px; flex-wrap:wrap; justify-content:space-between; }
+    .left-controls{ display:flex; gap:8px; align-items:center; }
+    .search-input{ min-width:220px; max-width:420px; padding:8px 10px; border-radius:8px; border:1px solid #e6eef8; }
+    .autofill-note{ font-size:12px; color:var(--muted); margin-top:6px; }
+    @media (max-width:1100px){
+      .month-input{ font-size:15px; }
+    }
+    @media (max-width:900px){
+      .field{ min-width:120px; }
+      h1{ font-size:16px; }
+      body.narrow .table-wrap{ overflow:auto; }
+    }
+    @media (max-width:640px){
+      header{ flex-direction:column; align-items:stretch; gap:10px; }
+      form{ gap:6px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Absent Days</h1>
+      <div class="small">Active students are auto-loaded from admissions. If class changes, filled months from previous class are highlighted.</div>
+    </header>
+
+    <div class="controls-row">
+      <div class="left-controls">
+        <label class="small">From:</label>
+        <select id="fromMonth" aria-label="From month"></select>
+        <select id="fromYear" aria-label="From year" style="margin-left:4px;"></select>
+
+        <label class="small" style="margin-left:8px;">To:</label>
+        <select id="toMonth" aria-label="To month"></select>
+        <select id="toYear" aria-label="To year" style="margin-left:4px;"></select>
+
+        <label class="small" for="classFilter" style="margin-left:8px;">Class:</label>
+        <select id="classFilter" aria-label="Filter by class">
+          <option value="__ALL__">- All classes -</option>
+        </select>
+
+        <label class="small" for="globalSearch" style="margin-left:12px;">Search (Roll / Name / Father):</label>
+        <input id="globalSearch" class="search-input" placeholder="Type roll, name or father's name..." aria-label="Global search" />
+      </div>
+
+      <div class="small" id="counts">Students: 0</div>
+    </div>
+
+    <div class="table-wrap" role="region" aria-label="Students table">
+      <table id="studentsTable" aria-describedby="tableDesc">
+        <caption id="tableDesc" style="display:none">Students with monthly columns Jan-Dec and TD (no dates)</caption>
+        <thead>
+          <tr id="theadRow">
+            <th style="width:5%;">Roll</th>
+            <th style="width:15%;">Name</th>
+            <th style="width:15%;">Father</th>
+            <th style="width:5%;">Class</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="auth.js"></script>
+  <script>
+    const db = window.supabaseClient;
+    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+    const classFilter  = document.getElementById("classFilter");
+    const fromMonthSel = document.getElementById("fromMonth");
+    const fromYearSel  = document.getElementById("fromYear");
+    const toMonthSel   = document.getElementById("toMonth");
+    const toYearSel    = document.getElementById("toYear");
+    const tableBody = document.querySelector("#studentsTable tbody");
+    const theadRow = document.getElementById("theadRow");
+    const countsEl = document.getElementById("counts");
+    const globalSearch = document.getElementById("globalSearch");
+
+    const CURRENT_YEAR = new Date().getFullYear();
+    const CURRENT_MONTH_IDX = new Date().getMonth();
+
+    // Populate year dropdowns (3 years back, 1 year ahead)
+    [fromYearSel, toYearSel].forEach(sel => {
+      for (let y = CURRENT_YEAR - 3; y <= CURRENT_YEAR + 1; y++) {
+        const opt = document.createElement("option");
+        opt.value = String(y);
+        opt.textContent = String(y);
+        if (y === CURRENT_YEAR) opt.selected = true;
+        sel.appendChild(opt);
+      }
+    });
+
+    // Populate month dropdowns
+    [fromMonthSel, toMonthSel].forEach(sel => {
+      months.forEach(m => {
+        const opt = document.createElement("option");
+        opt.value = m;
+        opt.textContent = m;
+        sel.appendChild(opt);
+      });
+    });
+
+    // Default: Jan of current year → current month
+    fromMonthSel.value = "Jan";
+    toMonthSel.value = months[CURRENT_MONTH_IDX];
+
+    let allStudents = [];
+    let admissionClasses = [];
+    let currentSchoolId = null;
+
+    // Returns [{year, month}, ...] for the selected from→to range
+    function getVisibleCols() {
+      const fm = months.indexOf(fromMonthSel.value);
+      const fy = parseInt(fromYearSel.value, 10);
+      const tm = months.indexOf(toMonthSel.value);
+      const ty = parseInt(toYearSel.value, 10);
+      const cols = [];
+      let cy = fy, cm = fm;
+      const maxIter = 60;
+      let iter = 0;
+      while ((cy < ty || (cy === ty && cm <= tm)) && iter < maxIter) {
+        cols.push({ year: cy, month: months[cm] });
+        cm++;
+        if (cm >= 12) { cm = 0; cy++; }
+        iter++;
+      }
+      return cols.length > 0 ? cols : [{ year: fy, month: months[Math.max(0, fm)] }];
+    }
+
+    // Read one cell value from year-keyed JSONB (or legacy flat)
+    function getCellValue(rawMonths, year, month) {
+      if (!rawMonths || typeof rawMonths !== "object") return "";
+      const keys = Object.keys(rawMonths);
+      const isYearKeyed = keys.length === 0 || keys.every(k => /^\d{4}$/.test(k));
+      const yd = isYearKeyed ? (rawMonths[String(year)] || {}) : rawMonths;
+      const raw = yd[month] !== undefined ? yd[month] : "";
+      const n = Number(raw);
+      return Number.isFinite(n) && raw !== "" ? n : "";
+    }
+
+    function applySchoolScope(query) {
+      return currentSchoolId ? query.eq("school_id", currentSchoolId) : query;
+    }
+
+    async function waitForAuthContext(timeoutMs = 10000) {
+      const start = Date.now();
+      while (Date.now() - start < timeoutMs) {
+        if (window.authReady === true && window.supabaseClient) {
+          currentSchoolId = window.currentSchoolId || null;
+          return;
+        }
+        await new Promise(r => setTimeout(r, 80));
+      }
+
+      if ((window.currentSchoolId === null || window.currentSchoolId === undefined) && window.currentUser?.id) {
+        const { data: roleData } = await db
+          .from("user_roles")
+          .select("school_id")
+          .eq("user_id", window.currentUser.id)
+          .single();
+        window.currentSchoolId = roleData?.school_id ?? null;
+      }
+      currentSchoolId = window.currentSchoolId || null;
+    }
+
+    function ensureMonthHeaders() {
+      while (theadRow.children.length > 4) theadRow.removeChild(theadRow.lastChild);
+
+      const cols = getVisibleCols();
+      const totalFixed = 5 + 15 + 15 + 5;
+      const tdWidth = 6;
+      const remaining = 100 - totalFixed - tdWidth;
+      const colWidth = cols.length > 0 ? (remaining / cols.length).toFixed(2) : String(remaining);
+
+      let prevYear = null;
+      cols.forEach(col => {
+        const th = document.createElement("th");
+        const yearChanged = col.year !== prevYear;
+        // Show year suffix when year changes: "Nov '25", then plain "Dec", then "Jan '26"
+        th.textContent = yearChanged
+          ? `${col.month} '${String(col.year).slice(-2)}`
+          : col.month;
+        if (yearChanged) th.style.borderLeft = "2px solid rgba(255,255,255,0.35)";
+        th.style.width = colWidth + "%";
+        prevYear = col.year;
+        theadRow.appendChild(th);
+      });
+
+      const thTD = document.createElement("th");
+      thTD.textContent = "TD";
+      thTD.style.width = tdWidth + "%";
+      theadRow.appendChild(thTD);
+    }
+
+    function hasAnyMonthValue(rawMonths) {
+      if (!rawMonths || typeof rawMonths !== "object") return false;
+      const keys = Object.keys(rawMonths);
+      const isYearKeyed = keys.length === 0 || keys.every(k => /^\d{4}$/.test(k));
+      const vals = isYearKeyed
+        ? Object.values(rawMonths).flatMap(yd => months.map(m => (yd || {})[m]))
+        : months.map(m => rawMonths[m]);
+      return vals.some(v => v !== "" && v !== undefined && Number(v) > 0);
+    }
+
+    function computeTDForStudent(s) {
+      let total = 0;
+      getVisibleCols().forEach(col => {
+        const v = getCellValue(s.rawMonths || {}, col.year, col.month);
+        if (v !== "") total += Number(v) || 0;
+      });
+      return total;
+    }
+
+    async function syncAndLoadStudents() {
+      let admissionsQ = db
+        .from("admissions")
+        .select("id, roll_number, full_name, father_name, applying_for_class, status")
+        .in("status", ["Active", "active"])
+        .order("roll_number", { ascending: true });
+      admissionsQ = applySchoolScope(admissionsQ);
+
+      const { data: admissions, error: admissionsErr } = await admissionsQ;
+      if (admissionsErr) {
+        console.error("admissions load error:", admissionsErr);
+        alert("Failed loading active students from admissions.");
+        return;
+      }
+
+      // Keep an admissions-derived class list so filter is available even if merge fails.
+      admissionClasses = Array.from(new Set(
+        (admissions || [])
+          .map(a => String(a.applying_for_class || "").trim())
+          .filter(Boolean)
+      )).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
+
+      let absentQ = db
+        .from("absent_days")
+        .select("id, student_id, roll, name, father, class_name, months");
+      absentQ = applySchoolScope(absentQ);
+      const { data: absentRows, error: absentErr } = await absentQ;
+      if (absentErr) {
+        console.error("absent_days load error:", absentErr);
+        alert("Failed to load absent days data. Run absent_days_setup.sql first.");
+        allStudents = [];
+        buildClassOptions();
+        renderTable();
+        return;
+      }
+
+      const absentByStudent = new Map();
+      (absentRows || []).forEach(r => {
+        if (r.student_id) absentByStudent.set(r.student_id, r);
+      });
+
+      for (const adm of (admissions || [])) {
+        const existing = absentByStudent.get(adm.id);
+        if (!existing) {
+          const payload = {
+            student_id: adm.id,
+            roll: adm.roll_number || "",
+            name: adm.full_name || "",
+            father: adm.father_name || "",
+            class_name: adm.applying_for_class || "",
+            months: {},
+            updated_at: new Date().toISOString()
+          };
+          if (currentSchoolId) payload.school_id = currentSchoolId;
+
+          const { error } = await db.from("absent_days").insert(payload);
+          if (error) console.error("absent_days insert sync error:", error);
+          continue;
+        }
+
+        const patch = {};
+        if ((existing.roll || "") !== (adm.roll_number || "")) patch.roll = adm.roll_number || "";
+        if ((existing.name || "") !== (adm.full_name || "")) patch.name = adm.full_name || "";
+        if ((existing.father || "") !== (adm.father_name || "")) patch.father = adm.father_name || "";
+        if (!existing.class_name) patch.class_name = adm.applying_for_class || "";
+
+        if (Object.keys(patch).length > 0) {
+          patch.updated_at = new Date().toISOString();
+          let uq = db.from("absent_days").update(patch).eq("id", existing.id);
+          uq = applySchoolScope(uq);
+          const { error } = await uq;
+          if (error) console.error("absent_days update sync error:", error);
+        }
+      }
+
+      const activeIds = (admissions || []).map(a => a.id);
+      if (activeIds.length === 0) {
+        allStudents = [];
+        buildClassOptions();
+        renderTable();
+        return;
+      }
+
+      let rowsQ = db
+        .from("absent_days")
+        .select("id, student_id, roll, name, father, class_name, months")
+        .in("student_id", activeIds);
+      rowsQ = applySchoolScope(rowsQ);
+      const { data: mergedRows, error: rowsErr } = await rowsQ;
+      if (rowsErr) {
+        console.error("absent_days merged load error:", rowsErr);
+        return;
+      }
+
+      const admissionsMap = new Map((admissions || []).map(a => [a.id, a]));
+      allStudents = (mergedRows || []).map(r => {
+        const adm = admissionsMap.get(r.student_id) || {};
+        const currentClass = adm.applying_for_class || r.class_name || "";
+        const previousClass = r.class_name || currentClass;
+        const promoted = previousClass && currentClass && previousClass !== currentClass && hasAnyMonthValue(r.months);
+
+        return {
+          ...r,
+          rawMonths: r.months || {},
+          current_class: currentClass,
+          previous_class: previousClass,
+          promoted
+        };
+      });
+
+      allStudents.sort((a, b) => {
+        const classCmp = String(a.current_class || "").localeCompare(String(b.current_class || ""), undefined, { numeric: true, sensitivity: "base" });
+        if (classCmp !== 0) return classCmp;
+        return String(a.roll || "").localeCompare(String(b.roll || ""), undefined, { numeric: true, sensitivity: "base" });
+      });
+
+      buildClassOptions();
+      renderTable();
+    }
+
+    function buildClassOptions() {
+      const classes = new Set();
+      allStudents.forEach(s => {
+        if (s.current_class && String(s.current_class).trim() !== "") classes.add(String(s.current_class));
+      });
+      admissionClasses.forEach(c => classes.add(c));
+
+      const prev = classFilter.value;
+      classFilter.innerHTML = "";
+      const allOpt = document.createElement("option");
+      allOpt.value = "__ALL__";
+      allOpt.textContent = "- All classes -";
+      classFilter.appendChild(allOpt);
+
+      Array.from(classes).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" })).forEach(c => {
+        const opt = document.createElement("option");
+        opt.value = c;
+        opt.textContent = c;
+        classFilter.appendChild(opt);
+      });
+
+      if ([...classFilter.options].some(o => o.value === prev)) classFilter.value = prev;
+    }
+
+    function matchesSearch(s, q) {
+      if (!q) return false;
+      q = q.toLowerCase();
+      return String(s.roll || "").toLowerCase().includes(q)
+        || String(s.name || "").toLowerCase().includes(q)
+        || String(s.father || "").toLowerCase().includes(q);
+    }
+
+    async function updateRow(docId, patch) {
+      let q = db.from("absent_days").update(patch).eq("id", docId);
+      q = applySchoolScope(q);
+      const { error } = await q;
+      if (error) throw error;
+    }
+
+    async function saveMonthFee(docId, col, fee) {
+      const target = allStudents.find(x => x.id === docId);
+      if (!target) return;
+
+      // Write into the correct year bucket
+      const rawMonths = JSON.parse(JSON.stringify(target.rawMonths || {}));
+      const yearKey = String(col.year);
+      if (!rawMonths[yearKey]) rawMonths[yearKey] = {};
+      rawMonths[yearKey][col.month] = fee === "" || fee === null ? "" : (Number(fee) || 0);
+      target.rawMonths = rawMonths;
+      await updateRow(docId, { months: rawMonths, updated_at: new Date().toISOString() });
+    }
+
+    function renderTable() {
+      tableBody.innerHTML = "";
+      const searchQ = globalSearch.value.trim().toLowerCase();
+
+      let filtered;
+      if (searchQ) {
+        filtered = allStudents.filter(s => matchesSearch(s, searchQ));
+      } else {
+        const filterClass = classFilter.value;
+        filtered = allStudents.filter(s => {
+          if (filterClass === "__ALL__") return true;
+          return (s.current_class || "") === filterClass;
+        });
+      }
+
+      countsEl.textContent = `Students: ${filtered.length}`;
+
+      filtered.forEach(s => {
+        const tr = document.createElement("tr");
+
+        const tdRoll = document.createElement("td");
+        tdRoll.textContent = s.roll || "";
+        tr.appendChild(tdRoll);
+
+        const tdName = document.createElement("td");
+        tdName.textContent = s.name || "";
+        tr.appendChild(tdName);
+
+        const tdFather = document.createElement("td");
+        tdFather.textContent = s.father || "";
+        tr.appendChild(tdFather);
+
+        const tdClass = document.createElement("td");
+        tdClass.innerHTML = s.promoted
+          ? `<span style="font-weight:700; color:#0b73ff;">${s.current_class || ""}</span><br><small style="color:#b45309;">Promoted from ${s.previous_class || ""}</small>`
+          : (s.current_class || "");
+        tr.appendChild(tdClass);
+
+        getVisibleCols().forEach(col => {
+          const tdM = document.createElement("td");
+          const inM = document.createElement("input");
+          inM.className = "table-input month-input";
+          inM.type = "number";
+          inM.step = "1";
+          inM.inputMode = "numeric";
+          const cellVal = getCellValue(s.rawMonths || {}, col.year, col.month);
+          inM.value = cellVal === "" ? "" : cellVal;
+          if (s.promoted && cellVal !== "") {
+            inM.style.background = "#fff7ed";
+            inM.style.borderColor = "#f59e0b";
+            inM.title = `Filled in previous class (${s.previous_class})`;
+          }
+
+          inM.addEventListener("input", () => {
+            let tdSum = 0;
+            tr.querySelectorAll("input.month-input").forEach(inp => {
+              if (inp.value !== "") tdSum += Number(inp.value) || 0;
+            });
+            tdCell.textContent = tdSum;
+          });
+
+          inM.addEventListener("change", async () => {
+            try {
+              await saveMonthFee(s.id, col, inM.value);
+              tdCell.textContent = computeTDForStudent(s);
+            } catch (e) {
+              alert("Failed to save " + col.month + " " + col.year + ": " + e.message);
+            }
+          });
+
+          tdM.appendChild(inM);
+          tr.appendChild(tdM);
+        });
+
+        const tdTD = document.createElement("td");
+        tdTD.style.fontWeight = "700";
+        tdTD.textContent = computeTDForStudent(s);
+        const tdCell = tdTD;
+        tr.appendChild(tdTD);
+
+        tableBody.appendChild(tr);
+      });
+    }
+
+    [fromMonthSel, fromYearSel, toMonthSel, toYearSel].forEach(sel => {
+      sel.addEventListener("change", () => {
+        ensureMonthHeaders();
+        renderTable();
+      });
+    });
+    classFilter.addEventListener("change", () => {
+      if (!globalSearch.value.trim()) renderTable();
+    });
+    globalSearch.addEventListener("input", renderTable);
+
+    (async function boot() {
+      ensureMonthHeaders();
+      await waitForAuthContext();
+      await syncAndLoadStudents();
+    })();
+  </script>
+</body>
+</html>

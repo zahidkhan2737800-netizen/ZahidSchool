@@ -5,18 +5,25 @@ var NAV_CATEGORIES = [
   {
     id: 'students', label: 'Students', icon: 'fas fa-user-graduate',
     items: [
-      { href: 'dashboard.html', label: 'Dashboard', icon: 'fas fa-chart-line', key: 'dashboard' },
       { href: 'index.html', label: 'Admission Form', icon: 'fas fa-file-signature', key: 'admissions' },
       { href: 'students.html', label: 'Active Students', icon: 'fas fa-users', key: 'students' },
       { href: 'family.html', label: 'Family Management', icon: 'fas fa-home', key: 'family' },
-      { href: 'attendance.html', label: 'Attendance', icon: 'fas fa-calendar-check', key: 'attendance' },
       { href: 'monitoring.html', label: 'Monitoring', icon: 'fas fa-chart-pie', key: 'monitoring' },
       { href: 'homework.html', label: 'Homework Publisher', icon: 'fas fa-book', key: 'homework' },
       { href: 'complaint_diary.html', label: 'Complaint Diary', icon: 'fas fa-envelope-open-text', key: 'complaints' },
+    { href: 'pending_withdrawn.html', label: 'Withdraw Students', icon: 'fas fa-user-minus', key: 'pending_withdrawn' },
       { href: 'pending_withdrawn.html', label: 'Pending / Withdrawn', icon: 'fas fa-user-alt-slash', key: 'pending_withdrawn' },
       { href: 'reports.html', label: 'Report Generator', icon: 'fas fa-print', key: 'reports' },
     ]
   },
+    {
+        id: 'attendance_tools', label: 'Attendance', icon: 'fas fa-calendar-check',
+        items: [
+            { href: 'attendance.html', label: 'Attendance', icon: 'fas fa-calendar-check', key: 'attendance' },
+            { href: 'Absent_days.html', label: 'Absent Days', icon: 'fas fa-calendar-minus', key: 'attendance' },
+            { href: 'Absent_Report Card.html', label: 'Absent Days Reports', icon: 'fas fa-id-card', key: 'attendance' },
+        ]
+    },
   {
     id: 'fee_tools', label: 'Fee Tools', icon: 'fas fa-bolt',
     items: [
@@ -59,6 +66,7 @@ var QUICK_ACCESS = [
   { href: 'create_challan.html', label: 'Generate Challans', icon: 'fas fa-receipt', key: 'challans' },
   { href: 'monitoring.html', label: 'Monitoring', icon: 'fas fa-chart-line', key: 'monitoring' },
   { href: 'collect_fee.html', label: 'Collect Fee', icon: 'fas fa-hand-holding-usd', key: 'collect_fee' },
+    { href: 'pending_withdrawn.html', label: 'Pending / Withdrawn', icon: 'fas fa-user-alt-slash', key: 'pending_withdrawn' },
   { href: 'students.html', label: 'Search Student', icon: 'fas fa-search', key: 'students' }
 ];
 

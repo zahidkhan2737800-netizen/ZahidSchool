@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Absent Report Card - Supabase</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <style>
+    body { padding: 18px; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
+    .smallnote { color: #666; font-size: 0.9rem; margin-top: 6px; }
+    .controls { gap: 8px; display: flex; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+    .roll-col { text-align: left; white-space: nowrap; }
+    .table td, .table th { font-size: 13px; vertical-align: middle; text-align: center; }
+  </style>
+</head>
+<body>
+  <h2>Absent Report Cards</h2>
+  <p class="smallnote">Supabase-based report cards from admissions + absent_days.</p>
+
+  <div class="controls mb-3">
+    <label class="form-label mb-0">Year</label>
+    <select id="yearSelect" class="form-select" style="width:120px"></select>
+
+    <label class="form-label mb-0">From</label>
+    <select id="monthFrom" class="form-select" style="width:130px"></select>
+
+    <label class="form-label mb-0">To</label>
+    <select id="monthTo" class="form-select" style="width:130px"></select>
+
+    <label class="form-label mb-0">Class</label>
+    <select id="classSelect" class="form-select" style="width:180px">
+      <option value="">- All classes -</option>
+    </select>
+
+    <label class="form-label mb-0">Roll / name</label>
+    <input id="studentFilter" class="form-control" placeholder="roll or partial name" style="width:220px"/>
+
+    <button id="refreshBtn" class="btn btn-primary">Load data</button>
+
+    <div class="ms-auto">
+      <button id="printBtn" class="btn btn-secondary">Print (cards)</button>
+      <button id="clearBtn" class="btn btn-outline-danger">Clear</button>
+    </div>
+  </div>
+
+  <div id="summary" class="mb-2"></div>
+  <div id="reportContainer"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="auth.js"></script>
+  <script>
+    const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+    const yearSelect = document.getElementById("yearSelect");
+    const monthFrom = document.getElementById("monthFrom");
+    const monthTo = document.getElementById("monthTo");
+    const classSelect = document.getElementById("classSelect");
+    const studentFilter = document.getElementById("studentFilter");
+    const refreshBtn = document.getElementById("refreshBtn");
+    const printBtn = document.getElementById("printBtn");
+    const clearBtn = document.getElementById("clearBtn");
+    const summary = document.getElementById("summary");
+    const reportContainer = document.getElementById("reportContainer");
+
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    let currentSchoolId = null;
+    let currentRows = [];
+    let cachedAdmissions = [];
+    let cachedAbsentById = new Map();
+    let cacheLoaded = false;
+
+    function escapeHtml(s) {
+      return (s || "").toString()
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;");
+    }
+
+    function applySchoolScope(query) {
+      return currentSchoolId ? query.eq("school_id", currentSchoolId) : query;
+    }
+
+    async function waitForAuthContext(timeoutMs = 10000) {
+      const start = Date.now();
+      while (Date.now() - start < timeoutMs) {
+        if (window.authReady === true && window.supabaseClient) {
+          currentSchoolId = window.currentSchoolId || null;
+          return;
+        }
+        await new Promise(r => setTimeout(r, 80));
+      }
+      currentSchoolId = window.currentSchoolId || null;
+    }
+
+    function isActiveStudent(status) {
+      const s = String(status || "").trim().toLowerCase();
+      if (!s) return true;
+      return s !== "withdrawn" && s !== "inactive";
+    }
+
+    function getMonthNumberRange() {
+      let mf = Number(monthFrom.value);
+      let mt = Number(monthTo.value);
+      if (Number.isNaN(mf)) mf = 0;
+      if (Number.isNaN(mt)) mt = 11;
+      if (mf > mt) {
+        const t = mf;
+        mf = mt;
+        mt = t;
+      }
+      return { mf, mt };
+    }
+
+    function getMonthValue(rawMonths, year, monthLabel) {
+      if (!rawMonths || typeof rawMonths !== "object") return 0;
+      const yearKey = String(year);
+      const keys = Object.keys(rawMonths);
+      const isYearKeyed = keys.length === 0 || keys.every(k => /^\\d{4}$/.test(k));
+      const yearData = isYearKeyed ? (rawMonths[yearKey] || {}) : rawMonths;
+      const raw = yearData[monthLabel];
+      const n = Number(raw);
+      return Number.isFinite(n) ? n : 0;
+    }
+
+    function renderClassOptions(students) {
+      const prev = classSelect.value;
+      const classes = Array.from(new Set((students || [])
+        .map(s => String(s.applying_for_class || "").trim())
+        .filter(Boolean)))
+        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
+
+      classSelect.innerHTML = '<option value="">- All classes -</option>';
+      classes.forEach(c => {
+        const opt = document.createElement("option");
+        opt.value = c;
+        opt.textContent = c;
+        classSelect.appendChild(opt);
+      });
+      if ([...classSelect.options].some(o => o.value === prev)) classSelect.value = prev;
+    }
+
+    async function ensureDataCache(forceReload = false) {
+      if (cacheLoaded && !forceReload) return true;
+
+      const db = window.supabaseClient;
+      if (!db) {
+        summary.innerHTML = '<span class="text-danger">Supabase client not ready. Please refresh.</span>';
+        return false;
+      }
+
+      let admissionsQ = db
+        .from("admissions")
+        .select("id, roll_number, full_name, father_name, applying_for_class, status")
+        .order("roll_number", { ascending: true });
+      admissionsQ = applySchoolScope(admissionsQ);
+
+      const { data: admissions, error: admissionsErr } = await admissionsQ;
+      if (admissionsErr) {
+        console.error(admissionsErr);
+        summary.innerHTML = '<span class="text-danger">Failed to load admissions.</span>';
+        return false;
+      }
+
+      cachedAdmissions = (admissions || []).filter(a => isActiveStudent(a.status));
+      const ids = cachedAdmissions.map(a => a.id);
+
+      if (ids.length === 0) {
+        cachedAbsentById = new Map();
+        cacheLoaded = true;
+        return true;
+      }
+
+      let absentQ = db
+        .from("absent_days")
+        .select("student_id, roll, name, class_name, months")
+        .in("student_id", ids);
+      absentQ = applySchoolScope(absentQ);
+
+      const { data: absentRows, error: absentErr } = await absentQ;
+      if (absentErr) {
+        console.error(absentErr);
+        summary.innerHTML = '<span class="text-danger">Failed to load absent_days. Run absent_days_setup.sql first.</span>';
+        return false;
+      }
+
+      cachedAbsentById = new Map((absentRows || []).map(r => [r.student_id, r]));
+      cacheLoaded = true;
+      return true;
+    }
+
+    async function loadData(forceReload = false) {
+      summary.textContent = "Loading...";
+
+      const ready = await ensureDataCache(forceReload);
+      if (!ready) return;
+
+      renderClassOptions(cachedAdmissions);
+
+      if (cachedAdmissions.length === 0) {
+        currentRows = [];
+        renderTable([]);
+        summary.innerHTML = '<span class="text-warning">No active students found.</span>';
+        return;
+      }
+
+      const year = Number(yearSelect.value);
+      const classFilter = classSelect.value.trim().toLowerCase();
+      const q = studentFilter.value.trim().toLowerCase();
+      const { mf, mt } = getMonthNumberRange();
+
+      const rows = cachedAdmissions.map(a => {
+        const ar = cachedAbsentById.get(a.id) || {};
+        const monthsRaw = ar.months || {};
+        const monthValues = [];
+        let total = 0;
+        for (let m = mf; m <= mt; m++) {
+          const val = getMonthValue(monthsRaw, year, MONTHS[m]);
+          monthValues.push(val);
+          total += val;
+        }
+
+        return {
+          roll: a.roll_number || ar.roll || "",
+          name: a.full_name || ar.name || "",
+          className: a.applying_for_class || ar.class_name || "",
+          father: a.father_name || "",
+          monthValues,
+          total
+        };
+      }).filter(r => {
+        const classOk = !classFilter || String(r.className || "").trim().toLowerCase() === classFilter;
+        const qOk = !q || String(r.roll || "").toLowerCase() === q || String(r.name || "").toLowerCase().includes(q);
+        return classOk && qOk;
+      });
+
+      rows.sort((a, b) =>
+        String(a.className || "").localeCompare(String(b.className || ""), undefined, { numeric: true, sensitivity: "base" }) ||
+        String(a.roll || "").localeCompare(String(b.roll || ""), undefined, { numeric: true, sensitivity: "base" })
+      );
+
+      currentRows = rows;
+      renderTable(rows);
+      summary.innerHTML = `<strong>Report:</strong> ${rows.length} student(s) - Year: ${year} - Months: ${MONTHS[mf]} to ${MONTHS[mt]}`;
+    }
+
+    function renderTable(rows) {
+      const { mf, mt } = getMonthNumberRange();
+      let html = "<div class='table-responsive'><table class='table table-striped table-bordered'><thead><tr>";
+      html += "<th style='min-width:120px'>Roll / Name</th><th>Class</th>";
+      for (let m = mf; m <= mt; m++) html += `<th>${MONTHS[m]}</th>`;
+      html += "<th>Total</th></tr></thead><tbody>";
+
+      rows.forEach(r => {
+        html += "<tr>";
+        html += `<td class='roll-col'><strong>${escapeHtml(r.roll)}</strong><div style='font-size:.9rem;color:#333'>${escapeHtml(r.name)}</div></td>`;
+        html += `<td>${escapeHtml(r.className)}</td>`;
+        r.monthValues.forEach(v => html += `<td>${v}</td>`);
+        html += `<td><strong>${r.total}</strong></td>`;
+        html += "</tr>";
+      });
+
+      html += "</tbody></table></div>";
+      reportContainer.innerHTML = html;
+    }
+
+    function printCards() {
+      if (!currentRows.length) {
+        alert("No rows to print.");
+        return;
+      }
+
+      const { mf, mt } = getMonthNumberRange();
+      const perPage = 5;
+      const pages = [];
+      for (let i = 0; i < currentRows.length; i += perPage) pages.push(currentRows.slice(i, i + perPage));
+
+      let pagesHtml = "";
+      pages.forEach(group => {
+        pagesHtml += '<div class="print-page">';
+        group.forEach(s => {
+          pagesHtml += '<div class="rcard">';
+          pagesHtml += '<div style="text-align:center; font-weight:700; font-size:15px; margin-bottom:4px;">Absent Days / غير حاضر ڏينهن</div>';
+          pagesHtml += '<div style="display:flex; justify-content:space-between; align-items:center; font-size:13px; margin-bottom:6px;">';
+          pagesHtml += `<div style="width:65%"><strong>Name and Class :</strong> ${escapeHtml((s.name || "") + " - " + (s.className || ""))}</div>`;
+          pagesHtml += '<div style="width:35%; text-align:right"><strong>Parent\'s Signature :</strong> ____________________</div>';
+          pagesHtml += '</div>';
+          pagesHtml += '<div style="font-size:13px; margin-bottom:6px;">Attendance Remarks:&nbsp;&nbsp;[ ] Excellent &nbsp;&nbsp; [ ] Very Good &nbsp;&nbsp; [ ] Low</div>';
+
+          pagesHtml += '<table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:6px;"><thead><tr>';
+          pagesHtml += '<th style="border:1px solid #333; padding:4px; min-width:60px;">Roll</th>';
+          for (let m = mf; m <= mt; m++) pagesHtml += `<th style="border:1px solid #333; padding:4px;">${escapeHtml(MONTHS[m])}</th>`;
+          pagesHtml += '<th style="border:1px solid #333; padding:4px;">Total Absent Days</th>';
+          pagesHtml += '</tr></thead><tbody><tr>';
+          pagesHtml += `<td style="border:1px solid #333; padding:6px; text-align:left; font-weight:700;">${escapeHtml(String(s.roll || ""))}</td>`;
+          s.monthValues.forEach(v => { pagesHtml += `<td style="border:1px solid #333; padding:6px;">${String(v || 0)}</td>`; });
+          pagesHtml += `<td style="border:1px solid #333; padding:6px; font-weight:700;">${String(s.total || 0)}</td>`;
+          pagesHtml += '</tr></tbody></table>';
+
+          pagesHtml += '<div style="margin-top:6px; font-size:13px;"><strong>Comments</strong> __________________________________________________________________</div>';
+          pagesHtml += '<div style="border-top:1px dashed #000; margin-top:8px;"></div>';
+          pagesHtml += '</div>';
+        });
+        pagesHtml += '</div>';
+      });
+
+      const style = `
+        <style>
+          @page { size: A4 portrait; margin: 10mm; }
+          body { font-family: Arial, Helvetica, sans-serif; margin:0; padding:0; }
+          .print-page { width:210mm; height:297mm; box-sizing:border-box; padding:10mm 12mm; margin:0 auto; display:block; }
+          .rcard { box-sizing:border-box; width:100%; height: calc((277mm / 5) - 6mm); padding:6px 8px; margin-bottom:6mm; }
+          .rcard table th, .rcard table td { border:1px solid #333; padding:4px; font-size:12px; text-align:center; }
+          @media print { .print-page { page-break-after: always; } }
+        </style>`;
+
+      const html = `<!doctype html><html><head><meta charset="utf-8"/><title>Print - Absent Cards</title>${style}</head><body>${pagesHtml}</body></html>`;
+      const w = window.open("", "_blank", "toolbar=0,location=0,menubar=0,width=900,height=700");
+      if (!w) {
+        alert("Popup blocked. Allow popups for this site to use Print.");
+        return;
+      }
+      w.document.open();
+      w.document.write(html);
+      w.document.close();
+      w.focus();
+      setTimeout(() => { w.print(); }, 500);
+    }
+
+    function initControls() {
+      for (let y = currentYear; y >= currentYear - 5; y--) {
+        const opt = document.createElement("option");
+        opt.value = String(y);
+        opt.textContent = String(y);
+        yearSelect.appendChild(opt);
+      }
+      yearSelect.value = String(currentYear);
+
+      for (let i = 0; i < 12; i++) {
+        const a = document.createElement("option");
+        a.value = String(i);
+        a.textContent = MONTHS[i];
+        monthFrom.appendChild(a);
+
+        const b = document.createElement("option");
+        b.value = String(i);
+        b.textContent = MONTHS[i];
+        monthTo.appendChild(b);
+      }
+      monthFrom.value = "0";
+      monthTo.value = String(now.getMonth());
+    }
+
+    refreshBtn.addEventListener("click", () => loadData(true));
+    printBtn.addEventListener("click", printCards);
+    classSelect.addEventListener("change", () => loadData(false));
+    yearSelect.addEventListener("change", () => loadData(false));
+    monthFrom.addEventListener("change", () => loadData(false));
+    monthTo.addEventListener("change", () => loadData(false));
+    studentFilter.addEventListener("input", () => loadData(false));
+    clearBtn.addEventListener("click", () => {
+      classSelect.value = "";
+      studentFilter.value = "";
+      reportContainer.innerHTML = "";
+      summary.innerHTML = "";
+      currentRows = [];
+    });
+
+    (async function boot() {
+      initControls();
+      await waitForAuthContext();
+      await loadData(true);
+    })();
+  </script>
+</body>
+</html>

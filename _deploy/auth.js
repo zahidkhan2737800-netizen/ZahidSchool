@@ -24,6 +24,8 @@ const PAGE_KEY_MAP = {
     'access_control.html':      'access_control',
     'attendance.html':          'attendance',
     'monitoring.html':          'monitoring',
+        'Absent_days.html':         'attendance',
+        'Absent_Report Card.html':  'attendance',
     'family.html':              'students',
     'collect_family_fee.html':  'collect_fee',
     'homework.html':            'students',
@@ -67,7 +69,7 @@ let userPermissions = {};  // { page_key: { can_view, can_create, can_edit, can_
         }
 
         userRole = Array.isArray(roleData.roles) ? roleData.roles[0] : roleData.roles;
-        userRoleName = userRole.role_name;
+        userRoleName = String(userRole.role_name || '').toLowerCase();
 
         // 3. Fetch all permissions for this role
         const { data: permsData, error: permsError } = await supabaseClient
@@ -244,6 +246,8 @@ function filterSidebarNav() {
 
         const pageKey = navLinkMap[href];
         if (!pageKey) return;
+
+        if (userRoleName === 'super_admin') return;
 
         // If user doesn't have view permission, hide the nav item
         if (!userPermissions[pageKey] || !userPermissions[pageKey].can_view) {

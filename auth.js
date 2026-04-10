@@ -16,6 +16,8 @@ const PAGE_KEY_MAP = {
     'index.html':               'admissions',
     'students.html':            'students',
     'attendance.html':          'attendance',
+    'Absent_days.html':         'attendance',
+    'Absent_Report Card.html':  'attendance',
     'monitoring.html':          'monitoring',
     'pending_withdrawn.html':   'pending_withdrawn',
     'create_challan.html':      'challans',
@@ -87,7 +89,7 @@ let userPermissions = {};  // { page_key: { can_view, can_create, can_edit, can_
         window.currentSchoolId = roleData.school_id || null; // ← expose for tenant isolation
 
         userRole = Array.isArray(roleData.roles) ? roleData.roles[0] : roleData.roles;
-        userRoleName = userRole.role_name;
+            userRoleName = String(userRole.role_name || '').toLowerCase();
         window.userRoleName = userRoleName;
 
         // 3. Fetch all permissions for this role
@@ -114,7 +116,7 @@ let userPermissions = {};  // { page_key: { can_view, can_create, can_edit, can_
 
         // Auto-grant new module permissions to admin if missing from DB
         if (userRoleName === 'admin' || userRoleName === 'super_admin') {
-            ['dashboard', 'admissions', 'classes', 'access_control', 'fee_heads', 'challans', 'students', 'collect_fee', 'monitoring', 'attendance', 'fee_contacts', 'family', 'collect_family_fee', 'homework', 'complaints', 'reports', 'finance', 'staff_hiring', 'staff_attendance', 'staff_payroll', 'staff_payments'].forEach(key => {
+            ['dashboard', 'admissions', 'classes', 'access_control', 'fee_heads', 'challans', 'students', 'collect_fee', 'monitoring', 'attendance', 'pending_withdrawn', 'fee_contacts', 'family', 'collect_family_fee', 'homework', 'complaints', 'reports', 'finance', 'staff_hiring', 'staff_attendance', 'staff_payroll', 'staff_payments'].forEach(key => {
                 if (!userPermissions[key]) {
                     userPermissions[key] = { can_view: true, can_create: true, can_edit: true, can_delete: true };
                 }
@@ -164,6 +166,7 @@ async function logout() {
 
 // ─── Permission Checker ────────────────────────────────────────────────────────
 window.canView = function(pageKey) {
+    if (window.userRoleName === 'super_admin') return true;
     if (!pageKey) return true; // public or dashboard
     const perm = userPermissions[pageKey];
     if (!perm) return false;
