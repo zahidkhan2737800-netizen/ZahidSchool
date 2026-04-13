@@ -55,6 +55,8 @@
   .action-btn .btn-text{display:none}
   .action-btn .btn-icon{display:inline-block}
   .action-btn.pin{background:#fff7ed;color:#92400e}
+  .action-btn.dash{background:#eff6ff;color:#1d4ed8}
+  .action-btn.dash.active{background:#dbeafe;color:#1e3a8a;box-shadow:inset 0 0 0 1px #93c5fd}
   .action-btn.toggle{background:#ecfdf5;color:#065f46}
   .action-btn.edit{background:#fffbeb;color:#92400e}
   .action-btn.del{background:#fff1f2;color:#9f1239}
@@ -244,6 +246,30 @@ function setTodayInputs(){
 setTodayInputs();
 
 let todosCache = [];
+let dashboardPinnedIds = new Set();
+
+function getDashboardPinsKey(){
+  const suffix = currentSchoolId ? String(currentSchoolId) : 'global';
+  return `dashboard_pinned_todos_${suffix}`;
+}
+
+function loadDashboardPins(){
+  try {
+    const raw = localStorage.getItem(getDashboardPinsKey());
+    const arr = raw ? JSON.parse(raw) : [];
+    dashboardPinnedIds = new Set(Array.isArray(arr) ? arr : []);
+  } catch (e) {
+    dashboardPinnedIds = new Set();
+  }
+}
+
+function saveDashboardPins(){
+  try {
+    localStorage.setItem(getDashboardPinsKey(), JSON.stringify(Array.from(dashboardPinnedIds)));
+  } catch (e) {
+    console.warn('saveDashboardPins failed', e);
+  }
+}
 
 /* Cache keys */
 function getCacheKey(){
@@ -527,6 +553,7 @@ function renderTodos(){
     if(t.pinned) tr.classList.add('pinned');
     const isDone = t.status === 'Done';
     const days = computeDaysOpen(t);
+    const isDashPinned = dashboardPinnedIds.has(t.id);
 
     tr.innerHTML = `
       <td style="width:32px">${idx+1}</td>
@@ -536,6 +563,7 @@ function renderTodos(){
       <td class="col-days" style="width:80px;font-weight:700">${days}</td>
       <td class="col-status" style="width:90px">${escapeHtml(t.status || '')}</td>
       <td class="action-col" style="text-align:center">
+        <button class="action-btn dash ${isDashPinned ? 'active' : ''}" type="button" data-id="${t.id}" data-action="dash" title="${isDashPinned ? 'Remove from Dashboard' : 'Show on Dashboard'}"><span class="btn-icon">🗒</span></button>
         <button class="action-btn pin" type="button" data-id="${t.id}" data-action="pin" title="${t.pinned ? 'Unpin' : 'Pin'}"><span class="btn-icon">📌</span></button>
         <button class="action-btn toggle" type="button" data-id="${t.id}" data-action="toggle" title="${isDone ? 'Mark Pending' : 'Mark Done'}"><span class="btn-icon">${isDone ? '↺' : '✔'}</span></button>
         <button class="action-btn edit" type="button" data-id="${t.id}" data-action="edit" title="Edit"><span class="btn-icon">✎</span></button>
@@ -605,6 +633,11 @@ function renderTodos(){
         }
       } else if(action === 'edit'){
         startInlineEdit(id);
+      } else if(action === 'dash'){
+        if (dashboardPinnedIds.has(id)) dashboardPinnedIds.delete(id);
+        else dashboardPinnedIds.add(id);
+        saveDashboardPins();
+        renderTodos();
       } else if(action === 'pin'){
         try {
           const tdoc = todosCache.find(x=>x.id===id) || {};
@@ -757,6 +790,7 @@ setInterval(() => {
 /* ---------- init ---------- */
 (async function init(){
   await waitForAuthContext();
+  loadDashboardPins();
   const hadCache = loadCacheFromLocal();
   const metaRaw = localStorage.getItem(getCacheMetaKey());
   const meta = metaRaw ? JSON.parse(metaRaw) : null;

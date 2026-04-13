@@ -86,6 +86,11 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f1f5f9; min-
   .mobile-header { display: flex; }
   .overlay-bg.show { display: block; }
   .main { margin-left: 0 !important; padding-top: 70px !important; }
+  .diary-notes-grid { grid-template-columns: repeat(2, minmax(150px, 1fr)); }
+}
+
+@media (max-width: 480px) {
+  .diary-notes-grid { grid-template-columns: 1fr; }
 }
 
 /* ---- Main ---- */
@@ -114,6 +119,84 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f1f5f9; min-
   font-size: 0.8rem;
   color: #64748b;
   font-weight: 500;
+}
+
+.diary-notes-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(170px, 1fr));
+  gap: 14px;
+  margin-bottom: 22px;
+}
+
+.diary-note {
+  background: linear-gradient(165deg, #fffdf2 0%, #fff7d6 100%);
+  border: 1px solid #fde68a;
+  border-radius: 14px;
+  padding: 12px;
+  min-height: 130px;
+  box-shadow: 0 4px 14px rgba(146, 64, 14, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.diary-note-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.72rem;
+  color: #92400e;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.diary-note-text {
+  font-size: 0.96rem;
+  line-height: 1.35;
+  color: #111827;
+  font-weight: 600;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.diary-note-foot {
+  margin-top: auto;
+  font-size: 0.78rem;
+  color: #6b7280;
+  font-weight: 600;
+}
+
+.diary-note-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.diary-note-btn {
+  border: none;
+  background: #16a34a;
+  color: #fff;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.diary-note-btn:hover {
+  background: #15803d;
+}
+
+.diary-note-empty {
+  grid-column: 1 / -1;
+  background: #fff;
+  border: 1px dashed #cbd5e1;
+  color: #64748b;
+  border-radius: 12px;
+  padding: 14px;
+  font-size: 0.9rem;
 }
 
 
