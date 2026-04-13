@@ -7,11 +7,12 @@ var NAV_CATEGORIES = [
     items: [
       { href: 'index.html', label: 'Admission Form', icon: 'fas fa-file-signature', key: 'admissions' },
       { href: 'students.html', label: 'Active Students', icon: 'fas fa-users', key: 'students' },
+            { href: 'Dairy.html', label: 'Dairy / Tasks', icon: 'fas fa-clipboard-list', key: 'students' },
       { href: 'family.html', label: 'Family Management', icon: 'fas fa-home', key: 'family' },
       { href: 'monitoring.html', label: 'Monitoring', icon: 'fas fa-chart-pie', key: 'monitoring' },
       { href: 'homework.html', label: 'Homework Publisher', icon: 'fas fa-book', key: 'homework' },
       { href: 'complaint_diary.html', label: 'Complaint Diary', icon: 'fas fa-envelope-open-text', key: 'complaints' },
-    { href: 'pending_withdrawn.html', label: 'Withdraw Students', icon: 'fas fa-user-minus', key: 'pending_withdrawn' },
+
       { href: 'pending_withdrawn.html', label: 'Pending / Withdrawn', icon: 'fas fa-user-alt-slash', key: 'pending_withdrawn' },
       { href: 'reports.html', label: 'Report Generator', icon: 'fas fa-print', key: 'reports' },
     ]
@@ -32,6 +33,12 @@ var NAV_CATEGORIES = [
       { href: 'family_contacts.html', label: 'Open Family Fee Contacts', icon: 'fas fa-phone-volume', key: 'fee_contacts' },
     ]
   },
+    {
+        id: 'whatsapp', label: 'WhatsApp', icon: 'fab fa-whatsapp',
+        items: [
+            { href: 'wa_templates.html', label: 'WA Templates', icon: 'fab fa-whatsapp', key: 'fee_contacts' },
+        ]
+    },
   {
     id: 'fees', label: 'Fee Management', icon: 'fas fa-money-bill-wave',
     items: [

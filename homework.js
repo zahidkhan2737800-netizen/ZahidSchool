@@ -2,6 +2,14 @@
 // homework.js — Homework Publisher (Supabase)
 // ═══════════════════════════════════════════════════════════════
 const db = supabaseClient;
+const currentSchoolId = window.currentSchoolId || null;
+const applySchoolScope = (query) => currentSchoolId ? query.eq('school_id', currentSchoolId) : query;
+
+function getTenantScopePatch() {
+    const patch = { school_id: currentSchoolId };
+    if (window.campusFeatureReady && window.currentCampusId) patch.campus_id = window.currentCampusId;
+    return patch;
+}
 
 const SUBJECTS = ["English", "Math", "Science", "Sindhi", "Urdu"];
 
@@ -31,10 +39,10 @@ function showToast(msg, type = 'info') {
 // ─── Load Classes ─────────────────────────────────────────────
 async function loadClasses() {
     try {
-        const { data, error } = await db
+        const { data, error } = await applySchoolScope(db
             .from('admissions')
             .select('applying_for_class')
-            .eq('status', 'Active');
+            .eq('status', 'Active'));
         if (error) throw error;
 
         const classes = [...new Set((data || []).map(d => d.applying_for_class).filter(Boolean))].sort();
@@ -57,12 +65,12 @@ async function loadStudentsForClass(cls) {
 
     try {
         // Fetch students
-        const { data: students, error: stuErr } = await db
+        const { data: students, error: stuErr } = await applySchoolScope(db
             .from('admissions')
             .select('id, roll_number, full_name, father_name, applying_for_class')
             .eq('status', 'Active')
             .eq('applying_for_class', cls)
-            .order('roll_number');
+            .order('roll_number'));
         if (stuErr) throw stuErr;
 
         if (!students || students.length === 0) {
@@ -74,12 +82,12 @@ async function loadStudentsForClass(cls) {
 
         // Fetch existing homework complaints for today
         const today = getToday();
-        const { data: existing, error: hwErr } = await db
+        const { data: existing, error: hwErr } = await applySchoolScope(db
             .from('complaints')
             .select('roll, subjects')
             .eq('class_name', cls)
             .eq('date', today)
-            .eq('category', 'Homework');
+            .eq('category', 'Homework'));
 
         const existingMap = {};
         if (!hwErr && existing) {
@@ -139,15 +147,15 @@ async function upsertHomework(student, subjectsArray) {
     // If no subjects selected → delete any existing homework entry for today
     if (!subjectsArray || subjectsArray.length === 0) {
         try {
-            const { data, error } = await db
+            const { data, error } = await applySchoolScope(db
                 .from('complaints')
                 .select('id')
                 .eq('roll', cleanRoll)
                 .eq('date', today)
-                .eq('category', 'Homework');
+                .eq('category', 'Homework'));
             if (!error && data) {
                 for (const row of data) {
-                    await db.from('complaints').delete().eq('id', row.id);
+                    await applySchoolScope(db.from('complaints').delete().eq('id', row.id));
                 }
             }
             showToast(`Cleared homework for Roll ${cleanRoll}`, 'info');
@@ -166,23 +174,23 @@ async function upsertHomework(student, subjectsArray) {
             : `Undone Homework of ${finalSubjects.slice(0, -1).join(', ')} and ${finalSubjects.slice(-1)}.`;
 
         // Check if record exists for this roll + today + Homework
-        const { data: existing } = await db
+        const { data: existing } = await applySchoolScope(db
             .from('complaints')
             .select('id')
             .eq('roll', cleanRoll)
             .eq('date', today)
             .eq('category', 'Homework')
-            .limit(1);
+            .limit(1));
 
         if (existing && existing.length > 0) {
             // Update
-            await db.from('complaints').update({
+            await applySchoolScope(db.from('complaints').update({
                 name: name || '',
                 class_name: className || '',
                 complaint: complaintText,
                 subjects: finalSubjects,
                 updated_at: new Date().toISOString()
-            }).eq('id', existing[0].id);
+            }).eq('id', existing[0].id));
         } else {
             // Insert
             await db.from('complaints').insert({
@@ -194,7 +202,8 @@ async function upsertHomework(student, subjectsArray) {
                 category: 'Homework',
                 status: 'Pending',
                 contact_status: '',
-                subjects: finalSubjects
+                subjects: finalSubjects,
+                ...getTenantScopePatch()
             });
         }
 
@@ -210,13 +219,13 @@ async function upsertHomework(student, subjectsArray) {
 async function loadRecentHomework() {
     try {
         const today = getToday();
-        const { data, error } = await db
+        const { data, error } = await applySchoolScope(db
             .from('complaints')
             .select('*')
             .eq('category', 'Homework')
             .eq('date', today)
             .order('updated_at', { ascending: false })
-            .limit(50);
+            .limit(50));
         if (error) throw error;
 
         if (!data || data.length === 0) {

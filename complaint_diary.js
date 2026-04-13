@@ -2,6 +2,8 @@
 // complaint_diary.js — Complaint Diary (Supabase)
 // ═══════════════════════════════════════════════════════════════
 const db = supabaseClient;
+const currentSchoolId = window.currentSchoolId || null;
+const applySchoolScope = (query) => currentSchoolId ? query.eq('school_id', currentSchoolId) : query;
 
 // ─── DOM ──────────────────────────────────────────────────────
 const nameEl          = document.getElementById('name');
@@ -23,6 +25,12 @@ const contactOptions  = ["Whatsapp","Call Received","Call Not Received","Number 
 
 let complaintsCache = [];
 let studentsMap     = {};
+
+function getTenantScopePatch() {
+    const patch = { school_id: currentSchoolId };
+    if (window.campusFeatureReady && window.currentCampusId) patch.campus_id = window.currentCampusId;
+    return patch;
+}
 
 // ─── Toast ────────────────────────────────────────────────────
 function showToast(msg, type = 'info') {
@@ -46,11 +54,11 @@ function setDefaults() {
 // ─── Load Students Map (for autofill) ─────────────────────────
 async function loadStudents() {
     try {
-        const { data, error } = await db
+        const { data, error } = await applySchoolScope(db
             .from('admissions')
             .select('roll_number, full_name, applying_for_class')
             .eq('status', 'Active')
-            .order('roll_number');
+            .order('roll_number'));
         if (error) throw error;
         studentsMap = {};
         (data || []).forEach(s => {
@@ -74,11 +82,11 @@ rollEl.addEventListener('input', () => {
 // ─── Load Complaints ──────────────────────────────────────────
 async function loadComplaints() {
     try {
-        const { data, error } = await db
+        const { data, error } = await applySchoolScope(db
             .from('complaints')
             .select('*')
             .order('date', { ascending: false })
-            .limit(2000);
+            .limit(2000));
         if (error) throw error;
         complaintsCache = data || [];
         renderComplaints();
@@ -162,7 +170,7 @@ async function cycleField(id, field, options, btnEl) {
     const idx = options.indexOf(current);
     const next = options[(idx + 1) % options.length] || options[0];
     try {
-        const { error } = await db.from('complaints').update({ [field]: next, updated_at: new Date().toISOString() }).eq('id', id);
+        const { error } = await applySchoolScope(db.from('complaints').update({ [field]: next, updated_at: new Date().toISOString() }).eq('id', id));
         if (error) throw error;
         btnEl.textContent = next;
         // Update cache
@@ -187,6 +195,7 @@ document.getElementById('complaintForm').addEventListener('submit', async (e) =>
         category: categoryEl.value,
         status: statusEl.value,
         contact_status: contactEl.value,
+        ...getTenantScopePatch(),
         updated_at: new Date().toISOString()
     };
 
@@ -198,7 +207,7 @@ document.getElementById('complaintForm').addEventListener('submit', async (e) =>
     try {
         const id = editIdEl.value;
         if (id) {
-            const { error } = await db.from('complaints').update(obj).eq('id', id);
+            const { error } = await applySchoolScope(db.from('complaints').update(obj).eq('id', id));
             if (error) throw error;
             showToast('Complaint updated', 'success');
             editIdEl.value = '';
@@ -248,7 +257,7 @@ cancelEditBtn.addEventListener('click', () => {
 async function deleteComplaint(id) {
     if (!confirm('Delete this complaint?')) return;
     try {
-        const { error } = await db.from('complaints').delete().eq('id', id);
+        const { error } = await applySchoolScope(db.from('complaints').delete().eq('id', id));
         if (error) throw error;
         showToast('Deleted', 'success');
         await loadComplaints();
@@ -313,7 +322,8 @@ document.getElementById('restoreFile').addEventListener('change', async (e) => {
             category: obj.category || 'Other',
             status: obj.status || 'Pending',
             contact_status: obj.contact_status || obj.contactStatus || '',
-            subjects: obj.subjects || []
+            subjects: obj.subjects || [],
+            ...getTenantScopePatch()
         }));
         const { error } = await db.from('complaints').insert(clean);
         if (error) throw error;

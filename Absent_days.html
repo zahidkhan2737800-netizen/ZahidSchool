@@ -35,25 +35,30 @@
       border-collapse:collapse;
       background:var(--card);
       table-layout:fixed;
-      font-size:13px;
+      font-size:14px;
     }
-    th, td{ padding:6px 6px; text-align:center; border-bottom:1px solid #f0f3f8; vertical-align:middle; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-    thead th{ position:sticky; top:0; background:#0b73ff; color:white; z-index:2; font-weight:600; font-size:12px; padding:8px 6px; }
-    .table-input{ width:100%; padding:8px 6px; font-size:14px; border-radius:6px; border:1px solid #e6eef8; box-sizing:border-box; text-align:center; color:#0b0b0b; background:#fff; }
+    th, td{ padding:6px 5px; text-align:center; border-bottom:1px solid #f0f3f8; vertical-align:middle; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+    thead th{ position:sticky; top:0; background:#0b73ff; color:white; z-index:2; font-weight:700; font-size:13px; padding:8px 5px; }
+    .table-input{ width:100%; padding:8px 4px; font-size:16px; border-radius:6px; border:1px solid #e6eef8; box-sizing:border-box; text-align:center; color:#0b0b0b; background:#fff; }
     .month-input{
       font-weight:700;
-      font-size:16px;
+      font-size:18px;
       line-height:1.1;
       min-width:42px;
-      padding:10px 6px;
-      -moz-appearance:textfield;
-    }
-    input[type=number].month-input::-webkit-outer-spin-button,
-    input[type=number].month-input::-webkit-inner-spin-button {
-      -webkit-appearance: none;
-      margin: 0;
+      padding:10px 4px;
     }
     .small{ font-size:12px; color:var(--muted); }
+    .wa-btn{
+      background:#25D366;
+      color:#fff;
+      border:none;
+      border-radius:6px;
+      padding:6px 8px;
+      font-size:12px;
+      font-weight:700;
+      cursor:pointer;
+    }
+    .wa-btn:hover{ background:#1ebe5a; }
     .delete{ color:var(--danger); cursor:pointer; font-weight:700; }
     .controls-row{ display:flex; gap:12px; align-items:center; margin-top:12px; flex-wrap:wrap; justify-content:space-between; }
     .left-controls{ display:flex; gap:8px; align-items:center; }
@@ -107,14 +112,35 @@
         <caption id="tableDesc" style="display:none">Students with monthly columns Jan-Dec and TD (no dates)</caption>
         <thead>
           <tr id="theadRow">
-            <th style="width:5%;">Roll</th>
-            <th style="width:15%;">Name</th>
-            <th style="width:15%;">Father</th>
-            <th style="width:5%;">Class</th>
+            <th style="width:4%;">Roll</th>
+            <th style="width:12%;">Name</th>
+            <th style="width:12%;">Father</th>
+            <th style="width:4%;">WA</th>
           </tr>
         </thead>
         <tbody></tbody>
       </table>
+    </div>
+
+    <div id="waModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:3000; align-items:center; justify-content:center;">
+      <div style="background:#fff; width:95%; max-width:640px; border-radius:12px; box-shadow:0 10px 35px rgba(0,0,0,0.25); padding:1rem;">
+        <h3 style="margin:0 0 0.8rem 0; color:#0f172a;">Send WhatsApp Absent Summary</h3>
+
+        <div style="margin-bottom:0.7rem; display:flex; align-items:center; gap:0.4rem;">
+          <select id="waTemplateDropdown" style="flex-grow:1; padding:0.6rem; border-radius:8px; border:1px solid #cbd5e1; font-weight:600; color:#475569; outline:none;" onchange="applySelectedWaTemplate()">
+            <option value="">Loading Templates...</option>
+          </select>
+          <a href="wa_templates.html" target="_blank" title="Manage Templates" style="padding:0.6rem; border-radius:8px; border:1px solid #cbd5e1; background:white; cursor:pointer; font-weight:700; text-decoration:none; color:inherit; display:flex; align-items:center;">⚙️</a>
+          <button onclick="loadWaTemplates()" title="Refresh Templates" style="padding:0.6rem; border-radius:8px; border:1px solid #cbd5e1; background:#f8fafc; cursor:pointer; font-size:1.1rem; color:#0f172a;">🔄</button>
+        </div>
+
+        <textarea id="waMessageText" style="width:100%; min-height:220px; max-height:55vh; resize:vertical; border-radius:10px; border:1px solid #cbd5e1; padding:0.8rem; font-family:inherit; font-size:0.92rem;"></textarea>
+
+        <div style="margin-top:0.7rem; display:flex; justify-content:flex-end; gap:0.5rem;">
+          <button onclick="closeWaModal()" style="padding:0.6rem 1rem; border-radius:8px; border:none; background:#e2e8f0; color:#475569; font-weight:600; cursor:pointer;">Cancel</button>
+          <button id="btnSendWa" style="padding:0.6rem 1rem; border-radius:8px; border:none; background:#25D366; color:white; font-weight:600; cursor:pointer;">Send WhatsApp</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -164,6 +190,8 @@
     let allStudents = [];
     let admissionClasses = [];
     let currentSchoolId = null;
+    let waTemplates = [];
+    let currentWaStudentId = null;
 
     // Returns [{year, month}, ...] for the selected from→to range
     function getVisibleCols() {
@@ -224,7 +252,7 @@
       while (theadRow.children.length > 4) theadRow.removeChild(theadRow.lastChild);
 
       const cols = getVisibleCols();
-      const totalFixed = 5 + 15 + 15 + 5;
+      const totalFixed = 4 + 12 + 12 + 4;
       const tdWidth = 6;
       const remaining = 100 - totalFixed - tdWidth;
       const colWidth = cols.length > 0 ? (remaining / cols.length).toFixed(2) : String(remaining);
@@ -271,7 +299,7 @@
     async function syncAndLoadStudents() {
       let admissionsQ = db
         .from("admissions")
-        .select("id, roll_number, full_name, father_name, applying_for_class, status")
+        .select("id, roll_number, full_name, father_name, father_mobile, applying_for_class, status")
         .in("status", ["Active", "active"])
         .order("roll_number", { ascending: true });
       admissionsQ = applySchoolScope(admissionsQ);
@@ -372,6 +400,7 @@
         return {
           ...r,
           rawMonths: r.months || {},
+          father_mobile: adm.father_mobile || "",
           current_class: currentClass,
           previous_class: previousClass,
           promoted
@@ -440,6 +469,131 @@
       await updateRow(docId, { months: rawMonths, updated_at: new Date().toISOString() });
     }
 
+    async function loadWaTemplates() {
+      try {
+        const { data, error } = await db.from('wa_templates').select('*').order('created_at', { ascending: true });
+        if (!error && data) {
+          waTemplates = data;
+          const dropdown = document.getElementById('waTemplateDropdown');
+          if (dropdown) {
+            dropdown.innerHTML = '';
+            const lastUsed = localStorage.getItem('lastWaTemplate');
+            let selectedId = null;
+
+            if (lastUsed && waTemplates.find(t => t.id === lastUsed)) {
+              selectedId = lastUsed;
+            } else if (waTemplates.find(t => t.is_default)) {
+              selectedId = waTemplates.find(t => t.is_default).id;
+            } else if (waTemplates.length > 0) {
+              selectedId = waTemplates[0].id;
+            }
+
+            waTemplates.forEach(t => {
+              const opt = document.createElement('option');
+              opt.value = t.id;
+              opt.textContent = t.title;
+              if (t.id === selectedId) opt.selected = true;
+              dropdown.appendChild(opt);
+            });
+          }
+        }
+      } catch (e) {
+        console.error('Error loading WA templates:', e);
+      }
+    }
+
+    function buildAbsentWaMessageFromTemplate(s, templateText) {
+      const cols = getVisibleCols();
+      let total = 0;
+      const monthLines = cols.map(col => {
+        const v = getCellValue(s.rawMonths || {}, col.year, col.month);
+        const n = v === "" ? 0 : (Number(v) || 0);
+        total += n;
+        return `${col.month} ${n}`;
+      });
+
+      const absentDetails = monthLines.join("\n");
+      const todayDate = new Date().toLocaleDateString('en-GB', {day: 'numeric', month: 'short', year: 'numeric'});
+
+      let parsed = (templateText || "").replace(/{{TODAY_DATE}}/g, todayDate)
+                                     .replace(/{{STUDENT_NAME}}/g, s.name || "Student")
+                                     .replace(/{{FATHER_NAME}}/g, s.father || "Father")
+                                     .replace(/{{ABSENT_DETAILS}}/g, absentDetails)
+                                     .replace(/{{TOTAL_ABSENT}}/g, String(total))
+                                     .replace(/{{BILL_DETAILS}}/g, absentDetails)
+                                     .replace(/{{GRAND_TOTAL}}/g, String(total));
+
+      // Force attendance wording so fee-template text like "Pending" does not appear.
+      parsed = parsed.replace(/Total\s*Pending\s*:?/gi, 'Total Absent Days:')
+                     .replace(/Pending\s*Amount\s*:?/gi, 'Total Absent Days:')
+                     .replace(/Grand\s*Total\s*:?/gi, 'Total Absent Days:');
+
+      if (!/Total\s*Absent\s*Days\s*:/i.test(parsed)) {
+        parsed = `${parsed.trim()}\nTotal Absent Days: ${total}`;
+      }
+
+      return parsed;
+    }
+
+    function getCurrentTemplateText() {
+      const dropdown = document.getElementById('waTemplateDropdown');
+      if (dropdown && dropdown.value) {
+        const t = waTemplates.find(x => x.id === dropdown.value);
+        if (t) {
+          localStorage.setItem('lastWaTemplate', t.id);
+          return t.message_text || "";
+        }
+      }
+
+      return "Zahid School\n{{STUDENT_NAME}}\n\n{{ABSENT_DETAILS}}\nTotal {{TOTAL_ABSENT}}";
+    }
+
+    function openAbsentWaModal(docId) {
+      const s = allStudents.find(x => x.id === docId);
+      if (!s) return;
+      if (!s.father_mobile) {
+        alert("This student has no mobile number registered.");
+        return;
+      }
+
+      currentWaStudentId = docId;
+      applySelectedWaTemplate();
+      const modal = document.getElementById('waModal');
+      if (modal) modal.style.display = 'flex';
+    }
+
+    function applySelectedWaTemplate() {
+      if (!currentWaStudentId) return;
+      const s = allStudents.find(x => x.id === currentWaStudentId);
+      if (!s) return;
+
+      const templateText = getCurrentTemplateText();
+      const parsed = buildAbsentWaMessageFromTemplate(s, templateText);
+      const ta = document.getElementById('waMessageText');
+      if (ta) ta.value = parsed;
+
+      const btnSend = document.getElementById('btnSendWa');
+      if (btnSend) {
+        btnSend.onclick = function() {
+          const text = (document.getElementById('waMessageText') || {}).value || parsed;
+          let phone = String(s.father_mobile).replace(/[^0-9]/g, '');
+          if (phone.startsWith('0') && phone.length === 11) phone = '92' + phone.substring(1);
+          window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
+          closeWaModal();
+        };
+      }
+    }
+
+    function closeWaModal() {
+      const modal = document.getElementById('waModal');
+      if (modal) modal.style.display = 'none';
+    }
+
+    window.loadWaTemplates = loadWaTemplates;
+    window.openAbsentWaModal = openAbsentWaModal;
+    window.applySelectedWaTemplate = applySelectedWaTemplate;
+    window.closeWaModal = closeWaModal;
+
     function renderTable() {
       tableBody.innerHTML = "";
       const searchQ = globalSearch.value.trim().toLowerCase();
@@ -472,19 +626,19 @@
         tdFather.textContent = s.father || "";
         tr.appendChild(tdFather);
 
-        const tdClass = document.createElement("td");
-        tdClass.innerHTML = s.promoted
-          ? `<span style="font-weight:700; color:#0b73ff;">${s.current_class || ""}</span><br><small style="color:#b45309;">Promoted from ${s.previous_class || ""}</small>`
-          : (s.current_class || "");
-        tr.appendChild(tdClass);
+        const tdWa = document.createElement("td");
+        tdWa.innerHTML = `<button class="wa-btn" title="Send absent summary on WhatsApp" onclick="openAbsentWaModal('${s.id}')">WA</button>`;
+        tr.appendChild(tdWa);
+
+        let tdCell;
 
         getVisibleCols().forEach(col => {
           const tdM = document.createElement("td");
           const inM = document.createElement("input");
           inM.className = "table-input month-input";
-          inM.type = "number";
-          inM.step = "1";
+          inM.type = "text";
           inM.inputMode = "numeric";
+          inM.pattern = "[0-9]*";
           const cellVal = getCellValue(s.rawMonths || {}, col.year, col.month);
           inM.value = cellVal === "" ? "" : cellVal;
           if (s.promoted && cellVal !== "") {
@@ -494,6 +648,7 @@
           }
 
           inM.addEventListener("input", () => {
+                        inM.value = inM.value.replace(/[^0-9]/g, '');
             let tdSum = 0;
             tr.querySelectorAll("input.month-input").forEach(inp => {
               if (inp.value !== "") tdSum += Number(inp.value) || 0;
@@ -504,7 +659,8 @@
           inM.addEventListener("change", async () => {
             try {
               await saveMonthFee(s.id, col, inM.value);
-              tdCell.textContent = computeTDForStudent(s);
+              const newTD = computeTDForStudent(s);
+              tdCell.textContent = newTD;
             } catch (e) {
               alert("Failed to save " + col.month + " " + col.year + ": " + e.message);
             }
@@ -516,8 +672,9 @@
 
         const tdTD = document.createElement("td");
         tdTD.style.fontWeight = "700";
-        tdTD.textContent = computeTDForStudent(s);
-        const tdCell = tdTD;
+        const td0 = computeTDForStudent(s);
+        tdTD.textContent = td0;
+        tdCell = tdTD;
         tr.appendChild(tdTD);
 
         tableBody.appendChild(tr);
@@ -539,6 +696,7 @@
       ensureMonthHeaders();
       await waitForAuthContext();
       await syncAndLoadStudents();
+      await loadWaTemplates();
     })();
   </script>
 </body>

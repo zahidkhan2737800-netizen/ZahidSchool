@@ -7,14 +7,11 @@ let allStudents = [];
 let monthData = {}; // keyed by student.id
 let classesList = [];
 let studentBalances = {}; // Cache for live balance calculations
-let todayAttendance = {}; // Cache for today's attendance statuses (student_id -> status)
+let recentAttendance = {}; // Cache for last 3 days attendance (student_id -> { date: status })
+let recentDates = []; // Last 3 calendar dates (YYYY-MM-DD)
 let allPendingChallans = [];
 let waTemplates = [];
 let currentOpenStudentId = null;
-let refreshInFlight = false;
-let refreshQueued = false;
-let syncTimer = null;
-let syncChannels = [];
 
 const STATUS_COLORS = {
     'C': 'status-C',
@@ -52,10 +49,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('classFilter').addEventListener('change', renderTable);
     document.getElementById('statusFilter').addEventListener('change', renderTable);
     document.getElementById('rollFilter').addEventListener('input', renderTable);
+    document.getElementById('commentsFilter').addEventListener('input', renderTable);
     document.getElementById('btnClearFilters').addEventListener('click', () => {
         document.getElementById('classFilter').value = '';
         document.getElementById('statusFilter').value = 'All';
         document.getElementById('rollFilter').value = '';
+        document.getElementById('commentsFilter').value = '';
         renderTable();
     });
 
@@ -63,8 +62,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadBaseData();
     await loadData();
 
-    // Keep list synced automatically when membership changes in other pages/tabs.
-    setupAutoSync();
 });
 
 async function waitForAuthContext(timeoutMs = 10000) {
@@ -159,17 +156,25 @@ async function loadBaseData() {
         
         await loadWaTemplates();
 
-        // Fetch Today's Attendance
-        const todayStr = new Date().toISOString().slice(0, 10);
+        // Fetch Last 3 Days Attendance
+        const attToday = new Date();
+        recentDates = [];
+        for (let i = 2; i >= 0; i--) {
+            const d = new Date(attToday);
+            d.setDate(attToday.getDate() - i);
+            recentDates.push(d.toISOString().slice(0, 10));
+        }
         const { data: attData, error: attErr } = await supabaseClient
             .from('attendance')
-            .select('student_id, status')
-            .eq('date', todayStr);
+            .select('student_id, status, date')
+            .in('date', recentDates)
+            .eq('school_id', schoolId);
 
-        todayAttendance = {};
+        recentAttendance = {};
         if (attData && !attErr) {
             attData.forEach(a => {
-                todayAttendance[a.student_id] = a.status;
+                if (!recentAttendance[a.student_id]) recentAttendance[a.student_id] = {};
+                recentAttendance[a.student_id][a.date] = a.status;
             });
         }
 
@@ -214,6 +219,7 @@ function renderTable() {
     const classF = document.getElementById('classFilter').value;
     const statusF = document.getElementById('statusFilter').value;
     const rollF = document.getElementById('rollFilter').value.toLowerCase().trim();
+    const commentsF = document.getElementById('commentsFilter').value.toLowerCase().trim();
 
     let totalBalance = 0;
     let pendingCount = 0;
@@ -228,17 +234,31 @@ function renderTable() {
     // 1. Filter
     rowsToRender = rowsToRender.filter(row => {
         if (classF && row.student.applying_for_class !== classF) return false;
-        if (rollF && !String(row.student.roll_number).toLowerCase().includes(rollF)) return false;
+        if (rollF) {
+            const nameMatch = row.student.full_name.toLowerCase().includes(rollF);
+            const rollMatch = String(row.student.roll_number).toLowerCase().includes(rollF);
+            if (!nameMatch && !rollMatch) return false;
+        }
         if (statusF !== 'All' && row.data.row_status !== statusF) return false;
+        if (commentsF && !(row.data.commitment_notes || '').toLowerCase().includes(commentsF)) return false;
         return true;
     });
 
-    // 2. Sort (Pinned first, then by Roll No)
+    // 2. Sort: pinned first (by balance desc), then unpinned (by roll number asc)
     rowsToRender.sort((a, b) => {
-        if (a.data.pinned && !b.data.pinned) return -1;
-        if (!a.data.pinned && b.data.pinned) return 1;
-        // Keep original roll_number ordering natively
-        return 0; 
+        const aPinned = !!(a.data.pinned);
+        const bPinned = !!(b.data.pinned);
+
+        if (aPinned && !bPinned) return -1;
+        if (!aPinned && bPinned) return 1;
+
+        // Both pinned: sort by balance descending
+        if (aPinned && bPinned) {
+            return (studentBalances[b.student.id] || 0) - (studentBalances[a.student.id] || 0);
+        }
+
+        // Both unpinned: keep original roll_number order
+        return 0;
     });
 
     // 3. Render
@@ -254,20 +274,24 @@ function renderTable() {
         const balance = studentBalances[student.id] || 0;
         totalBalance += balance;
 
-        // Build real attendance indicator
-        const attStatus = todayAttendance[student.id];
-        let attHtml = `<div class="att-pill" style="background:#e2e8f0; color:#64748b;" title="Not Marked">-</div>`;
-        if (attStatus === 'Present') {
-            attHtml = `<div class="att-pill P" title="Present">P</div>`;
-        } else if (attStatus === 'Absent') {
-            attHtml = `<div class="att-pill" style="background:#fee2e2; color:#b91c1c; font-weight:bold;" title="Absent">A</div>`;
-        } else if (attStatus === 'Leave') {
-            attHtml = `<div class="att-pill" style="background:#fef9c3; color:#a16207; font-weight:bold;" title="Leave">L</div>`;
-        }
+        // Build last-3-days attendance pills (2-days-ago, yesterday, today)
+        const studentAtt = recentAttendance[student.id] || {};
+        const dayLabels = ['D3', 'D2', 'D1'];
+        const pills = recentDates.map((dateStr, i) => {
+            const st = studentAtt[dateStr];
+            const lbl = dayLabels[i];
+            if (!st) return `<div class="att-pill" style="background:#e2e8f0;color:#94a3b8;font-size:0.62rem;padding:1px 4px;" title="${dateStr}">-</div>`;
+            if (st === 'Present') return `<div class="att-pill P" style="font-size:0.62rem;padding:1px 4px;" title="Present ${dateStr}">${lbl}</div>`;
+            if (st === 'Absent') return `<div class="att-pill" style="background:#fee2e2;color:#b91c1c;font-weight:bold;font-size:0.62rem;padding:1px 4px;" title="Absent ${dateStr}">${lbl}</div>`;
+            if (st === 'Leave') return `<div class="att-pill" style="background:#fef9c3;color:#a16207;font-weight:bold;font-size:0.62rem;padding:1px 4px;" title="Leave ${dateStr}">${lbl}</div>`;
+            if (st === 'Holiday') return `<div class="att-pill H" title="Holiday ${dateStr}">H</div>`;
+            return `<div class="att-pill" style="background:#e2e8f0;color:#94a3b8;font-size:0.62rem;padding:1px 4px;" title="${dateStr}">-</div>`;
+        }).reverse().join('');
+        const attHtml = `<div style="display:flex;flex-direction:column;gap:2px;align-items:center;">${pills}</div>`;
 
         tr.innerHTML = `
             <td class="col-roll">${student.roll_number}</td>
-            <td class="col-name">${student.full_name}<br><small style="color:#64748b; font-size:0.8rem;">${student.father_mobile||''}</small></td>
+            <td class="col-name"><span style="font-size:0.95rem;font-weight:600;display:block;line-height:1.3;">${student.full_name}</span><small style="color:#64748b;font-size:0.78rem;">${student.father_mobile||''}</small></td>
             <td>${attHtml}</td>
             ${[1,2,3,4,5,6,7,8].map(idx => generateContactCell(student.id, idx, data)).join('')}
             <td class="col-balance ${balance === 0 ? 'zero' : ''}">${balance.toLocaleString()}</td>
@@ -546,59 +570,4 @@ async function saveContactState(studentId, fieldsToUpdate) {
     }
 }
 
-async function refreshContactsMembership() {
-    if (refreshInFlight) {
-        refreshQueued = true;
-        return;
-    }
 
-    refreshInFlight = true;
-    try {
-        await loadBaseData();
-        await loadData();
-    } finally {
-        refreshInFlight = false;
-        if (refreshQueued) {
-            refreshQueued = false;
-            refreshContactsMembership();
-        }
-    }
-}
-
-function queueSyncRefresh() {
-    clearTimeout(syncTimer);
-    syncTimer = setTimeout(() => {
-        refreshContactsMembership();
-    }, 250);
-}
-
-function setupAutoSync() {
-    // Refresh when user returns to this tab.
-    window.addEventListener('focus', queueSyncRefresh);
-    document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') queueSyncRefresh();
-    });
-
-    // Live updates from DB changes.
-    const admissionsChannel = supabaseClient
-        .channel('fee-contacts-sync-admissions')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'admissions' }, () => {
-            queueSyncRefresh();
-        })
-        .subscribe();
-
-    const familyContactsChannel = supabaseClient
-        .channel('fee-contacts-sync-family-contacts')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'family_contacts' }, () => {
-            queueSyncRefresh();
-        })
-        .subscribe();
-
-    syncChannels = [admissionsChannel, familyContactsChannel];
-
-    window.addEventListener('beforeunload', () => {
-        syncChannels.forEach(ch => {
-            try { supabaseClient.removeChannel(ch); } catch (_) {}
-        });
-    });
-}

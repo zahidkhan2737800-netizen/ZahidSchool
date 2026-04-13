@@ -111,6 +111,7 @@
             background: #64748b; /* Fallback default background color */
         }
         .role-badge.admin { background: var(--primary); }
+        .role-badge.campus_admin { background: #0ea5e9; }
         .role-badge.teacher { background: #16a34a; }
         .role-badge.staff { background: #d97706; }
         .role-badge.accountant { background: #d97706; }
@@ -248,6 +249,35 @@
             max-width: 250px;
         }
 
+        .campus-tools {
+            display: flex;
+            gap: 0.8rem;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+        }
+        .campus-tools input {
+            padding: 0.7rem 0.9rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            min-width: 220px;
+        }
+        .campus-btn {
+            background: #0ea5e9;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 0.7rem 1.1rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .campus-btn:hover { background: #0284c7; }
+        .campus-muted {
+            color: #64748b;
+            font-size: 0.85rem;
+            margin-top: 0.3rem;
+        }
+
         /* Add User Form */
         .add-user-form {
             background: #ffffff;
@@ -355,7 +385,38 @@
                     <input type="email" id="newUserEmail" placeholder="Email address">
                     <input type="password" id="newUserPassword" placeholder="Password (min 6 chars)">
                     <select id="newUserRole"></select>
+                    <select id="newUserCampus">
+                        <option value="">All Campuses (School-wide)</option>
+                    </select>
                     <button class="btn-add" id="btnAddUser">Create User</button>
+                </div>
+                <div class="campus-muted" id="campusHint">Campus assignment controls visibility inside one school.</div>
+            </div>
+
+            <!-- Campus Management -->
+            <div class="dashboard-panel" id="campusPanel">
+                <h3 style="margin: 0 0 1rem 0; font-size: 1.2rem; color: #0f172a;">🏫 Campus Management</h3>
+                <div class="campus-tools">
+                    <input type="text" id="newCampusName" placeholder="Campus Name (e.g. North Campus)">
+                    <input type="text" id="newCampusCode" placeholder="Campus Code (optional)">
+                    <button class="campus-btn" id="btnAddCampus">Add Campus</button>
+                </div>
+                <div class="data-table-container">
+                    <table class="perm-table">
+                        <thead>
+                            <tr>
+                                <th>Campus Name</th>
+                                <th>Code</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="campusesContainer">
+                            <tr>
+                                <td colspan="4" style="padding: 1.2rem; color: #64748b;">Loading campuses...</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
@@ -369,12 +430,13 @@
                                 <th>User</th>
                                 <th>Email</th>
                                 <th>Current Role</th>
-                                <th>Action (Change Role)</th>
+                                <th>Campus</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="usersContainer">
                             <tr>
-                                <td colspan="4" style="padding: 2rem; color: #64748b;">Loading users...</td>
+                                <td colspan="5" style="padding: 2rem; color: #64748b;">Loading users...</td>
                             </tr>
                         </tbody>
                     </table>

@@ -173,7 +173,7 @@
 
         /* Column specific styling */
         .col-roll { font-weight: 700; color: #0f172a; text-align: left !important; padding-left: 0.5rem !important; width: 60px; white-space: nowrap; }
-        .col-name { text-align: left !important; width: 130px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
+        .col-name { text-align: left !important; width: 170px; min-width: 140px; white-space: normal; word-break: break-word; font-size: 0.9rem; font-weight: 600; }
         .col-balance { font-weight: 800; color: #b91c1c; white-space: nowrap;}
         .col-balance.zero { color: #10b981; }
 
@@ -185,6 +185,7 @@
         }
         .att-pill.P { background: #10b981; }
         .att-pill.A { background: #ef4444; }
+        .att-pill.H { background: #3b82f6; }
 
         /* Contact Cell Layout */
         .contact-cell {
@@ -343,7 +344,11 @@
             </div>
 
             <div class="control-group">
-                <input type="text" id="rollFilter" class="control-input" placeholder="Roll No..." style="width: 100px;">
+                <input type="text" id="rollFilter" class="control-input" placeholder="Roll / Name..." style="width: 130px;">
+            </div>
+
+            <div class="control-group">
+                <input type="text" id="commentsFilter" class="control-input" placeholder="Search comments..." style="width: 150px;">
             </div>
 
             <div class="control-group" style="margin-left:auto; gap: 1rem;">
@@ -357,6 +362,7 @@
 
             <div class="control-group">
                 <button class="btn-action btn-outline" id="btnClearFilters">Reset Filters</button>
+            </div>
             </div>
         </div>
 

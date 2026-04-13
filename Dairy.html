@@ -1,0 +1,773 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Things To Do — Supabase</title>
+<style>
+  :root{
+    --primary:#0d6efd;
+    --bg:#f5f7fb;
+    --card:#fff;
+    --text:#222;
+    --muted:#6b7280;
+    --danger:#e11d48;
+    --muted-2:#374151;
+  }
+  html,body{height:100%}
+  body{
+    margin:0;
+    font-family:Arial,Helvetica,sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    padding:14px;
+    -webkit-font-smoothing:antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .card{
+    background:var(--card);
+    padding:14px;
+    border-radius:12px;
+    box-shadow:0 8px 20px rgba(0,0,0,0.06);
+    max-width:1100px;
+    margin:0 auto;
+  }
+  h1{margin:0 0 10px;font-size:20px}
+  .controls{display:grid;grid-template-columns:1fr 210px 140px;gap:10px;align-items:start}
+  textarea{width:100%;min-height:70px;padding:10px;border:1px solid #d1d5db;border-radius:10px;font-size:14px;resize:vertical}
+  input,select,button{width:100%;padding:10px;border:1px solid #d1d5db;border-radius:10px;margin-top:6px;font-size:14px;box-sizing:border-box}
+  .btn{background:var(--primary);color:#fff;border:none;padding:10px;border-radius:10px;cursor:pointer}
+  .hint{color:var(--muted);margin-top:8px;font-size:13px}
+
+  table{width:100%;border-collapse:collapse;margin-top:12px;font-size:16px}
+  th,td{padding:10px 10px;border-bottom:1px solid #e6e9ef;text-align:left;vertical-align:middle;font-size:16px}
+  thead th{background:var(--primary);color:#fff;font-weight:700}
+  .done{opacity:0.6;text-decoration:line-through}
+  .small{padding:6px 8px;font-size:12px;border-radius:8px}
+  .filters{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap}
+  .pending-counter{ color:var(--danger); font-weight:800; font-size:24px; margin-left:12px; line-height:1; padding:4px 8px; }
+  .col-toggles{display:flex;gap:8px;align-items:center;margin-left:12px}
+  .col-toggles label{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .col-toggles input[type="checkbox"]{width:16px;height:16px;margin:0}
+  .action-col{width:56px;max-width:56px;min-width:56px;padding:0}
+  .action-btn{ display:block; width:36px; height:36px; margin:6px auto; padding:0; border-radius:8px; border:none; box-sizing:border-box; cursor:pointer; text-align:center; line-height:36px; font-size:16px; background:#f3f4f6; color:var(--muted-2); }
+  .action-btn:active{transform:translateY(1px)}
+  .action-btn .btn-text{display:none}
+  .action-btn .btn-icon{display:inline-block}
+  .action-btn.pin{background:#fff7ed;color:#92400e}
+  .action-btn.toggle{background:#ecfdf5;color:#065f46}
+  .action-btn.edit{background:#fffbeb;color:#92400e}
+  .action-btn.del{background:#fff1f2;color:#9f1239}
+  .todo-edit-input{width:100%;min-height:48px;padding:8px;border:1px solid #cbd5e1;border-radius:8px;font-size:15px}
+  .edit-actions{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+
+  @media (max-width:900px){
+    .controls{grid-template-columns:1fr 180px 120px}
+    .pending-counter{font-size:22px}
+  }
+
+  @media (max-width:600px){
+    .controls{grid-template-columns:1fr;gap:8px}
+    .filters{flex-direction:column;align-items:stretch}
+    .action-col{width:64px;min-width:64px}
+    .action-btn{width:40px;height:40px;line-height:40px;font-size:18px}
+    table{font-size:15px}
+    th,td{font-size:15px;padding:10px}
+    .pending-counter{font-size:26px}
+    input,select,button,textarea{font-size:16px;padding:12px}
+  }
+
+  .todo-text{ display:inline-block; max-width:100%; white-space: normal; word-break: normal; overflow-wrap: break-word; hyphens: auto; font-size:17px; line-height:1.35; }
+  .cat-badge{ display:inline-block;padding:4px 8px;border-radius:8px;font-weight:700;font-size:12px;background:#eef2ff;color:#1e3a8a; }
+  tr.pinned{background: linear-gradient(90deg, rgba(255,249,219,0.6), rgba(255,255,255,0));}
+</style>
+</head>
+<body>
+<main class="card">
+  <h1>Things To Do</h1>
+
+  <div class="hint">Write a todo, pick a date (defaults to today). The page only reads documents changed since your last sync when you open or press <strong>Refresh</strong>.</div>
+
+  <div style="margin-top:12px" class="controls">
+    <div>
+      <label for="todoText">Todo</label>
+      <textarea id="todoText" placeholder="Write what you need to do..."></textarea>
+
+      <label for="todoCategory" style="margin-top:6px">Category</label>
+      <select id="todoCategory" aria-label="Todo Category">
+        <option value="S" selected>S</option>
+        <option value="T">T</option>
+        <option value="A">A</option>
+        <option value="Z">Z</option>
+        <option value="O">O</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="todoDate">Date</label>
+      <input type="date" id="todoDate" />
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <label style="visibility:hidden">placeholder</label>
+      <button id="addTodoBtn" type="button" class="btn">Save Todo</button>
+      <button id="clearBtn" type="button" class="small" style="background:#e6e9ef;border:0;color:#111">Clear</button>
+      <div class="hint" style="text-align:center;margin-top:8px;font-size:12px">Tap Edit to change only the Todo text inline.</div>
+    </div>
+  </div>
+
+  <div class="filters">
+    <div>
+      <label for="fltDate">Filter by date</label>
+      <input type="date" id="fltDate" />
+    </div>
+
+    <div>
+      <label for="fltTodo">Search Todo</label>
+      <input type="text" id="fltTodo" placeholder="Search todo text..." />
+    </div>
+
+    <div>
+      <label for="fltCategory">Category</label>
+      <select id="fltCategory" aria-label="Filter by category">
+        <option value="">All</option>
+        <option value="S">S</option>
+        <option value="T">T</option>
+        <option value="A">A</option>
+        <option value="Z">Z</option>
+        <option value="O">O</option>
+      </select>
+    </div>
+
+    <div style="display:flex;align-items:center;">
+      <div>
+        <label for="fltStatus">Status</label>
+        <select id="fltStatus">
+          <option value="">All</option>
+          <option value="Pending" selected>Pending</option>
+          <option value="Done">Done</option>
+        </select>
+      </div>
+
+      <div id="pendingCount" class="pending-counter" title="Total pending todos">0</div>
+
+      <div class="col-toggles" aria-hidden="false">
+        <label title="Show Date"><input id="chkShowDate" type="checkbox" /> Date</label>
+        <label title="Show Category"><input id="chkShowCategory" type="checkbox" /> Category</label>
+        <label title="Show Days"><input id="chkShowDays" type="checkbox" /> Days</label>
+        <label title="Show Status"><input id="chkShowStatus" type="checkbox" /> Status</label>
+      </div>
+    </div>
+
+    <div style="margin-left:auto">
+      <label>&nbsp;</label>
+      <button id="refreshBtn" type="button" class="small">Refresh</button>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th class="col-date">Date</th>
+        <th>Todo</th>
+        <th class="col-category">Category</th>
+        <th class="col-days">Days</th>
+        <th class="col-status">Status</th>
+        <th class="action-col">Action</th>
+      </tr>
+    </thead>
+    <tbody id="todosBody"></tbody>
+  </table>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth.js"></script>
+<script>
+const db = () => window.supabaseClient;
+let currentSchoolId = null;
+
+async function waitForAuthContext(timeoutMs = 10000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (window.authReady === true && window.supabaseClient) {
+      currentSchoolId = window.currentSchoolId || null;
+      return;
+    }
+    await new Promise(r => setTimeout(r, 80));
+  }
+
+  if ((window.currentSchoolId === null || window.currentSchoolId === undefined) && window.currentUser?.id) {
+    const { data: roleData } = await window.supabaseClient
+      .from('user_roles')
+      .select('school_id')
+      .eq('user_id', window.currentUser.id)
+      .single();
+    window.currentSchoolId = roleData?.school_id ?? null;
+  }
+  currentSchoolId = window.currentSchoolId || null;
+}
+
+/* DOM refs */
+const todoText = document.getElementById('todoText');
+const todoDate = document.getElementById('todoDate');
+const addTodoBtn = document.getElementById('addTodoBtn');
+const clearBtn = document.getElementById('clearBtn');
+const todosBody = document.getElementById('todosBody');
+const fltDate = document.getElementById('fltDate');
+const fltStatus = document.getElementById('fltStatus');
+const refreshBtn = document.getElementById('refreshBtn');
+const pendingCountEl = document.getElementById('pendingCount');
+
+const todoCategory = document.getElementById('todoCategory');
+const fltTodo = document.getElementById('fltTodo');
+const fltCategory = document.getElementById('fltCategory');
+
+const chkShowDate = document.getElementById('chkShowDate');
+const chkShowCategory = document.getElementById('chkShowCategory');
+const chkShowDays = document.getElementById('chkShowDays');
+const chkShowStatus = document.getElementById('chkShowStatus');
+
+function setTodayInputs(){
+  const today = new Date().toISOString().slice(0,10);
+  todoDate.value = today;
+  fltDate.value = '';
+  if(fltStatus) fltStatus.value = 'Pending';
+  if(fltTodo) fltTodo.value = '';
+  if(todoCategory) todoCategory.value = 'S';
+  if(fltCategory) fltCategory.value = '';
+  if(chkShowDate) chkShowDate.checked = false;
+  if(chkShowCategory) chkShowCategory.checked = false;
+  if(chkShowDays) chkShowDays.checked = false;
+  if(chkShowStatus) chkShowStatus.checked = false;
+}
+setTodayInputs();
+
+let todosCache = [];
+
+/* Cache keys */
+function getCacheKey(){
+  const suffix = currentSchoolId ? String(currentSchoolId) : 'global';
+  return `todos_cache_v1_${suffix}`;
+}
+function getCacheMetaKey(){
+  const suffix = currentSchoolId ? String(currentSchoolId) : 'global';
+  return `todos_cache_meta_v1_${suffix}`;
+}
+
+/* small helpers */
+function escapeHtml(s){ return (s==null)?'':String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+function computeDaysOpen(todo){
+  let startMs = null;
+  if(todo.date_ts){
+    try { startMs = new Date(todo.date_ts).getTime(); } catch(e){ startMs = null; }
+  }
+  if(!startMs && todo.date){
+    startMs = new Date((todo.date) + 'T00:00:00').getTime();
+  }
+  if(!startMs && todo.created_at){
+    startMs = new Date(todo.created_at).getTime();
+  }
+  if(!startMs && todo.createdAt && todo.createdAt.seconds){
+    startMs = todo.createdAt.seconds * 1000;
+  }
+  if(!startMs) startMs = Date.now();
+
+  let endMs = Date.now();
+  if(todo.status === 'Done'){
+    if(todo.completed_at){
+      endMs = new Date(todo.completed_at).getTime();
+    } else
+    if(todo.completedAt && todo.completedAt.seconds){
+      endMs = todo.completedAt.seconds * 1000;
+    } else if (todo.updated_at) {
+      endMs = new Date(todo.updated_at).getTime();
+    } else if (todo.updatedAt && todo.updatedAt.seconds) {
+      endMs = todo.updatedAt.seconds * 1000;
+    }
+  }
+
+  const diff = Math.floor((endMs - startMs) / MS_PER_DAY);
+  return diff >= 0 ? diff : 0;
+}
+
+function formatTimestamp12(ts){
+  if(!ts) return '';
+  try {
+    const d = ts.seconds ? new Date(ts.seconds * 1000) : new Date(ts);
+    return d.toLocaleString(undefined, {
+      year: 'numeric', month: 'short', day: 'numeric',
+      hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true
+    });
+  } catch(e){
+    return String(ts);
+  }
+}
+
+function updatePendingCounter(){
+  const pendingCount = todosCache.reduce((acc,t)=> acc + ((t.status === 'Pending' && !t.deleted)?1:0), 0);
+  pendingCountEl.textContent = String(pendingCount);
+}
+
+function debounce(fn, wait=200){
+  let timer = null;
+  return (...args) => {
+    if(timer) clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), wait);
+  };
+}
+
+function updateColumnVisibility(){
+  const showDate = chkShowDate ? chkShowDate.checked : false;
+  const showCat = chkShowCategory ? chkShowCategory.checked : false;
+  const showDays = chkShowDays ? chkShowDays.checked : false;
+  const showStatus = chkShowStatus ? chkShowStatus.checked : false;
+
+  document.querySelectorAll('.col-date').forEach(el => el.style.display = showDate ? '' : 'none');
+  document.querySelectorAll('.col-category').forEach(el => el.style.display = showCat ? '' : 'none');
+  document.querySelectorAll('.col-days').forEach(el => el.style.display = showDays ? '' : 'none');
+  document.querySelectorAll('.col-status').forEach(el => el.style.display = showStatus ? '' : 'none');
+}
+
+/* ---------- Local cache (localStorage) helpers ---------- */
+function saveCacheToLocal(){
+  try {
+    localStorage.setItem(getCacheKey(), JSON.stringify(todosCache));
+  } catch (err){
+    console.warn('saveCacheToLocal failed', err);
+  }
+}
+
+function setLastFetchedToNowOrLatest(){
+  try {
+    let latestMs = Date.now();
+    todosCache.forEach(t => {
+      if(!t) return;
+      const m = new Date(t.updated_at || t.created_at || Date.now()).getTime();
+      if(!isNaN(m) && m > latestMs) latestMs = m;
+    });
+    localStorage.setItem(getCacheMetaKey(), JSON.stringify({ lastFetched: latestMs }));
+  } catch (err){
+    try { localStorage.setItem(getCacheMetaKey(), JSON.stringify({ lastFetched: Date.now() })); } catch(e){ /* ignore */ }
+  }
+}
+
+function loadCacheFromLocal(){
+  try {
+    const raw = localStorage.getItem(getCacheKey());
+    if(!raw) return false;
+    const parsed = JSON.parse(raw);
+    if(!Array.isArray(parsed)) return false;
+    todosCache = parsed;
+    // ensure stable sort
+    todosCache.sort((a,b) => {
+      const ap = a.pinned ? 1 : 0;
+      const bp = b.pinned ? 1 : 0;
+      if(ap !== bp) return bp - ap;
+      return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+    });
+    updatePendingCounter();
+    renderTodos();
+    return true;
+  } catch(err){
+    console.warn('loadCacheFromLocal failed', err);
+    return false;
+  }
+}
+
+/* ---------- Supabase one-shot fetch (full table) ---------- */
+async function fetchTodosOnceFromSupabase(){
+  try {
+    let q = db().from('todos').select('*').order('created_at', { ascending: false });
+    if (currentSchoolId) q = q.eq('school_id', currentSchoolId);
+    const { data, error } = await q;
+    if (error) throw error;
+
+    todosCache = data || [];
+
+    todosCache.sort((a,b) => {
+      const ap = a.pinned ? 1 : 0;
+      const bp = b.pinned ? 1 : 0;
+      if(ap !== bp) return bp - ap;
+      return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+    });
+
+    saveCacheToLocal();
+    setLastFetchedToNowOrLatest();
+    updatePendingCounter();
+    renderTodos();
+  } catch(err){
+    console.error('fetchTodosOnceFromSupabase failed', err);
+    alert('Failed to fetch todos from server. Ensure table `todos` exists and includes school_id for this tenant.\n' + (err.message||err));
+  }
+}
+
+/* ---------- Fetch only changed/new rows since lastFetched ---------- */
+async function fetchDeltasFromSupabase(lastFetchedMs){
+  if(!lastFetchedMs){
+    await fetchTodosOnceFromSupabase();
+    return;
+  }
+
+  try {
+    const sinceIso = new Date(lastFetchedMs).toISOString();
+    let q = db().from('todos').select('*').gt('updated_at', sinceIso).order('updated_at', { ascending: true });
+    if (currentSchoolId) q = q.eq('school_id', currentSchoolId);
+    const { data, error } = await q;
+    if (error) throw error;
+
+    if (data && data.length){
+      data.forEach(docObj => {
+        const ix = todosCache.findIndex(x => x.id === docObj.id);
+        if(ix >= 0){
+          todosCache[ix] = docObj;
+        } else {
+          todosCache.unshift(docObj);
+        }
+      });
+
+      // sort pinned then newest
+      todosCache.sort((a,b) => {
+        const ap = a.pinned ? 1 : 0;
+        const bp = b.pinned ? 1 : 0;
+        if(ap !== bp) return bp - ap;
+        return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+      });
+
+      saveCacheToLocal();
+      setLastFetchedToNowOrLatest();
+      updatePendingCounter();
+      renderTodos();
+    } else {
+      setLastFetchedToNowOrLatest();
+    }
+  } catch(err){
+    console.error('fetchDeltasFromSupabase failed', err);
+  }
+}
+
+/* ---------- Add Todo ---------- */
+addTodoBtn.addEventListener('click', async ()=>{
+  const text = (todoText.value || '').trim();
+  const dateStr = todoDate.value || '';
+  const category = (todoCategory && todoCategory.value) ? todoCategory.value : 'S';
+  if(!text){ alert('Write something to do.'); return; }
+  try {
+    addTodoBtn.disabled = true;
+
+    const payload = {
+      text,
+      date: dateStr,
+      date_ts: dateStr ? new Date(dateStr + 'T00:00:00').toISOString() : null,
+      status: 'Pending',
+      category: category,
+      pinned: false,
+      deleted: false
+    };
+
+    if (currentSchoolId) payload.school_id = currentSchoolId;
+
+    const { data, error } = await db().from('todos').insert(payload).select('*').single();
+    if (error) throw error;
+
+    const localObj = data;
+    todosCache.unshift(localObj);
+
+    // reorder and persist
+    todosCache.sort((a,b) => {
+      const ap = a.pinned ? 1 : 0;
+      const bp = b.pinned ? 1 : 0;
+      if(ap !== bp) return bp - ap;
+      return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+    });
+
+    saveCacheToLocal();
+    setLastFetchedToNowOrLatest();
+    updatePendingCounter();
+    renderTodos();
+    todoText.value = '';
+    setTodayInputs();
+    todoText.focus();
+  } catch(err){
+    console.error('add todo failed', err);
+    alert('Failed to add todo: ' + (err.message||err));
+  } finally {
+    addTodoBtn.disabled = false;
+  }
+});
+
+/* ---------- Render todos (ignore soft-deleted) ---------- */
+function renderTodos(){
+  todosBody.innerHTML = '';
+  const dateFilter = fltDate.value || '';
+  const statusFilter = fltStatus.value || '';
+  const textFilter = (fltTodo && (fltTodo.value || '').trim().toLowerCase()) || '';
+  const categoryFilter = (fltCategory && (fltCategory.value || '').trim()) || '';
+
+  const rows = todosCache.filter(t => {
+    if(t.deleted === true) return false;
+    if(dateFilter && String(t.date || '') !== String(dateFilter)) return false;
+    if(statusFilter && String(t.status || '') !== String(statusFilter)) return false;
+    if(categoryFilter){
+      const catVal = String(t.category || '').trim().toLowerCase();
+      if(catVal !== categoryFilter.toLowerCase()) return false;
+    }
+    if(textFilter){
+      const hay = String(t.text || '').toLowerCase();
+      if(!hay.includes(textFilter)) return false;
+    }
+    return true;
+  });
+
+  rows.forEach((t, idx) => {
+    const tr = document.createElement('tr');
+    if(t.pinned) tr.classList.add('pinned');
+    const isDone = t.status === 'Done';
+    const days = computeDaysOpen(t);
+
+    tr.innerHTML = `
+      <td style="width:32px">${idx+1}</td>
+      <td class="col-date" style="width:120px">${escapeHtml(t.date || '')}</td>
+      <td class="todo-cell ${isDone? 'done':''}" data-id="${t.id}"><span class="todo-text">${escapeHtml(t.text || '')}</span></td>
+      <td class="col-category" style="width:86px">${escapeHtml(t.category || '')}</td>
+      <td class="col-days" style="width:80px;font-weight:700">${days}</td>
+      <td class="col-status" style="width:90px">${escapeHtml(t.status || '')}</td>
+      <td class="action-col" style="text-align:center">
+        <button class="action-btn pin" type="button" data-id="${t.id}" data-action="pin" title="${t.pinned ? 'Unpin' : 'Pin'}"><span class="btn-icon">📌</span></button>
+        <button class="action-btn toggle" type="button" data-id="${t.id}" data-action="toggle" title="${isDone ? 'Mark Pending' : 'Mark Done'}"><span class="btn-icon">${isDone ? '↺' : '✔'}</span></button>
+        <button class="action-btn edit" type="button" data-id="${t.id}" data-action="edit" title="Edit"><span class="btn-icon">✎</span></button>
+        <button class="action-btn del" type="button" data-id="${t.id}" data-action="delete" title="Delete"><span class="btn-icon">🗑</span></button>
+      </td>
+    `;
+    todosBody.appendChild(tr);
+  });
+
+  document.querySelectorAll('#todosBody button').forEach(b => {
+    b.addEventListener('click', async (ev) => {
+      const id = b.dataset.id;
+      const action = b.dataset.action;
+      if(action === 'delete'){
+        if(!confirm('Delete this todo?')) return;
+        const idx = todosCache.findIndex(x=>x.id===id);
+        if(idx === -1) return;
+        const removed = { ...todosCache[idx] };
+        todosCache[idx].deleted = true;
+        saveCacheToLocal();
+        renderTodos();
+        try {
+          let uq = db().from('todos').update({ deleted: true }).eq('id', id);
+          if (currentSchoolId) uq = uq.eq('school_id', currentSchoolId);
+          const { error } = await uq;
+          if (error) throw error;
+        } catch(err){
+          todosCache[idx] = removed;
+          saveCacheToLocal();
+          renderTodos();
+          console.error('delete (soft) failed', err);
+          alert('Delete failed: ' + (err.message||err));
+        }
+      } else if(action === 'toggle'){
+        try {
+          const tdoc = todosCache.find(x=>x.id===id) || {};
+          const newStatus = (tdoc.status === 'Done') ? 'Pending' : 'Done';
+          const old = { ...tdoc };
+          if(tdoc) {
+            tdoc.status = newStatus;
+            if(newStatus === 'Done') {
+              tdoc.completed_at = new Date().toISOString();
+            } else {
+              tdoc.completed_at = null;
+            }
+            tdoc.updated_at = new Date().toISOString();
+          }
+          saveCacheToLocal();
+          renderTodos();
+          let patch = { status: newStatus };
+          if (newStatus === 'Done') patch.completed_at = new Date().toISOString();
+          else patch.completed_at = null;
+          let uq = db().from('todos').update(patch).eq('id', id);
+          if (currentSchoolId) uq = uq.eq('school_id', currentSchoolId);
+          const { error } = await uq;
+          if (error) throw error;
+        } catch(err){
+          const tdoc = todosCache.find(x=>x.id===id);
+          if(tdoc){
+            tdoc.status = (tdoc.status === 'Done') ? 'Pending' : 'Done';
+            tdoc.updated_at = new Date().toISOString();
+          }
+          saveCacheToLocal();
+          renderTodos();
+          console.error('toggle failed', err);
+          alert('Update failed: ' + (err.message||err));
+        }
+      } else if(action === 'edit'){
+        startInlineEdit(id);
+      } else if(action === 'pin'){
+        try {
+          const tdoc = todosCache.find(x=>x.id===id) || {};
+          const newPinned = !(tdoc && tdoc.pinned);
+          if(tdoc) tdoc.pinned = newPinned;
+          todosCache.sort((a,b) => {
+            const ap = a.pinned ? 1 : 0;
+            const bp = b.pinned ? 1 : 0;
+            if(ap !== bp) return bp - ap;
+            return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+          });
+          saveCacheToLocal();
+          renderTodos();
+          let uq = db().from('todos').update({ pinned: newPinned }).eq('id', id);
+          if (currentSchoolId) uq = uq.eq('school_id', currentSchoolId);
+          const { error } = await uq;
+          if (error) throw error;
+        } catch(err){
+          console.error('pin toggle failed', err);
+          alert('Pin update failed: ' + (err.message||err));
+        }
+      }
+    });
+  });
+
+  updateColumnVisibility();
+}
+
+/* ---------- Inline edit logic ---------- */
+let currentEditingId = null;
+
+function startInlineEdit(id){
+  if(currentEditingId) {
+    if(currentEditingId === id) return;
+    cancelCurrentEdit();
+  }
+
+  const todoCell = document.querySelector(`#todosBody td.todo-cell[data-id="${id}"]`);
+  if(!todoCell) return;
+  const todoObj = todosCache.find(t => t.id === id);
+  const originalText = todoObj ? (todoObj.text || '') : todoCell.querySelector('.todo-text')?.textContent || '';
+
+  todoCell.dataset.orig = originalText;
+  todoCell.innerHTML = `
+    <div>
+      <textarea class="todo-edit-input" data-edit-id="${id}">${escapeHtml(originalText)}</textarea>
+      <div class="edit-actions">
+        <button class="small action-btn toggle" data-edit-action="save" data-edit-id="${id}" style="background:#10b981;color:#fff">Save</button>
+        <button class="small action-btn" data-edit-action="cancel" data-edit-id="${id}" style="background:#e6e9ef;color:#111">Cancel</button>
+      </div>
+    </div>
+  `;
+  currentEditingId = id;
+  const ta = todoCell.querySelector('textarea.todo-edit-input');
+  if(ta){ ta.focus(); ta.select(); }
+
+  todoCell.querySelectorAll('button[data-edit-action]').forEach(btn => {
+    btn.addEventListener('click', async (ev) => {
+      const act = btn.dataset.editAction;
+      const editId = btn.dataset.editId;
+      if(act === 'cancel'){
+        cancelCurrentEdit();
+      } else if(act === 'save'){
+        const input = todoCell.querySelector('textarea.todo-edit-input');
+        const newText = input ? input.value.trim() : '';
+        if(!newText){
+          alert('Todo text cannot be empty.');
+          return;
+        }
+        let oldText = null;
+        try {
+          btn.disabled = true;
+          const tdoc = todosCache.find(x=>x.id===editId);
+          oldText = tdoc ? tdoc.text : null;
+          if(tdoc) {
+            tdoc.text = newText;
+            tdoc.updated_at = new Date().toISOString();
+          }
+          saveCacheToLocal();
+          renderTodos();
+          let uq = db().from('todos').update({ text: newText }).eq('id', editId);
+          if (currentSchoolId) uq = uq.eq('school_id', currentSchoolId);
+          const { error } = await uq;
+          if (error) throw error;
+          currentEditingId = null;
+        } catch(err){
+          const tdoc = todosCache.find(x=>x.id===editId);
+          if(tdoc) tdoc.text = oldText;
+          saveCacheToLocal();
+          renderTodos();
+          console.error('save edit failed', err);
+          alert('Failed to save edit: ' + (err.message||err));
+        } finally {
+          btn.disabled = false;
+        }
+      }
+    });
+  });
+}
+
+function cancelCurrentEdit(){
+  if(!currentEditingId) return;
+  const todoCell = document.querySelector(`#todosBody td.todo-cell[data-id="${currentEditingId}"]`);
+  const todoObj = todosCache.find(t => t.id === currentEditingId);
+  const restoreText = todoObj ? (todoObj.text || '') : (todoCell ? (todoCell.dataset.orig || '') : '');
+  if(todoCell){
+    todoCell.innerHTML = `<span class="todo-text">${escapeHtml(restoreText)}</span>`;
+    delete todoCell.dataset.orig;
+  }
+  currentEditingId = null;
+}
+
+/* ---------- Clear button ---------- */
+clearBtn.addEventListener('click', ()=>{
+  todoText.value = '';
+  setTodayInputs();
+});
+
+/* ---------- Filters ---------- */
+fltDate.addEventListener('change', () => { renderTodos(); updatePendingCounter(); });
+if(fltStatus){
+  fltStatus.addEventListener('change', () => { renderTodos(); updatePendingCounter(); });
+}
+if(fltCategory){
+  fltCategory.addEventListener('change', () => { renderTodos(); updatePendingCounter(); });
+}
+refreshBtn.addEventListener('click', async ()=>{
+  const metaRaw = localStorage.getItem(getCacheMetaKey());
+  const meta = metaRaw ? JSON.parse(metaRaw) : null;
+  const lastFetchedMs = meta && meta.lastFetched ? meta.lastFetched : null;
+  await fetchDeltasFromSupabase(lastFetchedMs);
+});
+
+if(chkShowDate) chkShowDate.addEventListener('change', () => { updateColumnVisibility(); });
+if(chkShowCategory) chkShowCategory.addEventListener('change', () => { updateColumnVisibility(); });
+if(chkShowDays) chkShowDays.addEventListener('change', () => { updateColumnVisibility(); });
+if(chkShowStatus) chkShowStatus.addEventListener('change', () => { updateColumnVisibility(); });
+
+if(fltTodo){
+  const run = () => { renderTodos(); updatePendingCounter(); };
+  const deb = debounce(run, 220);
+  fltTodo.addEventListener('input', deb);
+}
+
+setInterval(() => {
+  updatePendingCounter();
+  renderTodos();
+}, 60 * 1000);
+
+/* ---------- init ---------- */
+(async function init(){
+  await waitForAuthContext();
+  const hadCache = loadCacheFromLocal();
+  const metaRaw = localStorage.getItem(getCacheMetaKey());
+  const meta = metaRaw ? JSON.parse(metaRaw) : null;
+  const lastFetchedMs = meta && meta.lastFetched ? meta.lastFetched : null;
+
+  if(!hadCache){
+    await fetchTodosOnceFromSupabase();
+  } else {
+    await fetchDeltasFromSupabase(lastFetchedMs);
+  }
+})();
+</script>
+</body>
+</html>

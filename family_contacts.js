@@ -10,6 +10,8 @@ let studentBalancesMap = {}; // Cache for individual student balances for WA bil
 let allPendingChallans = []; // Full details for bill breakdown
 let waTemplates = []; // User templates for WhatsApp
 let currentOpenMobile = null; // Track who is opened in modal
+let recentAttendance = {}; // student_id -> { date: status }
+let recentDates = []; // Last 3 calendar dates (YYYY-MM-DD)
 
 const STATUS_COLORS = {
     'C': 'status-C',
@@ -150,6 +152,30 @@ async function loadBaseData() {
             familyBalances[fam.mobile] = famTotal;
         });
 
+        // Fetch Last 3 Days Attendance
+        const attToday = new Date();
+        recentDates = [];
+        for (let i = 2; i >= 0; i--) {
+            const d = new Date(attToday);
+            d.setDate(attToday.getDate() - i);
+            recentDates.push(d.toISOString().slice(0, 10));
+        }
+        const allMemberIds = allFamilies.flatMap(f => f.members.map(m => m.id));
+        if (allMemberIds.length > 0) {
+            const { data: attData, error: attErr } = await window.supabaseClient
+                .from('attendance')
+                .select('student_id, status, date')
+                .in('date', recentDates)
+                .in('student_id', allMemberIds);
+            recentAttendance = {};
+            if (attData && !attErr) {
+                attData.forEach(a => {
+                    if (!recentAttendance[a.student_id]) recentAttendance[a.student_id] = {};
+                    recentAttendance[a.student_id][a.date] = a.status;
+                });
+            }
+        }
+
         // Load Templates
         await loadWaTemplates();
 
@@ -254,12 +280,23 @@ function renderTable() {
         return true;
     });
 
-    // 2. Sort by Family Number ascending: 1,2,8,9,14,15...
-    // Numeric family numbers come first, then non-numeric/blank values.
+    // 2. Sort: pinned first (by balance desc), then unpinned (by family number asc)
     rowsToRender.sort((a, b) => {
+        const aPinned = !!(a.data.pinned);
+        const bPinned = !!(b.data.pinned);
+
+        // Pinned always above unpinned
+        if (aPinned && !bPinned) return -1;
+        if (!aPinned && bPinned) return 1;
+
+        // Both pinned: sort by balance descending
+        if (aPinned && bPinned) {
+            return (familyBalances[b.fam.mobile] || 0) - (familyBalances[a.fam.mobile] || 0);
+        }
+
+        // Both unpinned: sort by family number ascending
         const aNoRaw = (a.fam.familyNo || '').toString().trim();
         const bNoRaw = (b.fam.familyNo || '').toString().trim();
-
         const aNo = Number.parseInt(aNoRaw, 10);
         const bNo = Number.parseInt(bNoRaw, 10);
         const aIsNum = Number.isFinite(aNo);
@@ -295,8 +332,22 @@ function renderTable() {
 
         // Fetch true balance from cached family balances
 
-        // Build member list HTML
-        const membersHtml = fam.members.map(m => `<div style="font-size:0.85rem; color:#475569; padding:2px 0;">• ${m.full_name} <b>(${m.roll_number})</b></div>`).join('');
+        // Build member list with inline attendance pills
+        const dayLabels = ['D3', 'D2', 'D1'];
+        const membersHtml = fam.members.map(m => {
+            const studentAtt = recentAttendance[m.id] || {};
+            const pills = recentDates.map((dateStr, i) => {
+                const st = studentAtt[dateStr];
+                const lbl = dayLabels[i];
+                if (!st) return `<div class="att-pill" style="width:18px;height:18px;font-size:0.5rem;" title="${dateStr}">-</div>`;
+                if (st === 'Present') return `<div class="att-pill P" style="width:18px;height:18px;font-size:0.5rem;" title="Present ${dateStr}">${lbl}</div>`;
+                if (st === 'Absent')  return `<div class="att-pill A" style="width:18px;height:18px;font-size:0.5rem;" title="Absent ${dateStr}">${lbl}</div>`;
+                if (st === 'Holiday') return `<div class="att-pill H" style="width:18px;height:18px;font-size:0.5rem;" title="Holiday ${dateStr}">H</div>`;
+                if (st === 'Leave')   return `<div class="att-pill L" style="width:18px;height:18px;font-size:0.5rem;" title="Leave ${dateStr}">${lbl}</div>`;
+                return `<div class="att-pill" style="width:18px;height:18px;font-size:0.5rem;" title="${dateStr}">-</div>`;
+            }).reverse().join('');
+            return `<div style="display:flex;align-items:center;gap:4px;padding:2px 0;">• <span style="font-size:0.85rem;color:#475569;flex:1;">${m.full_name} <b>(${m.roll_number})</b></span><div style="display:flex;gap:2px;">${pills}</div></div>`;
+        }).join('');
 
         tr.innerHTML = `
             <td class="col-roll">${fam.familyNo || '—'}</td>

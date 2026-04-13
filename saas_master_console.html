@@ -93,7 +93,7 @@
             font-size: 0.85rem; margin-right: 0.6rem; vertical-align: middle; flex-shrink: 0;
         }
 
-        .role-select, .school-select {
+        .role-select, .school-select, .campus-select {
             padding: 0.4rem 0.6rem; border: 1px solid #e2e8f0; border-radius: 6px;
             font-family: 'Inter', sans-serif; font-weight: 600; font-size: 0.8rem;
             background: white; cursor: pointer; color: #0f172a; width: 100%; max-width: 200px;
@@ -167,6 +167,35 @@
             </div>
         </div>
 
+        <!-- Create School Admin -->
+        <div class="panel">
+            <h2><i class="fas fa-user-shield" style="color:var(--primary);"></i> Create School Admin</h2>
+            <div style="display:grid; grid-template-columns: 1.2fr 1.2fr 1fr 1.2fr auto; gap:0.8rem; align-items:end;">
+                <div class="form-group">
+                    <label>Full Name *</label>
+                    <input type="text" id="newAdminName" class="form-control" placeholder="School Admin Name">
+                </div>
+                <div class="form-group">
+                    <label>Email *</label>
+                    <input type="email" id="newAdminEmail" class="form-control" placeholder="admin@school.com">
+                </div>
+                <div class="form-group">
+                    <label>Password *</label>
+                    <input type="password" id="newAdminPassword" class="form-control" placeholder="min 6 chars">
+                </div>
+                <div class="form-group">
+                    <label>Assign School *</label>
+                    <select id="newAdminSchool" class="form-control"></select>
+                </div>
+                <button class="btn btn-primary" id="btnCreateAdmin" style="height:42px; white-space:nowrap;">
+                    <i class="fas fa-user-plus"></i> Create Admin
+                </button>
+            </div>
+            <div style="margin-top:0.6rem; color:#64748b; font-size:0.82rem;">
+                This creates login credentials and assigns role ADMIN to the selected school.
+            </div>
+        </div>
+
         <!-- Schools List -->
         <div class="panel">
             <h2><i class="fas fa-building" style="color:var(--primary);"></i> Active Subscriptions / Campuses</h2>
@@ -185,6 +214,43 @@
                     </thead>
                     <tbody id="schoolsList">
                         <tr><td colspan="7" style="text-align:center; color:#94a3b8; padding: 2rem;"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Campus Management -->
+        <div class="panel">
+            <h2><i class="fas fa-map-marker-alt" style="color:var(--primary);"></i> Campus Management</h2>
+            <div style="display:grid; grid-template-columns: 1.2fr 1fr 1fr auto; gap:0.8rem; align-items:end; margin-bottom:1rem;">
+                <div class="form-group">
+                    <label>Select School *</label>
+                    <select id="campusSchoolSelect" class="form-control"></select>
+                </div>
+                <div class="form-group">
+                    <label>Campus Name *</label>
+                    <input type="text" id="campusName" class="form-control" placeholder="North Campus">
+                </div>
+                <div class="form-group">
+                    <label>Campus Code</label>
+                    <input type="text" id="campusCode" class="form-control" placeholder="NTH">
+                </div>
+                <button class="btn btn-primary" id="btnAddCampus" style="height:42px; white-space:nowrap;">
+                    <i class="fas fa-plus"></i> Add Campus
+                </button>
+            </div>
+            <div class="data-table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Campus</th>
+                            <th>Code</th>
+                            <th>Status</th>
+                            <th style="text-align:right;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="campusesList">
+                        <tr><td colspan="4" style="text-align:center; color:#94a3b8; padding: 1.5rem;">Select a school to manage campuses.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -224,11 +290,12 @@
                             <th>User</th>
                             <th>Assigned School</th>
                             <th>Role</th>
+                            <th>Campus</th>
                             <th style="text-align:right;">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="usersList">
-                        <tr><td colspan="4" style="text-align:center; color:#94a3b8; padding: 2rem;"><i class="fas fa-spinner fa-spin"></i> Loading users...</td></tr>
+                        <tr><td colspan="5" style="text-align:center; color:#94a3b8; padding: 2rem;"><i class="fas fa-spinner fa-spin"></i> Loading users...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -241,11 +308,14 @@
     <script>
         let allSchools = [];
         let allRoles = [];
+        let allCampuses = [];
 
         document.addEventListener('DOMContentLoaded', async () => {
             await checkSuperAdmin();
             await loadMetadata();
             await loadSchools();
+            wireCampusEvents();
+            await loadCampusesForSelectedSchool();
             await loadUsers();
         });
 
@@ -253,25 +323,215 @@
             try {
                 const { data: schools } = await window.supabaseClient.from('schools').select('id, school_name');
                 const { data: roles } = await window.supabaseClient.from('roles').select('id, role_name');
+                const { data: campuses } = await window.supabaseClient.from('campuses').select('id, school_id, campus_name, campus_code, is_active');
                 allSchools = schools || [];
                 allRoles = roles || [];
+                allCampuses = campuses || [];
+
+                const schoolSel = document.getElementById('campusSchoolSelect');
+                if (schoolSel) {
+                    schoolSel.innerHTML = allSchools.map(s => `<option value="${s.id}">${s.school_name}</option>`).join('');
+                }
+
+                const adminSchoolSel = document.getElementById('newAdminSchool');
+                if (adminSchoolSel) {
+                    adminSchoolSel.innerHTML = allSchools.length
+                        ? allSchools.map(s => `<option value="${s.id}">${s.school_name}</option>`).join('')
+                        : '<option value="">No schools available</option>';
+                }
             } catch (err) { console.error(err); }
+        }
+
+        function wireCampusEvents() {
+            const sel = document.getElementById('campusSchoolSelect');
+            if (sel) sel.addEventListener('change', loadCampusesForSelectedSchool);
+            const addBtn = document.getElementById('btnAddCampus');
+            if (addBtn) addBtn.addEventListener('click', addCampusToSelectedSchool);
+            const addAdminBtn = document.getElementById('btnCreateAdmin');
+            if (addAdminBtn) addAdminBtn.addEventListener('click', createSchoolAdmin);
+        }
+
+        async function createSchoolAdmin() {
+            const name = (document.getElementById('newAdminName').value || '').trim();
+            const email = (document.getElementById('newAdminEmail').value || '').trim();
+            const password = document.getElementById('newAdminPassword').value || '';
+            const schoolId = document.getElementById('newAdminSchool').value || null;
+            const btn = document.getElementById('btnCreateAdmin');
+
+            if (!name || !email || !password || !schoolId) {
+                showToast('Please fill all School Admin fields.', 'error');
+                return;
+            }
+            if (password.length < 6) {
+                showToast('Password must be at least 6 characters.', 'error');
+                return;
+            }
+
+            const adminRole = allRoles.find(r => r.role_name === 'admin');
+            if (!adminRole) {
+                showToast('Admin role not found. Run RBAC setup first.', 'error');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
+
+            try {
+                const { data: sessionData } = await window.supabaseClient.auth.getSession();
+                const ownerSession = sessionData?.session || null;
+
+                const { data: signUpData, error: signUpError } = await window.supabaseClient.auth.signUp({
+                    email,
+                    password,
+                    options: { data: { full_name: name } }
+                });
+
+                if (signUpError) {
+                    throw signUpError;
+                }
+                if (!signUpData?.user?.id) {
+                    throw new Error('Auth user creation failed.');
+                }
+
+                const payload = {
+                    user_id: signUpData.user.id,
+                    email,
+                    full_name: name,
+                    role_id: adminRole.id,
+                    school_id: schoolId,
+                    campus_id: null
+                };
+
+                const { error: urErr } = await window.supabaseClient
+                    .from('user_roles')
+                    .upsert(payload, { onConflict: 'user_id' });
+
+                if (urErr) throw urErr;
+
+                // restore owner session if signUp switched current user context
+                if (ownerSession?.access_token && ownerSession?.refresh_token) {
+                    try {
+                        await window.supabaseClient.auth.setSession({
+                            access_token: ownerSession.access_token,
+                            refresh_token: ownerSession.refresh_token
+                        });
+                    } catch (_) {}
+                }
+
+                showToast(`School admin created for ${email}`, 'success');
+                document.getElementById('newAdminName').value = '';
+                document.getElementById('newAdminEmail').value = '';
+                document.getElementById('newAdminPassword').value = '';
+                await loadUsers();
+            } catch (err) {
+                showToast('Create admin failed: ' + (err.message || 'Unknown error'), 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-user-plus"></i> Create Admin';
+            }
+        }
+
+        async function loadCampusesForSelectedSchool() {
+            try {
+                const sel = document.getElementById('campusSchoolSelect');
+                const schoolId = sel ? sel.value : null;
+                if (!schoolId) {
+                    document.getElementById('campusesList').innerHTML = `<tr><td colspan="4" style="text-align:center; color:#94a3b8; padding: 1.5rem;">Select a school to manage campuses.</td></tr>`;
+                    return;
+                }
+                const rows = allCampuses.filter(c => c.school_id === schoolId).sort((a,b) => (a.campus_name || '').localeCompare(b.campus_name || ''));
+                renderCampuses(rows);
+            } catch (err) { console.error(err); }
+        }
+
+        function renderCampuses(rows) {
+            const list = document.getElementById('campusesList');
+            if (!rows || rows.length === 0) {
+                list.innerHTML = `<tr><td colspan="4" style="text-align:center; color:#94a3b8; padding: 1.5rem;">No campuses found for this school.</td></tr>`;
+                return;
+            }
+            list.innerHTML = rows.map(c => `
+                <tr>
+                    <td><strong>${c.campus_name}</strong></td>
+                    <td>${c.campus_code || '—'}</td>
+                    <td>${c.is_active ? '<span class="badge badge-active">Active</span>' : '<span class="badge badge-inactive">Inactive</span>'}</td>
+                    <td style="text-align:right; white-space:nowrap;">
+                        ${c.is_active
+                            ? `<button class="btn-danger-sm" onclick="toggleCampus('${c.id}', false)"><i class="fas fa-ban"></i> Deactivate</button>`
+                            : `<button class="btn-success-sm" onclick="toggleCampus('${c.id}', true)"><i class="fas fa-check"></i> Activate</button>`
+                        }
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function addCampusToSelectedSchool() {
+            const schoolId = document.getElementById('campusSchoolSelect').value;
+            const name = (document.getElementById('campusName').value || '').trim();
+            const code = (document.getElementById('campusCode').value || '').trim();
+            if (!schoolId || !name) {
+                showToast('School and campus name are required.', 'error');
+                return;
+            }
+            try {
+                const { error } = await window.supabaseClient.from('campuses').insert({
+                    school_id: schoolId,
+                    campus_name: name,
+                    campus_code: code || null,
+                    is_active: true
+                });
+                if (error) throw error;
+                document.getElementById('campusName').value = '';
+                document.getElementById('campusCode').value = '';
+                showToast('Campus added successfully!', 'success');
+                await loadMetadata();
+                await loadCampusesForSelectedSchool();
+                await loadUsers();
+            } catch (err) {
+                showToast('Failed to add campus: ' + err.message, 'error');
+            }
+        }
+
+        window.toggleCampus = async function(campusId, status) {
+            try {
+                const { error } = await window.supabaseClient.from('campuses').update({ is_active: status }).eq('id', campusId);
+                if (error) throw error;
+                showToast(status ? 'Campus activated!' : 'Campus deactivated!', 'success');
+                await loadMetadata();
+                await loadCampusesForSelectedSchool();
+                await loadUsers();
+            } catch (err) {
+                showToast('Campus update failed: ' + err.message, 'error');
+            }
         }
 
         async function checkSuperAdmin() {
             try {
                 const { data: { user } } = await window.supabaseClient.auth.getUser();
-                if(!user) return;
-                const { data } = await window.supabaseClient.rpc('is_super_admin');
-                if(!data) {
-                    const { data: roleId } = await window.supabaseClient.from('roles').select('id').eq('role_name', 'super_admin').single();
-                    if(roleId) {
-                        await window.supabaseClient.from('user_roles').update({role_id: roleId.id}).eq('user_id', user.id);
-                        alert("You have been promoted to Super Admin. Please refresh.");
-                        location.reload();
-                    }
+                if (!user) {
+                    window.location.href = 'login.html';
+                    return;
                 }
-            } catch (err) { console.error("Access Control Err", err); }
+                // Primary check: DB role
+                const { data: isSuperAdmin } = await window.supabaseClient.rpc('is_super_admin');
+                if (isSuperAdmin) return; // Access granted
+
+                // Fallback: direct role lookup in user_roles for the owner email
+                const { data: roleRow } = await window.supabaseClient
+                    .from('user_roles')
+                    .select('roles(role_name)')
+                    .eq('user_id', user.id)
+                    .maybeSingle();
+                const roleName = roleRow?.roles?.role_name;
+                if (roleName === 'super_admin') return; // Access granted via fallback
+
+                alert("Access denied. Only the authorized Super Admin can access this page.");
+                window.location.href = 'dashboard.html?denied=1';
+            } catch (err) {
+                console.error("Access Control Err", err);
+                alert("Could not verify access. Please try logging in again.");
+                window.location.href = 'login.html';
+            }
         }
 
         // ─── Schools ──────────────────────────────────────────────────────────────
@@ -343,15 +603,28 @@
             btn.disabled = true;
 
             try {
-                const { error } = await window.supabaseClient.from('schools').insert({
+                const { data: schoolRow, error } = await window.supabaseClient.from('schools').insert({
                     school_name: name,
                     city: document.getElementById('schoolCity').value.trim() || null,
                     whatsapp: document.getElementById('schoolWhatsapp').value.trim() || null,
                     max_students: parseInt(document.getElementById('schoolMaxStudents').value) || 100,
                     monthly_fee: parseFloat(document.getElementById('schoolFee').value) || 0,
                     is_active: true
-                });
+                }).select('id').single();
                 if (error) throw error;
+
+                // Auto-create one Main Campus for each new school
+                if (schoolRow?.id) {
+                    const { error: campusErr } = await window.supabaseClient.from('campuses').insert({
+                        school_id: schoolRow.id,
+                        campus_name: 'Main Campus',
+                        campus_code: 'MAIN',
+                        is_active: true
+                    });
+                    if (campusErr && !(campusErr.message || '').toLowerCase().includes('duplicate')) {
+                        throw campusErr;
+                    }
+                }
 
                 document.getElementById('schoolName').value = '';
                 document.getElementById('schoolCity').value = '';
@@ -362,6 +635,7 @@
                 showToast('School created successfully!', 'success');
                 await loadSchools();
                 await loadMetadata();
+                await loadCampusesForSelectedSchool();
             } catch (err) {
                 showToast(err.message, 'error');
             } finally {
@@ -397,7 +671,7 @@
             try {
                 const { data, error } = await window.supabaseClient
                     .from('user_roles')
-                    .select('id, user_id, email, full_name, role_id, school_id, schools(school_name), roles(role_name)')
+                    .select('id, user_id, email, full_name, role_id, school_id, campus_id, schools(school_name), roles(role_name), campuses(campus_name)')
                     .order('email', { ascending: true });
                 
                 if (error) throw error;
@@ -405,7 +679,7 @@
                 document.getElementById('statUsers').textContent = data ? data.length : 0;
                 
                 if (!data || data.length === 0) {
-                    list.innerHTML = `<tr><td colspan="4" style="text-align:center; color:#94a3b8; padding: 2rem;">No users found.</td></tr>`;
+                    list.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#94a3b8; padding: 2rem;">No users found.</td></tr>`;
                     return;
                 }
 
@@ -414,10 +688,15 @@
                     const rName = rObj ? rObj.role_name : 'unknown';
                     const sObj = Array.isArray(u.schools) ? u.schools[0] : u.schools;
                     const sName = sObj ? sObj.school_name : 'Unassigned';
+                    const cObj = Array.isArray(u.campuses) ? u.campuses[0] : u.campuses;
+                    const campusName = cObj ? cObj.campus_name : 'All Campuses';
                     const initial = (u.full_name || u.email || '?').charAt(0).toUpperCase();
 
                     const schoolOptions = allSchools.map(s => `<option value="${s.id}" ${u.school_id === s.id ? 'selected' : ''}>${s.school_name}</option>`).join('');
-                    const roleOptions = allRoles.map(r => `<option value="${r.id}" ${u.role_id === r.id ? 'selected' : ''}>${r.role_name.replace('_',' ').toUpperCase()}</option>`).join('');
+                    const roleOptions = allRoles.filter(r => r.role_name !== 'super_admin').map(r => `<option value="${r.id}" ${u.role_id === r.id ? 'selected' : ''}>${r.role_name.replace('_',' ').toUpperCase()}</option>`).join('');
+                    const campusOptions = ['<option value="">All Campuses</option>'].concat(
+                        allCampuses.filter(c => c.school_id === u.school_id && c.is_active).map(c => `<option value="${c.id}" ${u.campus_id === c.id ? 'selected' : ''}>${c.campus_name}</option>`)
+                    ).join('');
 
                     return `
                     <tr>
@@ -441,6 +720,12 @@
                                 ${roleOptions}
                             </select>
                         </td>
+                        <td>
+                            <select class="campus-select" onchange="updateUser('${u.id}', 'campus_id', this.value)">
+                                ${campusOptions}
+                            </select>
+                            <div style="font-size:0.75rem; color:#64748b; margin-top:0.2rem;">${campusName}</div>
+                        </td>
                         <td style="text-align:right;">
                             <button class="btn-danger-sm" onclick="removeUserRole('${u.id}', '${u.email}')">
                                 <i class="fas fa-trash"></i> Remove
@@ -452,7 +737,7 @@
 
             } catch (err) {
                 console.error(err);
-                document.getElementById('usersList').innerHTML = `<tr><td colspan="4" style="color:red; text-align:center; padding:2rem;">Failed to load users.</td></tr>`;
+                document.getElementById('usersList').innerHTML = `<tr><td colspan="5" style="color:red; text-align:center; padding:2rem;">Failed to load users.</td></tr>`;
             }
         }
 
@@ -460,9 +745,13 @@
             try {
                 const update = {};
                 update[field] = value || null;
+                if (field === 'school_id') {
+                    update.campus_id = null;
+                }
                 const { error } = await window.supabaseClient.from('user_roles').update(update).eq('id', id);
                 if (error) throw error;
                 showToast('Updated successfully!', 'success');
+                if (field === 'school_id') await loadUsers();
             } catch (err) { showToast('Update failed: ' + err.message, 'error'); }
         }
 

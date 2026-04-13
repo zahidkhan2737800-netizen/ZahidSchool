@@ -473,6 +473,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     status: getVal('status') || 'Pending'
                 };
                 if (currentSchoolId) formData.school_id = currentSchoolId;
+                if (window.campusFeatureReady && window.currentCampusId) formData.campus_id = window.currentCampusId;
 
                 // Final Duplicate Check Before Save
                 const isDuplicate = await isRollNumberDuplicate(formData.roll_number, editingStudentRecordId);

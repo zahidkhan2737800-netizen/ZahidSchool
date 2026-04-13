@@ -40,6 +40,8 @@ const PAGE_KEYS = Object.keys(PAGE_LABELS);
 let allRoles = [];
 let allPermissions = [];  // flat array from DB
 let pendingChanges = {};  // track unsaved toggle changes
+let campuses = [];
+let campusFeatureReady = false;
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
@@ -64,6 +66,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Load data
     await loadRolesAndPermissions();
+    await loadCampusData();
     await loadUsers();
 
     // Save button
@@ -71,6 +74,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Add user button
     document.getElementById('btnAddUser').addEventListener('click', addNewUser);
+    const addCampusBtn = document.getElementById('btnAddCampus');
+    if (addCampusBtn) addCampusBtn.addEventListener('click', addCampus);
 });
 
 // Wait for auth.js to finish
@@ -111,7 +116,7 @@ async function loadRolesAndPermissions() {
         // Populate role dropdown in user form (HIDE ADMIN)
         const roleSelect = document.getElementById('newUserRole');
         roleSelect.innerHTML = allRoles
-            .filter(r => r.role_name !== 'admin')
+            .filter(r => r.role_name !== 'admin' && r.role_name !== 'super_admin')
             .map(r => `<option value="${r.id}">${r.role_name.replace('_', ' ').toUpperCase()}</option>`)
             .join('');
 
@@ -129,7 +134,7 @@ function renderPermissionsMatrix() {
     pendingChanges = {};
 
     // Do NOT render the matrix card for "admin" (supreme power)
-    allRoles.filter(role => role.role_name !== 'admin').forEach(role => {
+    allRoles.filter(role => role.role_name !== 'admin' && role.role_name !== 'super_admin').forEach(role => {
         const badgeClass = role.role_name;
         const card = document.createElement('div');
         card.className = 'dashboard-panel';
@@ -260,11 +265,11 @@ async function loadUsers() {
         // Fetch user_roles with role info, name, and email
         const { data: userRoles, error } = await supabaseClient
             .from('user_roles')
-            .select('id, user_id, full_name, email, role_id, roles(role_name)');
+            .select('id, user_id, full_name, email, role_id, campus_id, roles(role_name), campuses(campus_name)');
         if (error) throw error;
 
         if (!userRoles || userRoles.length === 0) {
-            container.innerHTML = '<tr><td colspan="4" style="color:#94a3b8; text-align:center; padding:2rem;">No users registered yet.</td></tr>';
+            container.innerHTML = '<tr><td colspan="5" style="color:#94a3b8; text-align:center; padding:2rem;">No users registered yet.</td></tr>';
             return;
         }
 
@@ -277,6 +282,11 @@ async function loadUsers() {
             // Display Full Name. Fallback to Email. Fallback to UUID.
             const displayName = ur.full_name || 'Unnamed User';
             const displayEmail = ur.email || ur.user_id.substring(0, 8) + '...';
+            const cObj = Array.isArray(ur.campuses) ? ur.campuses[0] : ur.campuses;
+            const campusName = cObj?.campus_name || 'All Campuses';
+            const campusOptions = ['<option value="">All Campuses (School-wide)</option>']
+                .concat(campuses.filter(c => c.is_active).map(c => `<option value="${c.id}" ${ur.campus_id === c.id ? 'selected' : ''}>${c.campus_name}</option>`))
+                .join('');
 
             const row = document.createElement('tr');
             row.innerHTML = `
@@ -289,10 +299,16 @@ async function loadUsers() {
                 <td style="color: #475569;">${displayEmail}</td>
                 <td><span class="role-badge ${rName}">${rName.replace('_', ' ').toUpperCase()}</span></td>
                 <td>
-                ${rName === 'admin' 
+                ${campusFeatureReady
+                    ? `<select class="role-select campus-select" data-ur-id="${ur.id}" data-user-id="${ur.user_id}" style="max-width:260px;">${campusOptions}</select>`
+                    : `<span style="color:#64748b;">${campusName}</span>`
+                }
+                </td>
+                <td>
+                ${rName === 'admin' || rName === 'super_admin'
                     ? '<div style="font-size:0.8rem; font-weight:800; color:#2563eb; padding:0.4rem 0.8rem; border-radius:6px; background:#eff6ff; display: inline-block;">SUPER ADMIN</div>'
                     : `<select class="role-select" data-ur-id="${ur.id}" data-user-id="${ur.user_id}">
-                        ${allRoles.filter(r => r.role_name !== 'admin').map(r => `<option value="${r.id}" ${r.id === ur.role_id ? 'selected' : ''}>${r.role_name.replace('_', ' ').toUpperCase()}</option>`).join('')}
+                        ${allRoles.filter(r => r.role_name !== 'admin' && r.role_name !== 'super_admin').map(r => `<option value="${r.id}" ${r.id === ur.role_id ? 'selected' : ''}>${r.role_name.replace('_', ' ').toUpperCase()}</option>`).join('')}
                        </select>`
                 }
                 </td>
@@ -314,6 +330,24 @@ async function loadUsers() {
                     }
                 });
             } // Close if(sel)
+
+            const campusSel = row.querySelector('.campus-select');
+            if (campusSel) {
+                campusSel.addEventListener('change', async (e) => {
+                    try {
+                        const newCampus = e.target.value || null;
+                        const { error } = await supabaseClient
+                            .from('user_roles')
+                            .update({ campus_id: newCampus })
+                            .eq('id', ur.id);
+                        if (error) throw error;
+                        showToast('✅ Campus assignment updated!', 'success');
+                    } catch (err) {
+                        showToast('❌ Campus update failed: ' + err.message, 'error');
+                        await loadUsers();
+                    }
+                });
+            }
             
             container.appendChild(row);
         }
@@ -329,6 +363,7 @@ async function addNewUser() {
     const email = document.getElementById('newUserEmail').value.trim();
     const password = document.getElementById('newUserPassword').value;
     const roleId = document.getElementById('newUserRole').value;
+    const campusId = document.getElementById('newUserCampus')?.value || null;
     const btn = document.getElementById('btnAddUser');
 
     if (!fullName || !email || !password) {
@@ -388,7 +423,8 @@ async function addNewUser() {
                 role_id: roleId,
                 full_name: fullName,
                 email: email,
-                school_id: schoolId
+                school_id: schoolId,
+                campus_id: campusFeatureReady ? campusId : null
             });
 
         if (roleError) {
@@ -396,7 +432,7 @@ async function addNewUser() {
                 // Duplicate — just update instead
                 await supabaseClient
                     .from('user_roles')
-                    .update({ role_id: roleId, full_name: fullName, school_id: schoolId })
+                    .update({ role_id: roleId, full_name: fullName, school_id: schoolId, campus_id: campusFeatureReady ? campusId : null })
                     .eq('user_id', signUpData.user.id);
             } else {
                 throw roleError;
@@ -409,6 +445,7 @@ async function addNewUser() {
         document.getElementById('newUserName').value = '';
         document.getElementById('newUserEmail').value = '';
         document.getElementById('newUserPassword').value = '';
+        if (document.getElementById('newUserCampus')) document.getElementById('newUserCampus').value = '';
 
         await loadUsers();
 
@@ -418,6 +455,114 @@ async function addNewUser() {
     } finally {
         btn.disabled = false;
         btn.textContent = 'Create User';
+    }
+}
+
+// ─── Campus Management ───────────────────────────────────────────────────────
+async function loadCampusData() {
+    const campusPanel = document.getElementById('campusPanel');
+    const campusHint = document.getElementById('campusHint');
+    const campusSelect = document.getElementById('newUserCampus');
+    try {
+        const sid = window.currentSchoolId || null;
+        if (!sid) throw new Error('Current school not found for campus scope.');
+
+        const { data, error } = await supabaseClient
+            .from('campuses')
+            .select('id, campus_name, campus_code, is_active')
+            .eq('school_id', sid)
+            .order('campus_name');
+
+        if (error) throw error;
+        campusFeatureReady = true;
+        campuses = data || [];
+        populateCampusSelect(campusSelect, campuses);
+        renderCampuses();
+        if (campusHint) campusHint.textContent = 'Assign a campus to restrict a user to that campus. Keep blank for school-wide access.';
+    } catch (err) {
+        campusFeatureReady = false;
+        campuses = [];
+        if (campusPanel) campusPanel.style.display = 'none';
+        if (campusSelect) {
+            campusSelect.innerHTML = '<option value="">Campus feature not enabled</option>';
+            campusSelect.disabled = true;
+        }
+        if (campusHint) campusHint.textContent = 'Campus feature not enabled yet. Run multi_campus_setup.sql to activate campus controls.';
+    }
+}
+
+function populateCampusSelect(selectEl, list) {
+    if (!selectEl) return;
+    selectEl.disabled = false;
+    selectEl.innerHTML = '<option value="">All Campuses (School-wide)</option>' +
+        list.filter(c => c.is_active).map(c => `<option value="${c.id}">${c.campus_name}</option>`).join('');
+}
+
+function renderCampuses() {
+    const tbody = document.getElementById('campusesContainer');
+    if (!tbody) return;
+    if (!campuses.length) {
+        tbody.innerHTML = '<tr><td colspan="4" style="padding:1rem; color:#64748b;">No campuses found. Add your first campus above.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = campuses.map(c => `
+        <tr>
+            <td><strong>${c.campus_name}</strong></td>
+            <td>${c.campus_code || '—'}</td>
+            <td>${c.is_active ? '✅ Active' : '⛔ Inactive'}</td>
+            <td>
+                <button class="campus-btn" style="background:${c.is_active ? '#ef4444' : '#16a34a'};" onclick="toggleCampus('${c.id}', ${c.is_active ? 'false' : 'true'})">${c.is_active ? 'Deactivate' : 'Activate'}</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function addCampus() {
+    if (!campusFeatureReady) {
+        showToast('⚠️ Campus feature is not enabled in database.', 'error');
+        return;
+    }
+    const nameEl = document.getElementById('newCampusName');
+    const codeEl = document.getElementById('newCampusCode');
+    const name = (nameEl?.value || '').trim();
+    const code = (codeEl?.value || '').trim();
+    if (!name) {
+        showToast('⚠️ Campus name is required.', 'error');
+        return;
+    }
+    try {
+        const { error } = await supabaseClient
+            .from('campuses')
+            .insert({
+                school_id: window.currentSchoolId,
+                campus_name: name,
+                campus_code: code || null,
+                is_active: true
+            });
+        if (error) throw error;
+        if (nameEl) nameEl.value = '';
+        if (codeEl) codeEl.value = '';
+        showToast('✅ Campus added!', 'success');
+        await loadCampusData();
+        await loadUsers();
+    } catch (err) {
+        showToast('❌ Failed to add campus: ' + err.message, 'error');
+    }
+}
+
+window.toggleCampus = async function(campusId, nextState) {
+    try {
+        const { error } = await supabaseClient
+            .from('campuses')
+            .update({ is_active: nextState })
+            .eq('id', campusId)
+            .eq('school_id', window.currentSchoolId);
+        if (error) throw error;
+        showToast('✅ Campus status updated.', 'success');
+        await loadCampusData();
+        await loadUsers();
+    } catch (err) {
+        showToast('❌ Failed to update campus: ' + err.message, 'error');
     }
 }
 

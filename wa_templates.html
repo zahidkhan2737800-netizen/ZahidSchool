@@ -55,6 +55,12 @@
             background: #f8fafc; padding: 1rem; border-radius: 8px; border: 1px dashed #cbd5e1; margin-bottom: 1.5rem;
         }
         .placeholders-box code { color: #2563eb; font-weight: bold; background: #e0e7ff; padding: 2px 6px; border-radius: 4px; }
+        .placeholder-buttons { display:flex; flex-wrap:wrap; gap:0.4rem; margin-top:0.7rem; }
+        .ph-btn {
+            border:1px solid #cbd5e1; background:#fff; color:#334155; border-radius:6px;
+            padding:0.35rem 0.55rem; font-size:0.82rem; font-weight:700; cursor:pointer;
+        }
+        .ph-btn:hover { background:#eef2ff; border-color:#a5b4fc; }
 
         .form-group { margin-bottom: 1rem; }
         .form-group label { display: block; font-size: 0.9rem; font-weight: 600; color: #475569; margin-bottom: 0.4rem; }
@@ -110,9 +116,19 @@
                     <ul style="margin:0; padding-left:1.5rem; color:#475569; font-size:0.9rem;">
                         <li><code>{{BILL_DETAILS}}</code> Details of each student & fee</li>
                         <li><code>{{GRAND_TOTAL}}</code> Family total amount</li>
+                        <li><code>{{ABSENT_DETAILS}}</code> Attendance month lines in selected range</li>
+                        <li><code>{{TOTAL_ABSENT}}</code> Total absent days</li>
+                        <li><code>{{STUDENT_NAME}}</code> Returns Student Name</li>
                         <li><code>{{FATHER_NAME}}</code> Returns Father's Name</li>
                         <li><code>{{TODAY_DATE}}</code> Returns today's date</li>
                     </ul>
+                    <div class="placeholder-buttons">
+                        <button type="button" class="ph-btn" onclick="insertPlaceholder('{{ABSENT_DETAILS}}')">Insert Absent Details</button>
+                        <button type="button" class="ph-btn" onclick="insertPlaceholder('{{TOTAL_ABSENT}}')">Insert Total Absent Days</button>
+                        <button type="button" class="ph-btn" onclick="insertPlaceholder('{{STUDENT_NAME}}')">Insert Student Name</button>
+                        <button type="button" class="ph-btn" onclick="insertPlaceholder('{{FATHER_NAME}}')">Insert Father Name</button>
+                        <button type="button" class="ph-btn" onclick="insertPlaceholder('{{TODAY_DATE}}')">Insert Today Date</button>
+                    </div>
                 </div>
 
                 <input type="hidden" id="editId">
@@ -235,6 +251,18 @@
                 await window.supabaseClient.from('wa_templates').delete().eq('id', id);
                 await loadTemplates();
             } catch (err) { alert(err.message); }
+        };
+
+        window.insertPlaceholder = function(token) {
+            const textarea = document.getElementById('messageInput');
+            if (!textarea) return;
+            const start = textarea.selectionStart ?? textarea.value.length;
+            const end = textarea.selectionEnd ?? textarea.value.length;
+            const text = textarea.value;
+            textarea.value = text.slice(0, start) + token + text.slice(end);
+            const pos = start + token.length;
+            textarea.focus();
+            textarea.setSelectionRange(pos, pos);
         };
 
     </script>

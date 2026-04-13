@@ -47,6 +47,8 @@ let currentUser = null;
 let userRole = null;
 let userRoleName = '';
 let userPermissions = {};  // { page_key: { can_view, can_create, can_edit, can_delete } }
+window.currentCampusId = null;
+window.campusFeatureReady = false;
 
 // ─── Auth Guard ────────────────────────────────────────────────────────────────
 (async function authGuard() {
@@ -87,6 +89,20 @@ let userPermissions = {};  // { page_key: { can_view, can_create, can_edit, can_
         }
         window.currentSchoolName = school ? school.school_name : 'System';
         window.currentSchoolId = roleData.school_id || null; // ← expose for tenant isolation
+
+        // Optional campus context (backward-compatible): if campus_id isn't migrated yet, keep null.
+        try {
+            const { data: campusRole } = await supabaseClient
+                .from('user_roles')
+                .select('campus_id')
+                .eq('user_id', currentUser.id)
+                .maybeSingle();
+            window.currentCampusId = campusRole?.campus_id || null;
+            window.campusFeatureReady = true;
+        } catch (_) {
+            window.currentCampusId = null;
+            window.campusFeatureReady = false;
+        }
 
         userRole = Array.isArray(roleData.roles) ? roleData.roles[0] : roleData.roles;
             userRoleName = String(userRole.role_name || '').toLowerCase();

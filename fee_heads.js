@@ -4,6 +4,14 @@
 
 let editFeeId = null;
 let allFeeHeadsData = [];
+const currentSchoolId = window.currentSchoolId || null;
+const applySchoolScope = (query) => currentSchoolId ? query.eq('school_id', currentSchoolId) : query;
+
+function getTenantScopePatch() {
+    const patch = { school_id: currentSchoolId };
+    if (window.campusFeatureReady && window.currentCampusId) patch.campus_id = window.currentCampusId;
+    return patch;
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     const checkAuth = setInterval(() => {
@@ -29,10 +37,10 @@ function initFeeHeads() {
 
 async function loadFeeHeadTypes() {
     try {
-        const { data, error } = await window.supabaseClient
+        const { data, error } = await applySchoolScope(window.supabaseClient
             .from('fee_head_types')
             .select('id, name')
-            .order('name');
+            .order('name'));
         if (error) throw error;
 
         renderTypeTags(data || []);
@@ -78,7 +86,7 @@ window.addFeeType = async function() {
     try {
         const { error } = await window.supabaseClient
             .from('fee_head_types')
-            .insert({ name, created_by: window.currentUser?.id });
+            .insert({ name, created_by: window.currentUser?.id, ...getTenantScopePatch() });
         if (error) {
             if (error.message.includes('unique') || error.code === '23505') {
                 showToast(`"${name}" already exists.`, 'error');
@@ -96,10 +104,10 @@ window.addFeeType = async function() {
 window.deleteFeeType = async function(id, name) {
     if (!confirm(`Remove fee type "${name}"?`)) return;
     try {
-        const { error } = await window.supabaseClient
+        const { error } = await applySchoolScope(window.supabaseClient
             .from('fee_head_types')
             .delete()
-            .eq('id', id);
+            .eq('id', id));
         if (error) throw error;
         showToast(`"${name}" removed.`, 'success');
         loadFeeHeadTypes();
@@ -115,11 +123,11 @@ window.deleteFeeType = async function(id, name) {
 async function loadClasses() {
     const container = document.getElementById('classListContainer');
     try {
-        const { data, error } = await window.supabaseClient
+        const { data, error } = await applySchoolScope(window.supabaseClient
             .from('classes')
             .select('id, class_name, section')
             .order('class_name')
-            .order('section');
+            .order('section'));
         if (error) throw error;
 
         container.innerHTML = '';
@@ -209,7 +217,8 @@ async function handleFeeFormSubmit(e) {
     const payload = {
         fee_type: feeType,
         amount: amountRaw !== '' ? parseFloat(amountRaw) : null,
-        is_monthly: isMonthly
+        is_monthly: isMonthly,
+        ...getTenantScopePatch()
     };
 
     try {
@@ -269,10 +278,10 @@ window.cancelEdit = function() {
 
 async function fetchFeeHeads() {
     try {
-        const { data, error } = await window.supabaseClient
+        const { data, error } = await applySchoolScope(window.supabaseClient
             .from('fee_heads')
             .select(`id, class_id, fee_type, amount, is_monthly, created_at, classes ( class_name, section )`)
-            .order('created_at', { ascending: false });
+            .order('created_at', { ascending: false }));
         if (error) throw error;
 
         allFeeHeadsData = data || [];
@@ -347,7 +356,7 @@ window.editFeeHead = function(id) {
 window.deleteFeeHead = async function(id) {
     if (!confirm('Delete this fee head? Existing challans will not be affected.')) return;
     try {
-        const { error } = await window.supabaseClient.from('fee_heads').delete().eq('id', id);
+        const { error } = await applySchoolScope(window.supabaseClient.from('fee_heads').delete().eq('id', id));
         if (error) throw error;
         showToast('Fee Head deleted.', 'success');
         if (editFeeId === id) cancelEdit();
