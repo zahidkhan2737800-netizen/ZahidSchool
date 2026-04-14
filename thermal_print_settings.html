@@ -241,23 +241,32 @@
       <a href="dashboard.html">Back to Dashboard</a>
     </header>
 
-    <section class="panel">
-      <div class="tabs">
-        <button class="tab-btn active" type="button" data-module="collect_fee">Collect Fee Receipt</button>
-        <button class="tab-btn" type="button" data-module="collect_family_fee">Collect Family Fee Receipt</button>
-      </div>
+    <div class="content-wrapper">
+      <section class="panel">
+        <div class="tabs">
+          <button class="tab-btn active" type="button" data-module="collect_fee">Collect Fee Receipt</button>
+          <button class="tab-btn" type="button" data-module="collect_family_fee">Collect Family Fee Receipt</button>
+        </div>
 
-      <div class="grid" id="settingsGrid"></div>
+        <div class="grid" id="settingsGrid"></div>
 
-      <div class="actions">
-        <button id="saveBtn" class="btn primary" type="button">Save Settings</button>
-        <button id="resetBtn" class="btn" type="button">Reset Current Module</button>
-        <button id="copyBtn" class="btn" type="button">Copy To Other Module</button>
-      </div>
+        <div class="actions">
+          <button id="saveBtn" class="btn primary" type="button">Save Settings</button>
+          <button id="resetBtn" class="btn" type="button">Reset Current Module</button>
+          <button id="copyBtn" class="btn" type="button">Copy To Other Module</button>
+        </div>
 
-      <div class="status" id="statusText"></div>
-      <div class="hint">Tip: Open Collect Fee / Family Fee page and print a receipt after saving to test live thermal size quickly.</div>
-    </section>
+        <div class="status" id="statusText"></div>
+        <div class="hint">Tip: Open Collect Fee / Family Fee page and print a receipt after saving to test live thermal size quickly.</div>
+      </section>
+
+      <section class="preview-panel">
+        <div class="preview-title">Receipt Preview</div>
+        <div class="receipt-container" id="previewContainer">
+          <div class="receipt" id="receiptPreview"></div>
+        </div>
+      </section>
+    </div>
   </div>
 
   <script src="auth.js"></script>
@@ -311,6 +320,8 @@
     const copyBtn = document.getElementById('copyBtn');
     const statusText = document.getElementById('statusText');
     const tabBtns = Array.from(document.querySelectorAll('.tab-btn'));
+    const receiptPreview = document.getElementById('receiptPreview');
+    const previewContainer = document.getElementById('previewContainer');
 
     let activeModule = 'collect_fee';
 
@@ -334,6 +345,70 @@
       return { ...DEFAULTS, ...current };
     }
 
+    function renderReceiptPreview(settings) {
+      const s = settings;
+      
+      // Build sample receipt HTML
+      const receiptHTML = `
+        <div style="padding: ${s.receiptPadY}px ${s.receiptPadX}px; max-width: ${s.maxWidthPx}px;">
+          <div class="receipt-header">
+            <div class="th-school" style="font-size: ${s.schoolFontPx}px; line-height: 1.2;">ZAHID SCHOOL</div>
+            <div class="th-phone" style="font-size: ${s.phoneFontPx}px; margin-top: 2px;">Phone: +92-XXX-XXXXXXX</div>
+            <div class="th-date" style="font-size: ${s.dateFontPx}px; margin-top: 2px;">Issued: 20 Apr 2024</div>
+          </div>
+          
+          <div class="receipt-divider"></div>
+          
+          <div class="receipt-content">
+            <div class="th-row" style="font-size: ${s.rowFontPx}px; margin-bottom: 3px;">
+              <span>Roll: 5</span>
+              <span>Class: 5-A</span>
+            </div>
+            <div class="th-row" style="font-size: ${s.rowFontPx}px; margin-bottom: 6px;">
+              <span>Name: Ahmed Ali</span>
+            </div>
+            
+            <div class="receipt-divider"></div>
+            
+            <div style="font-size: ${s.feeRowFontPx}px; line-height: ${s.lineHeight};">
+              <div class="th-fee-row" style="margin-bottom: 2px;">
+                <span>Tuition</span>
+                <span>PKR 5,000</span>
+              </div>
+              <div class="th-fee-row" style="margin-bottom: 2px;">
+                <span>Books</span>
+                <span>PKR 2,500</span>
+              </div>
+              <div class="th-fee-row" style="margin-bottom: 2px;">
+                <span>Transport</span>
+                <span>PKR 1,500</span>
+              </div>
+            </div>
+            
+            <div class="receipt-divider"></div>
+            
+            <div class="th-total-row" style="font-size: ${s.totalFontPx}px; margin-bottom: 4px;">
+              <span>TOTAL</span>
+              <span>PKR 9,000</span>
+            </div>
+            
+            <div style="font-size: ${s.remainFontPx}px; margin-top: 4px;">
+              Remaining: <strong>PKR 2,000</strong>
+            </div>
+            
+            <div class="th-footer" style="font-size: ${s.footerFontPx}px; margin-top: 8px;">
+              Thank you for your payment
+            </div>
+          </div>
+        </div>
+      `;
+      
+      receiptPreview.innerHTML = receiptHTML;
+      
+      // Apply width constraint to container
+      previewContainer.style.width = `${Math.min(s.maxWidthPx + 20, 400)}px`;
+    }
+
     function renderForm() {
       const vals = moduleSettings(activeModule);
       grid.innerHTML = '';
@@ -346,7 +421,14 @@
         `;
         grid.appendChild(box);
       });
+      
+      // Add event listeners for live preview
+      grid.querySelectorAll('input[data-key]').forEach(inp => {
+        inp.addEventListener('input', updatePreview);
+      });
+      
       statusText.textContent = '';
+      updatePreview();
     }
 
     function readForm() {
@@ -358,6 +440,11 @@
         out[k] = n;
       });
       return { ...DEFAULTS, ...out };
+    }
+
+    function updatePreview() {
+      const vals = readForm();
+      renderReceiptPreview(vals);
     }
 
     tabBtns.forEach(btn => {

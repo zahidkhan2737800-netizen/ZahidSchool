@@ -203,53 +203,106 @@ document.addEventListener('DOMContentLoaded', () => {
     return `syllabus_progress_${sid}_${classId}`;
   }
 
-  function loadGridForClass(classId) {
-    const key = storageKey(classId);
-    const raw = localStorage.getItem(key);
-
-    if (!raw) {
-      resetGrid();
+  async function loadGridForClass(classId) {
+    resetGrid();
+    
+    if (!window.currentSchoolId) {
       renderTable();
       return;
     }
 
     try {
-      const parsed = JSON.parse(raw);
-      if (!parsed || !Array.isArray(parsed.columns) || !Array.isArray(parsed.rows)) {
-        throw new Error('Invalid data format');
+      // Try to load from Supabase
+      const { data, error } = await window.supabaseClient
+        .from('syllabus_progress')
+        .select('columns_json, rows_json')
+        .eq('school_id', window.currentSchoolId)
+        .eq('class_id', classId)
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') {
+        throw error;
       }
 
-      const columns = parsed.columns.filter(c => String(c || '').trim());
-      const normalizedCols = columns.length ? columns : [];
-      const rows = parsed.rows.map(r => {
-        const next = Array.isArray(r) ? r.slice(0, normalizedCols.length) : [];
-        while (next.length < normalizedCols.length) next.push('');
-        return next.map(v => String(v ?? ''));
-      });
+      if (data) {
+        const columns = Array.isArray(data.columns_json) ? data.columns_json : [];
+        const rows = Array.isArray(data.rows_json) ? data.rows_json : [];
 
-      grid = {
-        columns: normalizedCols,
-        rows: rows.length ? rows : [Array.from({ length: normalizedCols.length }, () => '')]
-      };
-    } catch (e) {
-      console.warn('Invalid saved grid, reset.', e);
-      resetGrid();
+        const normalizedCols = columns.filter(c => String(c || '').trim());
+        const normalizedRows = rows.map(r => {
+          const next = Array.isArray(r) ? r.slice(0, normalizedCols.length) : [];
+          while (next.length < normalizedCols.length) next.push('');
+          return next.map(v => String(v ?? ''));
+        });
+
+        grid = {
+          columns: normalizedCols.length ? normalizedCols : [],
+          rows: normalizedRows.length ? normalizedRows : [Array.from({ length: normalizedCols.length }, () => '')]
+        };
+      } else {
+        // Fallback: try localStorage
+        const key = storageKey(classId);
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && Array.isArray(parsed.columns) && Array.isArray(parsed.rows)) {
+            grid = parsed;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Load from Supabase failed, trying localStorage:', err);
+      // Fallback to localStorage
+      const key = storageKey(classId);
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed && Array.isArray(parsed.columns) && Array.isArray(parsed.rows)) {
+            grid = parsed;
+          }
+        } catch (e) {
+          console.warn('Invalid saved grid, reset.', e);
+        }
+      }
     }
 
     renderTable();
   }
 
-  function saveCurrentGrid() {
+  async function saveCurrentGrid() {
     if (!selectedClassId) {
       statusText.textContent = 'Select class before saving.';
       return;
     }
 
     syncTableIntoGrid();
+    statusText.textContent = 'Saving...';
 
     try {
+      // Save to localStorage first (fallback)
       const key = storageKey(selectedClassId);
       localStorage.setItem(key, JSON.stringify(grid));
+
+      // Save to Supabase if school is set
+      if (window.currentSchoolId) {
+        const { error } = await window.supabaseClient
+          .from('syllabus_progress')
+          .upsert({
+            school_id: window.currentSchoolId,
+            class_id: selectedClassId,
+            columns_json: grid.columns,
+            rows_json: grid.rows,
+            updated_by: window.currentUserId || null
+          }, {
+            onConflict: 'school_id,class_id'
+          });
+
+        if (error) {
+          throw error;
+        }
+      }
+
       statusText.textContent = 'Saved successfully.';
     } catch (e) {
       console.error('Save failed', e);
@@ -406,14 +459,32 @@ document.addEventListener('DOMContentLoaded', () => {
   let saveTimer = null;
   function debounceAutoSave() {
     if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
+    saveTimer = setTimeout(async () => {
       if (!selectedClassId) return;
       syncTableIntoGrid();
       try {
-        localStorage.setItem(storageKey(selectedClassId), JSON.stringify(grid));
+        // Save to localStorage first
+        const key = storageKey(selectedClassId);
+        localStorage.setItem(key, JSON.stringify(grid));
+
+        // Save to Supabase if school is set
+        if (window.currentSchoolId) {
+          await window.supabaseClient
+            .from('syllabus_progress')
+            .upsert({
+              school_id: window.currentSchoolId,
+              class_id: selectedClassId,
+              columns_json: grid.columns,
+              rows_json: grid.rows,
+              updated_by: window.currentUserId || null
+            }, {
+              onConflict: 'school_id,class_id'
+            });
+        }
         statusText.textContent = 'Auto-saved.';
       } catch (e) {
-        statusText.textContent = 'Auto-save failed.';
+        console.error('Auto-save failed:', e);
+        statusText.textContent = 'Auto-save failed (saved to browser backup).';
       }
     }, 450);
   }
