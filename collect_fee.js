@@ -53,6 +53,63 @@ const btnReprint    = document.getElementById('btnReprint');
 const checkoutAlert = document.getElementById('checkoutAlert');
 const workspaceDialog = document.querySelector('.workspace-dialog');
 
+function applyThermalSettings(moduleName) {
+    const printArea = document.getElementById('printArea');
+    if (!printArea) return;
+
+    const defaults = {
+        pageMarginMm: 3,
+        printPadTopMm: 4,
+        printPadRightMm: 3,
+        printPadBottomMm: 4,
+        printPadLeftMm: 3,
+        maxWidthPx: 320,
+        baseFontPx: 14,
+        lineHeight: 1.45,
+        receiptPadY: 10,
+        receiptPadX: 8,
+        schoolFontPx: 20,
+        phoneFontPx: 12,
+        dateFontPx: 11,
+        rowFontPx: 14,
+        feeRowFontPx: 14,
+        totalFontPx: 16,
+        remainFontPx: 14,
+        footerFontPx: 11
+    };
+
+    let settings = { ...defaults };
+    try {
+        const raw = localStorage.getItem('thermal_print_settings_v1');
+        const parsed = raw ? JSON.parse(raw) : {};
+        if (parsed && parsed[moduleName] && typeof parsed[moduleName] === 'object') {
+            settings = { ...settings, ...parsed[moduleName] };
+        }
+    } catch (_) {
+        settings = { ...defaults };
+    }
+
+    const root = document.documentElement;
+    root.style.setProperty('--tp-page-margin', `${settings.pageMarginMm}mm`);
+    root.style.setProperty('--tp-print-pad-top', `${settings.printPadTopMm}mm`);
+    root.style.setProperty('--tp-print-pad-right', `${settings.printPadRightMm}mm`);
+    root.style.setProperty('--tp-print-pad-bottom', `${settings.printPadBottomMm}mm`);
+    root.style.setProperty('--tp-print-pad-left', `${settings.printPadLeftMm}mm`);
+    root.style.setProperty('--tp-max-width', `${settings.maxWidthPx}px`);
+    root.style.setProperty('--tp-font-size', `${settings.baseFontPx}px`);
+    root.style.setProperty('--tp-line-height', String(settings.lineHeight));
+    root.style.setProperty('--tp-receipt-pad-y', `${settings.receiptPadY}px`);
+    root.style.setProperty('--tp-receipt-pad-x', `${settings.receiptPadX}px`);
+    root.style.setProperty('--tp-school-font', `${settings.schoolFontPx}px`);
+    root.style.setProperty('--tp-phone-font', `${settings.phoneFontPx}px`);
+    root.style.setProperty('--tp-date-font', `${settings.dateFontPx}px`);
+    root.style.setProperty('--tp-row-font', `${settings.rowFontPx}px`);
+    root.style.setProperty('--tp-fee-row-font', `${settings.feeRowFontPx}px`);
+    root.style.setProperty('--tp-total-font', `${settings.totalFontPx}px`);
+    root.style.setProperty('--tp-remain-font', `${settings.remainFontPx}px`);
+    root.style.setProperty('--tp-footer-font', `${settings.footerFontPx}px`);
+}
+
 function closeWorkspace() {
     workspace.classList.remove('is-open', 'workspace-pop');
     workspace.setAttribute('aria-hidden', 'true');
@@ -313,6 +370,7 @@ async function loadHistory(uuid) {
 
 // ─── Reprint a Saved Receipt ──────────────────────────────────────────────────
 function reprintFromHistory(receipt) {
+    applyThermalSettings('collect_fee');
     document.getElementById('rctNo').textContent        = receipt.receipt_number;
     document.getElementById('rctDate').textContent      = new Date(receipt.created_at).toLocaleString();
     document.getElementById('rctName').textContent      = receipt.student_name;
@@ -613,6 +671,7 @@ async function submitPayment() {
 
 // ─── Receipt Print ────────────────────────────────────────────────────────────
 function printReceipt(receiptId, txRecords, totalPaid, remaining) {
+    applyThermalSettings('collect_fee');
     document.getElementById('rctNo').textContent       = receiptId;
     document.getElementById('rctDate').textContent     = new Date().toLocaleString();
     document.getElementById('rctName').textContent     = activeStudent.full_name;

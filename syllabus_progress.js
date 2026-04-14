@@ -1,8 +1,10 @@
 document.addEventListener('DOMContentLoaded', () => {
   const classSelect = document.getElementById('classSelect');
-  const newColName = document.getElementById('newColName');
+  const classButtons = document.getElementById('classButtons');
+  const activeClassLabel = document.getElementById('activeClassLabel');
   const addColBtn = document.getElementById('addColBtn');
   const addRowBtn = document.getElementById('addRowBtn');
+  const deleteModeBtn = document.getElementById('deleteModeBtn');
   const saveBtn = document.getElementById('saveBtn');
   const tableHead = document.getElementById('tableHead');
   const tableBody = document.getElementById('tableBody');
@@ -10,12 +12,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let classes = [];
   let selectedClassId = '';
+  let deleteMode = false;
   let grid = {
-    columns: ['Topic', 'Reading', 'Writing', 'Dictation'],
-    rows: [
-      ['Chapter 1', '', '', ''],
-      ['', '', '', '']
-    ]
+    columns: [],
+    rows: []
   };
 
   waitForAuth();
@@ -32,6 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
   async function init() {
     addColBtn.addEventListener('click', onAddColumn);
     addRowBtn.addEventListener('click', onAddRow);
+    deleteModeBtn.addEventListener('click', toggleDeleteMode);
     saveBtn.addEventListener('click', saveCurrentGrid);
     classSelect.addEventListener('change', onClassChange);
 
@@ -63,15 +64,20 @@ document.addEventListener('DOMContentLoaded', () => {
         classSelect.appendChild(opt);
       });
 
+      renderClassButtons();
+
       if (!classes.length) {
         statusText.textContent = 'No classes found. Add classes first in Manage Classes.';
         renderTable();
+        activeClassLabel.value = 'No class selected';
         return;
       }
 
       selectedClassId = classes[0].id;
       classSelect.value = selectedClassId;
       loadGridForClass(selectedClassId);
+      syncActiveClassLabel();
+      renderClassButtons();
       statusText.textContent = 'Ready. You can edit cells, add rows, and add columns.';
     } catch (err) {
       console.error('Classes load failed:', err);
@@ -86,19 +92,48 @@ document.addEventListener('DOMContentLoaded', () => {
       resetGrid();
       renderTable();
       statusText.textContent = 'Select a class to start tracking syllabus progress.';
+      activeClassLabel.value = 'No class selected';
+      renderClassButtons();
       return;
     }
 
     loadGridForClass(selectedClassId);
+    syncActiveClassLabel();
+    renderClassButtons();
     statusText.textContent = 'Class changed. Data loaded.';
   }
 
+  function renderClassButtons() {
+    classButtons.innerHTML = '';
+    classes.forEach(c => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `class-btn ${String(c.id) === String(selectedClassId) ? 'active' : ''}`;
+      btn.textContent = `${c.class_name} ${c.section}`.trim();
+      btn.addEventListener('click', () => {
+        selectedClassId = c.id;
+        classSelect.value = c.id;
+        loadGridForClass(c.id);
+        syncActiveClassLabel();
+        renderClassButtons();
+        statusText.textContent = `Class selected: ${btn.textContent}`;
+      });
+      classButtons.appendChild(btn);
+    });
+  }
+
+  function syncActiveClassLabel() {
+    const c = classes.find(x => String(x.id) === String(selectedClassId));
+    activeClassLabel.value = c ? `Selected Class: ${c.class_name} - ${c.section}` : 'No class selected';
+  }
+
   function onAddColumn() {
-    const name = (newColName.value || '').trim();
-    if (!name) {
-      statusText.textContent = 'Enter a column name first.';
+    if (!selectedClassId) {
+      statusText.textContent = 'Select a class first.';
       return;
     }
+
+    const name = `Column ${grid.columns.length + 1}`;
 
     grid.columns.push(name);
     grid.rows = grid.rows.map(r => {
@@ -107,12 +142,21 @@ document.addEventListener('DOMContentLoaded', () => {
       return next;
     });
 
-    newColName.value = '';
     renderTable();
     statusText.textContent = `Column added: ${name}`;
   }
 
   function onAddRow() {
+    if (!selectedClassId) {
+      statusText.textContent = 'Select a class first.';
+      return;
+    }
+
+    if (grid.columns.length === 0) {
+      statusText.textContent = 'Add at least one column first.';
+      return;
+    }
+
     const row = Array.from({ length: grid.columns.length }, () => '');
     grid.rows.push(row);
     renderTable();
@@ -120,11 +164,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function onRemoveColumn(colIndex) {
-    if (colIndex === 0) {
-      statusText.textContent = 'Topic column cannot be removed.';
-      return;
-    }
-
     const name = grid.columns[colIndex];
     grid.columns.splice(colIndex, 1);
     grid.rows = grid.rows.map(r => r.filter((_, i) => i !== colIndex));
@@ -143,13 +182,19 @@ document.addEventListener('DOMContentLoaded', () => {
     statusText.textContent = 'Row removed.';
   }
 
+  function toggleDeleteMode() {
+    deleteMode = !deleteMode;
+    deleteModeBtn.classList.toggle('active', deleteMode);
+    statusText.textContent = deleteMode
+      ? 'Delete mode ON: click a column title to delete column, or click a row to delete row.'
+      : 'Delete mode OFF.';
+    renderTable();
+  }
+
   function resetGrid() {
     grid = {
-      columns: ['Topic', 'Reading', 'Writing', 'Dictation'],
-      rows: [
-        ['Chapter 1', '', '', ''],
-        ['', '', '', '']
-      ]
+      columns: [],
+      rows: []
     };
   }
 
@@ -175,7 +220,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const columns = parsed.columns.filter(c => String(c || '').trim());
-      const normalizedCols = columns.length ? columns : ['Topic', 'Reading', 'Writing', 'Dictation'];
+      const normalizedCols = columns.length ? columns : [];
       const rows = parsed.rows.map(r => {
         const next = Array.isArray(r) ? r.slice(0, normalizedCols.length) : [];
         while (next.length < normalizedCols.length) next.push('');
@@ -231,6 +276,42 @@ document.addEventListener('DOMContentLoaded', () => {
     renderHeader();
     renderBody();
     attachCellListeners();
+    applyAutoColumnWidths();
+  }
+
+  function applyAutoColumnWidths() {
+    if (!grid.columns.length) return;
+
+    const headCells = Array.from(tableHead.querySelectorAll('th'));
+    grid.columns.forEach((_, colIndex) => {
+      const headEl = headCells[colIndex];
+      if (!headEl) return;
+
+      const headerText = String(grid.columns[colIndex] || '').trim();
+      let maxChars = Math.max(4, headerText.length);
+
+      const bodyCells = Array.from(tableBody.querySelectorAll(`td[data-col-index="${colIndex}"] [contenteditable="true"]`));
+      bodyCells.forEach(cell => {
+        const len = String(cell.textContent || '').trim().length;
+        if (len > maxChars) maxChars = len;
+      });
+
+      // Ultra-compact width formula based on text size with tighter bounds.
+      let px = Math.round(maxChars * 7 + 14);
+      if (colIndex === 0) {
+        px = Math.max(78, Math.min(170, px));
+      } else {
+        px = Math.max(34, Math.min(120, px));
+      }
+
+      headEl.style.width = `${px}px`;
+      headEl.style.minWidth = `${px}px`;
+
+      tableBody.querySelectorAll(`td[data-col-index="${colIndex}"]`).forEach(td => {
+        td.style.width = `${px}px`;
+        td.style.minWidth = `${px}px`;
+      });
+    });
   }
 
   function renderHeader() {
@@ -240,27 +321,47 @@ document.addEventListener('DOMContentLoaded', () => {
       const th = document.createElement('th');
       if (i === 0) th.classList.add('col-sticky');
 
-      const canDelete = i > 0;
       th.innerHTML = `
         <div>
-          <span class="th-label">${escapeHtml(name)}</span>
-          <span class="th-actions">
-            ${canDelete ? `<button class="mini-btn danger" data-remove-col="${i}" type="button">x</button>` : ''}
-          </span>
+          <span class="th-label th-name-edit" contenteditable="true" data-col-name="${i}">${escapeHtml(name)}</span>
+          <span class="th-actions"></span>
         </div>
       `;
+
+      if (deleteMode) {
+        th.classList.add('delete-armed');
+        th.title = `Delete column: ${name}`;
+        th.addEventListener('click', (ev) => {
+          const target = ev.target;
+          if (target && target.closest('[contenteditable="true"]')) return;
+          onRemoveColumn(i);
+        });
+      }
+
       tr.appendChild(th);
     });
-
-    const thAction = document.createElement('th');
-    thAction.innerHTML = '<div><span class="th-label">Row</span></div>';
-    tr.appendChild(thAction);
 
     tableHead.innerHTML = '';
     tableHead.appendChild(tr);
 
-    tableHead.querySelectorAll('button[data-remove-col]').forEach(btn => {
-      btn.addEventListener('click', () => onRemoveColumn(Number(btn.dataset.removeCol)));
+    tableHead.querySelectorAll('[data-col-name]').forEach(el => {
+      el.addEventListener('blur', () => {
+        const idx = Number(el.getAttribute('data-col-name'));
+        const val = String(el.textContent || '').trim();
+        if (!Number.isFinite(idx)) return;
+        if (!val) {
+          el.textContent = grid.columns[idx] || '';
+          return;
+        }
+        grid.columns[idx] = val;
+        debounceAutoSave();
+      });
+      el.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') {
+          ev.preventDefault();
+          ev.target.blur();
+        }
+      });
     });
   }
 
@@ -269,6 +370,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     grid.rows.forEach((row, rowIndex) => {
       const tr = document.createElement('tr');
+      if (deleteMode) {
+        tr.classList.add('delete-armed');
+        tr.title = `Delete row ${rowIndex + 1}`;
+        tr.addEventListener('click', () => onRemoveRow(rowIndex));
+      }
 
       grid.columns.forEach((_, colIndex) => {
         const td = document.createElement('td');
@@ -284,16 +390,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tr.appendChild(td);
       });
 
-      const tdAction = document.createElement('td');
-      tdAction.style.padding = '6px';
-      tdAction.innerHTML = `<button type="button" class="mini-btn danger" data-remove-row="${rowIndex}">Delete</button>`;
-      tr.appendChild(tdAction);
-
       tableBody.appendChild(tr);
-    });
-
-    tableBody.querySelectorAll('button[data-remove-row]').forEach(btn => {
-      btn.addEventListener('click', () => onRemoveRow(Number(btn.dataset.removeRow)));
     });
   }
 

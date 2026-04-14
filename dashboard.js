@@ -21,6 +21,7 @@ var NAV_CATEGORIES = [
         id: 'attendance_tools', label: 'Attendance', icon: 'fas fa-calendar-check',
         items: [
             { href: 'attendance.html', label: 'Attendance', icon: 'fas fa-calendar-check', key: 'attendance' },
+            { href: 'attendance_register.html', label: 'Attendance Register', icon: 'fas fa-table', key: 'attendance' },
             { href: 'Absent_days.html', label: 'Absent Days', icon: 'fas fa-calendar-minus', key: 'attendance' },
             { href: 'Absent_Report Card.html', label: 'Absent Days Reports', icon: 'fas fa-id-card', key: 'attendance' },
             { href: 'syllabus_progress.html', label: 'Syllabus Progress', icon: 'fas fa-list-check', key: 'classes' },
@@ -32,6 +33,7 @@ var NAV_CATEGORIES = [
       { href: 'fee_paid_log.html', label: 'Open Paid Fee Log', icon: 'fas fa-list-check', key: 'collect_fee' },
       { href: 'fee_register.html', label: 'Fee Register', icon: 'fas fa-table', key: 'collect_fee' },
       { href: 'family_contacts.html', label: 'Open Family Fee Contacts', icon: 'fas fa-phone-volume', key: 'fee_contacts' },
+            { href: 'thermal_print_settings.html', label: 'Thermal Print Settings', icon: 'fas fa-print', key: 'collect_fee' },
     ]
   },
     {
@@ -45,6 +47,7 @@ var NAV_CATEGORIES = [
     items: [
       { href: 'create_challan.html', label: 'Create Challans', icon: 'fas fa-file-invoice-dollar', key: 'challans' },
       { href: 'collect_fee.html', label: 'Collect Student Fee', icon: 'fas fa-hand-holding-usd', key: 'collect_fee' },
+            { href: 'thermal_print_settings.html', label: 'Thermal Print Settings', icon: 'fas fa-print', key: 'collect_fee' },
       { href: 'collect_family_fee.html', label: 'Collect Family Fee', icon: 'fas fa-users-cog', key: 'collect_family_fee' },
       { href: 'fee_contacts.html', label: 'Fee Contacts', icon: 'fas fa-phone-alt', key: 'fee_contacts' },
       { href: 'fee_heads.html', label: 'Fee Config', icon: 'fas fa-cogs', key: 'fee_heads' },

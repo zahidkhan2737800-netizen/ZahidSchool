@@ -941,9 +941,30 @@
      THERMAL RECEIPT — hidden on screen, prints on payment
      ═══════════════════════════════════════════════ -->
     <style>
+        :root {
+            --tp-page-margin: 3mm;
+            --tp-print-pad-top: 4mm;
+            --tp-print-pad-right: 3mm;
+            --tp-print-pad-bottom: 4mm;
+            --tp-print-pad-left: 3mm;
+            --tp-max-width: 320px;
+            --tp-font-size: 14px;
+            --tp-line-height: 1.45;
+            --tp-receipt-pad-y: 10px;
+            --tp-receipt-pad-x: 8px;
+            --tp-school-font: 20px;
+            --tp-phone-font: 12px;
+            --tp-date-font: 11px;
+            --tp-row-font: 14px;
+            --tp-fee-row-font: 14px;
+            --tp-total-font: 16px;
+            --tp-remain-font: 14px;
+            --tp-footer-font: 11px;
+        }
+
         @page {
             size: auto;
-            margin: 3mm;
+            margin: var(--tp-page-margin);
         }
 
         @media print {
@@ -958,7 +979,7 @@
                 left: 0;
                 top: 0;
                 width: 100%;
-                padding: 4mm 3mm;
+                padding: var(--tp-print-pad-top) var(--tp-print-pad-right) var(--tp-print-pad-bottom) var(--tp-print-pad-left);
                 box-sizing: border-box;
             }
 
@@ -970,15 +991,15 @@
         #printArea {
             display: none;
             font-family: 'Courier New', Courier, monospace;
-            font-size: 23px;
+            font-size: var(--tp-font-size);
             font-weight: bold;
-            line-height: 1.7;
+            line-height: var(--tp-line-height);
             color: #000;
             background: #fff;
             width: 100%;
-            max-width: 420px;
+            max-width: var(--tp-max-width);
             margin: 0 auto;
-            padding: 14px 10px;
+            padding: var(--tp-receipt-pad-y) var(--tp-receipt-pad-x);
             box-sizing: border-box;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
@@ -989,7 +1010,7 @@
         }
 
         #printArea .th-school {
-            font-size: 30px;
+            font-size: var(--tp-school-font);
             font-weight: 900;
             letter-spacing: 1px;
             margin-bottom: 3px;
@@ -997,14 +1018,14 @@
         }
 
         #printArea .th-phone {
-            font-size: 20px;
+            font-size: var(--tp-phone-font);
             font-weight: bold;
             margin-bottom: 2px;
             color: #000;
         }
 
         #printArea .th-date {
-            font-size: 18px;
+            font-size: var(--tp-date-font);
             font-weight: bold;
             color: #000;
             margin-bottom: 4px;
@@ -1020,7 +1041,7 @@
             display: flex;
             justify-content: space-between;
             margin: 6px 0;
-            font-size: 23px;
+            font-size: var(--tp-row-font);
             font-weight: bold;
             color: #000;
         }
@@ -1045,7 +1066,7 @@
             display: flex;
             justify-content: space-between;
             margin: 6px 0;
-            font-size: 23px;
+            font-size: var(--tp-fee-row-font);
             font-weight: bold;
             color: #000;
         }
@@ -1069,7 +1090,7 @@
             display: flex;
             justify-content: space-between;
             font-weight: 900;
-            font-size: 26px;
+            font-size: var(--tp-total-font);
             margin: 8px 0;
             color: #000;
         }
@@ -1078,7 +1099,7 @@
             display: flex;
             justify-content: space-between;
             font-weight: 900;
-            font-size: 23px;
+            font-size: var(--tp-remain-font);
             margin: 6px 0;
             color: #000;
         }
@@ -1090,7 +1111,7 @@
 
         #printArea .th-footer {
             text-align: center;
-            font-size: 17px;
+            font-size: var(--tp-footer-font);
             font-weight: bold;
             color: #000;
             margin-top: 14px;

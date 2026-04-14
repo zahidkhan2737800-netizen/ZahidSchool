@@ -13,6 +13,23 @@ let allPendingChallans = [];
 let waTemplates = [];
 let currentOpenStudentId = null;
 
+function toLocalYmd(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+function normalizeAttendanceStatus(raw) {
+    const s = String(raw || '').trim().toLowerCase();
+    if (s === 'present') return 'Present';
+    if (s === 'absent') return 'Absent';
+    if (s === 'leave') return 'Leave';
+    if (s === 'holiday') return 'Holiday';
+    if (s === 'late') return 'Late';
+    return '';
+}
+
 const STATUS_COLORS = {
     'C': 'status-C',
     'CN': 'status-CN',
@@ -162,19 +179,20 @@ async function loadBaseData() {
         for (let i = 2; i >= 0; i--) {
             const d = new Date(attToday);
             d.setDate(attToday.getDate() - i);
-            recentDates.push(d.toISOString().slice(0, 10));
+            recentDates.push(toLocalYmd(d));
         }
-        const { data: attData, error: attErr } = await supabaseClient
+        let attQ = supabaseClient
             .from('attendance')
             .select('student_id, status, date')
-            .in('date', recentDates)
-            .eq('school_id', schoolId);
+            .in('date', recentDates);
+        if (schoolId) attQ = attQ.eq('school_id', schoolId);
+        const { data: attData, error: attErr } = await attQ;
 
         recentAttendance = {};
         if (attData && !attErr) {
             attData.forEach(a => {
                 if (!recentAttendance[a.student_id]) recentAttendance[a.student_id] = {};
-                recentAttendance[a.student_id][a.date] = a.status;
+                recentAttendance[a.student_id][a.date] = normalizeAttendanceStatus(a.status);
             });
         }
 

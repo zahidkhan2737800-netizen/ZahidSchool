@@ -18,14 +18,13 @@
   <p class="smallnote">Supabase-based report cards from admissions + absent_days.</p>
 
   <div class="controls mb-3">
-    <label class="form-label mb-0">Year</label>
-    <select id="yearSelect" class="form-select" style="width:120px"></select>
-
     <label class="form-label mb-0">From</label>
     <select id="monthFrom" class="form-select" style="width:130px"></select>
+    <select id="yearFrom" class="form-select" style="width:120px"></select>
 
     <label class="form-label mb-0">To</label>
     <select id="monthTo" class="form-select" style="width:130px"></select>
+    <select id="yearTo" class="form-select" style="width:120px"></select>
 
     <label class="form-label mb-0">Class</label>
     <select id="classSelect" class="form-select" style="width:180px">
@@ -34,6 +33,9 @@
 
     <label class="form-label mb-0">Roll / name</label>
     <input id="studentFilter" class="form-control" placeholder="roll or partial name" style="width:220px"/>
+
+    <label class="form-label mb-0">Print rolls</label>
+    <input id="printRolls" class="form-control" placeholder="e.g. 23,45,67" style="width:200px"/>
 
     <button id="refreshBtn" class="btn btn-primary">Load data</button>
 
@@ -51,11 +53,13 @@
   <script>
     const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-    const yearSelect = document.getElementById("yearSelect");
     const monthFrom = document.getElementById("monthFrom");
     const monthTo = document.getElementById("monthTo");
+    const yearFrom = document.getElementById("yearFrom");
+    const yearTo = document.getElementById("yearTo");
     const classSelect = document.getElementById("classSelect");
     const studentFilter = document.getElementById("studentFilter");
+    const printRolls = document.getElementById("printRolls");
     const refreshBtn = document.getElementById("refreshBtn");
     const printBtn = document.getElementById("printBtn");
     const clearBtn = document.getElementById("clearBtn");
@@ -100,24 +104,43 @@
       return s !== "withdrawn" && s !== "inactive";
     }
 
-    function getMonthNumberRange() {
-      let mf = Number(monthFrom.value);
-      let mt = Number(monthTo.value);
-      if (Number.isNaN(mf)) mf = 0;
-      if (Number.isNaN(mt)) mt = 11;
-      if (mf > mt) {
-        const t = mf;
-        mf = mt;
-        mt = t;
+    function getVisibleCols() {
+      let fm = Number(monthFrom.value);
+      let tm = Number(monthTo.value);
+      let fy = Number(yearFrom.value);
+      let ty = Number(yearTo.value);
+
+      if (Number.isNaN(fm)) fm = 0;
+      if (Number.isNaN(tm)) tm = 11;
+      if (Number.isNaN(fy)) fy = currentYear;
+      if (Number.isNaN(ty)) ty = currentYear;
+
+      const fromDate = new Date(fy, fm, 1);
+      const toDate = new Date(ty, tm, 1);
+      let start = fromDate;
+      let end = toDate;
+      if (start > end) {
+        start = toDate;
+        end = fromDate;
       }
-      return { mf, mt };
+
+      const cols = [];
+      const maxIter = 60;
+      let d = new Date(start.getFullYear(), start.getMonth(), 1);
+      let i = 0;
+      while (d <= end && i < maxIter) {
+        cols.push({ year: d.getFullYear(), monthIdx: d.getMonth(), monthLabel: MONTHS[d.getMonth()] });
+        d = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+        i++;
+      }
+      return cols;
     }
 
     function getMonthValue(rawMonths, year, monthLabel) {
       if (!rawMonths || typeof rawMonths !== "object") return 0;
       const yearKey = String(year);
       const keys = Object.keys(rawMonths);
-      const isYearKeyed = keys.length === 0 || keys.every(k => /^\\d{4}$/.test(k));
+      const isYearKeyed = keys.length === 0 || keys.every(k => /^\d{4}$/.test(k));
       const yearData = isYearKeyed ? (rawMonths[yearKey] || {}) : rawMonths;
       const raw = yearData[monthLabel];
       const n = Number(raw);
@@ -205,51 +228,67 @@
         return;
       }
 
-      const year = Number(yearSelect.value);
       const classFilter = classSelect.value.trim().toLowerCase();
       const q = studentFilter.value.trim().toLowerCase();
-      const { mf, mt } = getMonthNumberRange();
+      const visibleCols = getVisibleCols();
 
-      const rows = cachedAdmissions.map(a => {
-        const ar = cachedAbsentById.get(a.id) || {};
-        const monthsRaw = ar.months || {};
-        const monthValues = [];
-        let total = 0;
-        for (let m = mf; m <= mt; m++) {
-          const val = getMonthValue(monthsRaw, year, MONTHS[m]);
-          monthValues.push(val);
-          total += val;
-        }
+      function buildRows(includeSearch = true) {
+        const rowsBuilt = cachedAdmissions.map(a => {
+          const ar = cachedAbsentById.get(a.id) || {};
+          const monthsRaw = ar.months || {};
+          const monthValues = [];
+          let total = 0;
+          for (const col of visibleCols) {
+            const val = getMonthValue(monthsRaw, col.year, col.monthLabel);
+            monthValues.push(val);
+            total += val;
+          }
 
-        return {
-          roll: a.roll_number || ar.roll || "",
-          name: a.full_name || ar.name || "",
-          className: a.applying_for_class || ar.class_name || "",
-          father: a.father_name || "",
-          monthValues,
-          total
-        };
-      }).filter(r => {
-        const classOk = !classFilter || String(r.className || "").trim().toLowerCase() === classFilter;
-        const qOk = !q || String(r.roll || "").toLowerCase() === q || String(r.name || "").toLowerCase().includes(q);
-        return classOk && qOk;
-      });
+          return {
+            roll: a.roll_number || ar.roll || "",
+            name: a.full_name || ar.name || "",
+            className: a.applying_for_class || ar.class_name || "",
+            father: a.father_name || "",
+            monthValues,
+            total
+          };
+        }).filter(r => {
+          const classOk = !classFilter || String(r.className || "").trim().toLowerCase() === classFilter;
+          if (!includeSearch) return classOk;
+          const qOk = !q || String(r.roll || "").toLowerCase() === q || String(r.name || "").toLowerCase().includes(q);
+          return classOk && qOk;
+        });
 
-      rows.sort((a, b) =>
-        String(a.className || "").localeCompare(String(b.className || ""), undefined, { numeric: true, sensitivity: "base" }) ||
-        String(a.roll || "").localeCompare(String(b.roll || ""), undefined, { numeric: true, sensitivity: "base" })
-      );
+        rowsBuilt.sort((a, b) =>
+          String(a.className || "").localeCompare(String(b.className || ""), undefined, { numeric: true, sensitivity: "base" }) ||
+          String(a.roll || "").localeCompare(String(b.roll || ""), undefined, { numeric: true, sensitivity: "base" })
+        );
+
+        return rowsBuilt;
+      }
+
+      const rows = buildRows(true);
+      window._buildRowsForPrint = buildRows;
 
       currentRows = rows;
       renderTable(rows);
-      summary.innerHTML = `<strong>Report:</strong> ${rows.length} student(s) - Year: ${year} - Months: ${MONTHS[mf]} to ${MONTHS[mt]}`;
+      if (visibleCols.length > 0) {
+        const first = visibleCols[0];
+        const last = visibleCols[visibleCols.length - 1];
+        summary.innerHTML = `<strong>Report:</strong> ${rows.length} student(s) - Range: ${first.monthLabel} ${first.year} to ${last.monthLabel} ${last.year}`;
+      } else {
+        summary.innerHTML = `<strong>Report:</strong> ${rows.length} student(s)`;
+      }
     }
 
     function renderTable(rows) {
-      const { mf, mt } = getMonthNumberRange();
+      const visibleCols = getVisibleCols();
       let html = "<div class='table-responsive'><table class='table table-striped table-bordered'><thead><tr>";
       html += "<th style='min-width:120px'>Roll / Name</th><th>Class</th>";
-      for (let m = mf; m <= mt; m++) html += `<th>${MONTHS[m]}</th>`;
+      visibleCols.forEach((c, idx) => {
+        const showYear = idx === 0 || c.year !== visibleCols[idx - 1].year;
+        html += `<th>${escapeHtml(c.monthLabel)}${showYear ? ` '${String(c.year).slice(-2)}` : ''}</th>`;
+      });
       html += "<th>Total</th></tr></thead><tbody>";
 
       rows.forEach(r => {
@@ -271,10 +310,29 @@
         return;
       }
 
-      const { mf, mt } = getMonthNumberRange();
+      const requestedRolls = String(printRolls.value || "")
+        .split(",")
+        .map(r => r.trim())
+        .filter(Boolean);
+
+      let rowsToPrint = currentRows.slice();
+      if (requestedRolls.length > 0) {
+        const rowsNoSearch = (typeof window._buildRowsForPrint === 'function') ? window._buildRowsForPrint(false) : currentRows;
+        const byRoll = new Map(rowsNoSearch.map(r => [String(r.roll || '').trim().toLowerCase(), r]));
+        rowsToPrint = requestedRolls
+          .map(rr => byRoll.get(rr.toLowerCase()))
+          .filter(Boolean);
+
+        if (!rowsToPrint.length) {
+          alert('None of the entered roll numbers were found for current class/year filters.');
+          return;
+        }
+      }
+
+      const visibleCols = getVisibleCols();
       const perPage = 5;
       const pages = [];
-      for (let i = 0; i < currentRows.length; i += perPage) pages.push(currentRows.slice(i, i + perPage));
+      for (let i = 0; i < rowsToPrint.length; i += perPage) pages.push(rowsToPrint.slice(i, i + perPage));
 
       let pagesHtml = "";
       pages.forEach(group => {
@@ -290,7 +348,10 @@
 
           pagesHtml += '<table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:6px;"><thead><tr>';
           pagesHtml += '<th style="border:1px solid #333; padding:4px; min-width:60px;">Roll</th>';
-          for (let m = mf; m <= mt; m++) pagesHtml += `<th style="border:1px solid #333; padding:4px;">${escapeHtml(MONTHS[m])}</th>`;
+          visibleCols.forEach((c, idx) => {
+            const showYear = idx === 0 || c.year !== visibleCols[idx - 1].year;
+            pagesHtml += `<th style="border:1px solid #333; padding:4px;">${escapeHtml(c.monthLabel)}${showYear ? ` '${String(c.year).slice(-2)}` : ''}</th>`;
+          });
           pagesHtml += '<th style="border:1px solid #333; padding:4px;">Total Absent Days</th>';
           pagesHtml += '</tr></thead><tbody><tr>';
           pagesHtml += `<td style="border:1px solid #333; padding:6px; text-align:left; font-weight:700;">${escapeHtml(String(s.roll || ""))}</td>`;
@@ -330,12 +391,18 @@
 
     function initControls() {
       for (let y = currentYear; y >= currentYear - 5; y--) {
-        const opt = document.createElement("option");
-        opt.value = String(y);
-        opt.textContent = String(y);
-        yearSelect.appendChild(opt);
+        const optA = document.createElement("option");
+        optA.value = String(y);
+        optA.textContent = String(y);
+        yearFrom.appendChild(optA);
+
+        const optB = document.createElement("option");
+        optB.value = String(y);
+        optB.textContent = String(y);
+        yearTo.appendChild(optB);
       }
-      yearSelect.value = String(currentYear);
+      yearFrom.value = String(currentYear);
+      yearTo.value = String(currentYear);
 
       for (let i = 0; i < 12; i++) {
         const a = document.createElement("option");
@@ -355,13 +422,15 @@
     refreshBtn.addEventListener("click", () => loadData(true));
     printBtn.addEventListener("click", printCards);
     classSelect.addEventListener("change", () => loadData(false));
-    yearSelect.addEventListener("change", () => loadData(false));
+    yearFrom.addEventListener("change", () => loadData(false));
+    yearTo.addEventListener("change", () => loadData(false));
     monthFrom.addEventListener("change", () => loadData(false));
     monthTo.addEventListener("change", () => loadData(false));
     studentFilter.addEventListener("input", () => loadData(false));
     clearBtn.addEventListener("click", () => {
       classSelect.value = "";
       studentFilter.value = "";
+      printRolls.value = "";
       reportContainer.innerHTML = "";
       summary.innerHTML = "";
       currentRows = [];

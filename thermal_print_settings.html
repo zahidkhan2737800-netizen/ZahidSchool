@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Thermal Print Settings - Zahid School</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --card: #ffffff;
+      --line: #d9e3f0;
+      --text: #10233f;
+      --muted: #5a6f8e;
+      --brand: #1d4ed8;
+      --brand2: #1e40af;
+      --ok: #065f46;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: 'Inter', sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 0% 0%, rgba(37, 99, 235, 0.10), transparent 35%),
+        radial-gradient(circle at 100% 100%, rgba(14, 165, 233, 0.08), transparent 35%),
+        var(--bg);
+      min-height: 100vh;
+      padding: 16px;
+    }
+
+    .wrap { max-width: 1400px; margin: 0 auto; }
+
+    .head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      border-radius: 14px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+      margin-bottom: 12px;
+    }
+
+    .head h1 { margin: 0; font-size: 1.18rem; }
+    .head p { margin: 4px 0 0; color: var(--muted); font-size: 0.88rem; }
+    .head a { color: var(--brand); text-decoration: none; font-weight: 700; }
+
+    .content-wrapper {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+      padding: 12px;
+    }
+
+    .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+    .tab-btn {
+      border: 1px solid #b9cdf2;
+      background: #eff6ff;
+      color: #1e3a8a;
+      border-radius: 999px;
+      min-height: 34px;
+      padding: 6px 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .tab-btn.active {
+      background: var(--brand);
+      border-color: var(--brand);
+      color: #fff;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(160px, 1fr));
+      gap: 10px;
+    }
+
+    .field {
+      border: 1px solid #e3ebf7;
+      border-radius: 10px;
+      padding: 8px;
+      background: #fbfdff;
+    }
+
+    .field label {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 6px;
+      font-weight: 700;
+    }
+
+    .field input {
+      width: 100%;
+      min-height: 34px;
+      border: 1px solid #c4d2ea;
+      border-radius: 8px;
+      padding: 6px 8px;
+      font: inherit;
+      font-size: 0.92rem;
+      font-weight: 600;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    .btn {
+      border: 1px solid #c7d5ed;
+      border-radius: 10px;
+      min-height: 36px;
+      padding: 8px 12px;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      background: #fff;
+      color: #304863;
+    }
+
+    .btn.primary {
+      background: var(--brand);
+      border-color: var(--brand);
+      color: #fff;
+    }
+
+    .btn.primary:hover { background: var(--brand2); }
+
+    .status {
+      margin-top: 8px;
+      font-size: 0.86rem;
+      color: var(--ok);
+      min-height: 18px;
+      font-weight: 700;
+    }
+
+    .hint {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-top: 10px;
+      line-height: 1.4;
+    }
+
+    /* Preview Styles */
+    .preview-panel {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      overflow-y: auto;
+      max-height: 800px;
+    }
+
+    .preview-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--muted);
+      margin-bottom: 12px;
+      text-align: center;
+    }
+
+    .receipt-container {
+      width: 100%;
+      background: #fff;
+      border: 2px dashed #999;
+      padding: 8px;
+      overflow-x: hidden;
+    }
+
+    .receipt {
+      background: #fff;
+      color: #000;
+      font-family: 'Courier New', monospace;
+      line-height: 1.3;
+      text-align: center;
+      overflow-wrap: break-word;
+      word-wrap: break-word;
+      word-break: break-word;
+    }
+
+    .receipt-header { margin-bottom: 8px; }
+    .th-school { font-weight: bold; }
+    .th-phone { font-size: 0.9rem; }
+    .th-date { font-size: 0.9rem; color: #555; }
+
+    .receipt-divider {
+      border-top: 1px dashed #000;
+      margin: 6px 0;
+    }
+
+    .receipt-content { text-align: left; }
+    .th-row { display: flex; justify-content: space-between; }
+    .th-fee-row { display: flex; justify-content: space-between; font-family: 'Courier New', monospace; }
+    .th-total-row { display: flex; justify-content: space-between; font-weight: bold; }
+    .th-footer { font-size: 0.85rem; color: #555; margin-top: 8px; }
+
+    @media (max-width: 1024px) {
+      .content-wrapper {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 980px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 620px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="head">
+      <div>
+        <h1>Thermal Print Settings</h1>
+        <p>Adjust receipt size, font, and print margins for Student Fee and Family Fee modules.</p>
+      </div>
+      <a href="dashboard.html">Back to Dashboard</a>
+    </header>
+
+    <section class="panel">
+      <div class="tabs">
+        <button class="tab-btn active" type="button" data-module="collect_fee">Collect Fee Receipt</button>
+        <button class="tab-btn" type="button" data-module="collect_family_fee">Collect Family Fee Receipt</button>
+      </div>
+
+      <div class="grid" id="settingsGrid"></div>
+
+      <div class="actions">
+        <button id="saveBtn" class="btn primary" type="button">Save Settings</button>
+        <button id="resetBtn" class="btn" type="button">Reset Current Module</button>
+        <button id="copyBtn" class="btn" type="button">Copy To Other Module</button>
+      </div>
+
+      <div class="status" id="statusText"></div>
+      <div class="hint">Tip: Open Collect Fee / Family Fee page and print a receipt after saving to test live thermal size quickly.</div>
+    </section>
+  </div>
+
+  <script src="auth.js"></script>
+  <script>
+    const STORAGE_KEY = 'thermal_print_settings_v1';
+    const DEFAULTS = {
+      pageMarginMm: 3,
+      printPadTopMm: 4,
+      printPadRightMm: 3,
+      printPadBottomMm: 4,
+      printPadLeftMm: 3,
+      maxWidthPx: 320,
+      baseFontPx: 14,
+      lineHeight: 1.45,
+      receiptPadY: 10,
+      receiptPadX: 8,
+      schoolFontPx: 20,
+      phoneFontPx: 12,
+      dateFontPx: 11,
+      rowFontPx: 14,
+      feeRowFontPx: 14,
+      totalFontPx: 16,
+      remainFontPx: 14,
+      footerFontPx: 11
+    };
+
+    const FIELDS = [
+      ['pageMarginMm', 'Page Margin (mm)'],
+      ['printPadTopMm', 'Print Top Pad (mm)'],
+      ['printPadRightMm', 'Print Right Pad (mm)'],
+      ['printPadBottomMm', 'Print Bottom Pad (mm)'],
+      ['printPadLeftMm', 'Print Left Pad (mm)'],
+      ['maxWidthPx', 'Receipt Width (px)'],
+      ['baseFontPx', 'Base Font (px)'],
+      ['lineHeight', 'Line Height'],
+      ['receiptPadY', 'Receipt Vertical Pad (px)'],
+      ['receiptPadX', 'Receipt Side Pad (px)'],
+      ['schoolFontPx', 'School Name Font (px)'],
+      ['phoneFontPx', 'Phone Font (px)'],
+      ['dateFontPx', 'Date Font (px)'],
+      ['rowFontPx', 'Info Row Font (px)'],
+      ['feeRowFontPx', 'Fee Row Font (px)'],
+      ['totalFontPx', 'Total Font (px)'],
+      ['remainFontPx', 'Remaining Font (px)'],
+      ['footerFontPx', 'Footer Font (px)']
+    ];
+
+    const grid = document.getElementById('settingsGrid');
+    const saveBtn = document.getElementById('saveBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const copyBtn = document.getElementById('copyBtn');
+    const statusText = document.getElementById('statusText');
+    const tabBtns = Array.from(document.querySelectorAll('.tab-btn'));
+
+    let activeModule = 'collect_fee';
+
+    function getStore() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        const parsed = raw ? JSON.parse(raw) : {};
+        return (parsed && typeof parsed === 'object') ? parsed : {};
+      } catch {
+        return {};
+      }
+    }
+
+    function setStore(next) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    }
+
+    function moduleSettings(moduleName) {
+      const store = getStore();
+      const current = store[moduleName] || {};
+      return { ...DEFAULTS, ...current };
+    }
+
+    function renderForm() {
+      const vals = moduleSettings(activeModule);
+      grid.innerHTML = '';
+      FIELDS.forEach(([key, label]) => {
+        const box = document.createElement('div');
+        box.className = 'field';
+        box.innerHTML = `
+          <label for="f_${key}">${label}</label>
+          <input id="f_${key}" data-key="${key}" type="number" step="0.1" value="${vals[key]}">
+        `;
+        grid.appendChild(box);
+      });
+      statusText.textContent = '';
+    }
+
+    function readForm() {
+      const out = {};
+      grid.querySelectorAll('input[data-key]').forEach(inp => {
+        const k = inp.dataset.key;
+        const n = Number(inp.value);
+        if (!Number.isFinite(n)) return;
+        out[k] = n;
+      });
+      return { ...DEFAULTS, ...out };
+    }
+
+    tabBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        activeModule = btn.dataset.module;
+        tabBtns.forEach(x => x.classList.toggle('active', x === btn));
+        renderForm();
+      });
+    });
+
+    saveBtn.addEventListener('click', () => {
+      const store = getStore();
+      store[activeModule] = readForm();
+      setStore(store);
+      statusText.textContent = 'Saved successfully.';
+    });
+
+    resetBtn.addEventListener('click', () => {
+      const store = getStore();
+      delete store[activeModule];
+      setStore(store);
+      renderForm();
+      statusText.textContent = 'Current module reset to defaults.';
+    });
+
+    copyBtn.addEventListener('click', () => {
+      const from = activeModule;
+      const to = from === 'collect_fee' ? 'collect_family_fee' : 'collect_fee';
+      const store = getStore();
+      store[from] = readForm();
+      store[to] = { ...store[from] };
+      setStore(store);
+      statusText.textContent = `Copied settings to ${to}.`;
+    });
+
+    renderForm();
+  </script>
+</body>
+</html>

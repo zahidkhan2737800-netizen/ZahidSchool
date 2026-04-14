@@ -83,9 +83,50 @@
 
     .controls {
       display: grid;
-      grid-template-columns: 1fr 1fr auto auto auto;
+      grid-template-columns: auto auto auto;
       gap: 8px;
       margin-bottom: 10px;
+    }
+
+    .btn-danger {
+      background: #fee2e2;
+      color: #991b1b;
+      border-color: #fecaca;
+    }
+
+    .btn-danger.active {
+      background: #dc2626;
+      color: #fff;
+      border-color: #dc2626;
+    }
+
+    .class-strip {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 2px 2px 6px;
+      margin-bottom: 8px;
+    }
+
+    .class-btn {
+      border: 1px solid #b9d7d3;
+      background: #f0fdfa;
+      color: #0f4f49;
+      border-radius: 999px;
+      min-height: 34px;
+      padding: 6px 12px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: all 120ms ease;
+    }
+
+    .class-btn.active {
+      background: var(--brand);
+      border-color: var(--brand);
+      color: #fff;
+      box-shadow: 0 5px 14px rgba(15, 118, 110, 0.2);
     }
 
     select,
@@ -137,8 +178,8 @@
     }
 
     table {
-      width: 100%;
-      min-width: 1000px;
+      width: max-content;
+      min-width: 100%;
       border-collapse: separate;
       border-spacing: 0;
     }
@@ -149,6 +190,7 @@
       border-right: 1px solid #eef3f9;
       padding: 0;
       vertical-align: top;
+      white-space: nowrap;
     }
 
     th {
@@ -157,7 +199,7 @@
       z-index: 2;
       background: #f8fbff;
       text-align: left;
-      font-size: 0.82rem;
+      font-size: 0.92rem;
       color: #0f3a53;
       font-weight: 700;
       white-space: nowrap;
@@ -168,12 +210,36 @@
       align-items: center;
       justify-content: space-between;
       gap: 6px;
-      padding: 9px 10px;
+      padding: 7px 8px;
     }
 
     .th-label {
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+
+    .th-name-edit {
+      padding: 2px 5px;
+      border-radius: 6px;
+      outline: none;
+      min-width: 0;
+      max-width: 100%;
+      border: 1px dashed transparent;
+      display: inline-block;
+    }
+
+    .th-name-edit:focus {
+      border-color: #8ac5bf;
+      background: #ecfeff;
+    }
+
+    .delete-armed {
+      cursor: pointer;
+      user-select: none;
+    }
+
+    tbody tr.delete-armed:hover td {
+      background: #fee2e2 !important;
     }
 
     .th-actions {
@@ -196,13 +262,15 @@
     .danger { color: var(--warn); border-color: #f3b4b4; }
 
     td > div[contenteditable="true"] {
-      min-height: 38px;
-      padding: 8px 10px;
+      min-height: 31px;
+      padding: 4px 6px;
       outline: none;
-      font-size: 0.86rem;
-      line-height: 1.35;
-      white-space: pre-wrap;
-      word-break: break-word;
+      font-size: 1.18rem;
+      font-weight: 700;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     td > div[contenteditable="true"]:focus {
@@ -215,9 +283,7 @@
       left: 0;
       z-index: 1;
       background: #fcfefe;
-      min-width: 190px;
-      max-width: 230px;
-      width: 220px;
+      min-width: 94px;
     }
 
     th.col-sticky { z-index: 3; background: #f1fbfa; }
@@ -261,12 +327,18 @@
 
     <section class="panel">
       <div class="controls">
-        <select id="classSelect">
-          <option value="">Select class...</option>
-        </select>
-        <input id="newColName" type="text" placeholder="New field e.g. Reading, Writing, Dictation">
         <button id="addColBtn" class="btn-soft" type="button">+ Add Column</button>
         <button id="addRowBtn" class="btn-soft" type="button">+ Add Row</button>
+        <button id="deleteModeBtn" class="btn-danger" type="button">Delete</button>
+      </div>
+
+      <div id="classButtons" class="class-strip"></div>
+
+      <div class="controls" style="grid-template-columns: 1fr auto; margin-top: 0;">
+        <select id="classSelect" style="display:none;">
+          <option value="">Select class...</option>
+        </select>
+        <input id="activeClassLabel" type="text" readonly value="No class selected" style="background:#f8fafc; color:#0f172a; font-weight:700;">
         <button id="saveBtn" class="btn-primary" type="button">Save</button>
       </div>
 
