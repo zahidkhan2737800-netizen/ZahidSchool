@@ -12,15 +12,14 @@ let grandTotal    = 0;
 let receiptCache  = [];   // saved receipts for current student (for reprint)
 
 // ─── DOM Refs ─────────────────────────────────────────────────────────────────
-const filterName   = document.getElementById('filterName');
-const filterRoll   = document.getElementById('filterRoll');
-const filterFather = document.getElementById('filterFather');
+const studentSearch = document.getElementById('studentSearch');
 const searchStatus = document.getElementById('searchStatus');
 
 const studentListSection = document.getElementById('studentListSection');
 const studentList        = document.getElementById('studentList');
 const resultCount        = document.getElementById('resultCount');
 const workspace          = document.getElementById('workspace');
+const btnCloseWorkspace  = document.getElementById('btnCloseWorkspace');
 
 // Workspace DOM
 const wsAvatar      = document.getElementById('wsAvatar');
@@ -29,6 +28,7 @@ const wsRoll        = document.getElementById('wsRoll');
 const wsClass       = document.getElementById('wsClass');
 const wsFather      = document.getElementById('wsFather');
 const wsContact     = document.getElementById('wsContact');
+const wsTotalFee    = document.getElementById('wsTotalFee');
 const wsStatusBadge = document.getElementById('wsStatusBadge');
 const btnPartial    = document.getElementById('btnPartial');
 const btnPayAll     = document.getElementById('btnPayAll');
@@ -51,18 +51,37 @@ const sumRemaining  = document.getElementById('sumRemaining');
 const btnSubmit     = document.getElementById('btnSubmit');
 const btnReprint    = document.getElementById('btnReprint');
 const checkoutAlert = document.getElementById('checkoutAlert');
+const workspaceDialog = document.querySelector('.workspace-dialog');
+
+function closeWorkspace() {
+    workspace.classList.remove('is-open', 'workspace-pop');
+    workspace.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('workspace-open');
+}
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
     await loadStudents();
 
+    if (btnCloseWorkspace) {
+        btnCloseWorkspace.addEventListener('click', closeWorkspace);
+    }
+
+    workspace.addEventListener('click', (e) => {
+        if (e.target === workspace) closeWorkspace();
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && workspace.classList.contains('is-open')) {
+            closeWorkspace();
+        }
+    });
+
     // Wire filters — debounced
     let debTimer;
-    [filterName, filterRoll, filterFather].forEach(el => {
-        el.addEventListener('input', () => {
-            clearTimeout(debTimer);
-            debTimer = setTimeout(renderStudentList, 250);
-        });
+    studentSearch.addEventListener('input', () => {
+        clearTimeout(debTimer);
+        debTimer = setTimeout(renderStudentList, 250);
     });
 
     inputMethod.addEventListener('change', () => {
@@ -142,7 +161,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Pre-fill from URL param (when coming from create_challan)
     const roll = new URLSearchParams(location.search).get('roll');
-    if (roll) { filterRoll.value = roll; renderStudentList(); }
+    if (roll) { studentSearch.value = roll; renderStudentList(); }
 });
 
 // ─── Load all active students once ───────────────────────────────────────────
@@ -155,7 +174,7 @@ async function loadStudents() {
             .order('roll_number'));
         if (error) throw error;
         allStudents = data || [];
-        searchStatus.textContent = `✅ ${allStudents.length} students loaded. Use the filters above to search.`;
+        searchStatus.textContent = `✅ ${allStudents.length} students loaded. Use the search box above to find students.`;
         studentListSection.style.display = 'block';
         renderStudentList();
     } catch (e) {
@@ -165,15 +184,16 @@ async function loadStudents() {
 
 // ─── Filter & render student cards ───────────────────────────────────────────
 function renderStudentList() {
-    const n = filterName.value.trim().toLowerCase();
-    const r = filterRoll.value.trim().toLowerCase();
-    const f = filterFather.value.trim().toLowerCase();
+    const query = studentSearch.value.trim().toLowerCase();
 
     const filtered = allStudents.filter(s => {
-        const nameMatch   = !n || (s.full_name   || '').toLowerCase().includes(n);
-        const rollMatch   = !r || String(s.roll_number || '').toLowerCase().includes(r);
-        const fatherMatch = !f || (s.father_name || '').toLowerCase().includes(f);
-        return nameMatch && rollMatch && fatherMatch;
+        if (!query) return true;
+
+        const nameMatch = (s.full_name || '').toLowerCase().includes(query);
+        const fatherMatch = (s.father_name || '').toLowerCase().includes(query);
+        const rollMatch = String(s.roll_number || '').trim().toLowerCase() === query;
+
+        return rollMatch || nameMatch || fatherMatch;
     });
 
     resultCount.textContent = filtered.length;
@@ -218,6 +238,7 @@ async function openStudent(student) {
     wsClass.textContent  = student.applying_for_class;
     wsFather.textContent = student.father_name  || 'N/A';
     wsContact.textContent= student.father_mobile || 'N/A';
+    wsTotalFee.textContent = 'Rs 0';
 
     const statusClass = student.status === 'Active' ? 'badge-active' : student.status === 'Pending' ? 'badge-pending' : 'badge-withdrawn';
     wsStatusBadge.className = `stu-badge ${statusClass}`;
@@ -232,8 +253,15 @@ async function openStudent(student) {
     btnReprint.style.display = 'none';
     recalcCart();
 
-    workspace.style.display = 'block';
-    workspace.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    workspace.classList.remove('workspace-pop');
+    if (workspaceDialog) {
+        void workspaceDialog.offsetWidth;
+    }
+    workspace.classList.add('is-open');
+    workspace.classList.add('workspace-pop');
+    workspace.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('workspace-open');
+    setTimeout(() => workspace.classList.remove('workspace-pop'), 550);
 
     // Re-render cards to show active state
     renderStudentList();
@@ -321,6 +349,12 @@ async function loadDues(uuid) {
         if (error) throw error;
 
         pendingDues = data || [];
+        const totalFeeDue = pendingDues.reduce((sum, c) => {
+            const amount = parseFloat(c.amount || 0);
+            const paid = parseFloat(c.paid_amount || 0);
+            return sum + Math.max(0, amount - paid);
+        }, 0);
+        wsTotalFee.textContent = `Rs ${totalFeeDue.toLocaleString()}`;
 
         if (pendingDues.length === 0) {
             btnPayAll.style.display = 'none';

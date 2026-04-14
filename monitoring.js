@@ -8,6 +8,9 @@ let subjects = [];
 let progressColumns = [];
 let scoresMap = {};
 let selectedSubject = null;
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+let absentDaysByStudentId = new Map();
+let absentDaysByRoll = new Map();
 
 // Persist hidden column preferences in browser
 let hiddenTopicIds = JSON.parse(localStorage.getItem('mon_hiddenTopics')) || [];
@@ -137,6 +140,7 @@ async function loadClassData(className) {
     if (sErr) { console.error('Student load error:', sErr); return; }
     students = sData || [];
     students.sort((a, b) => parseFloat(a.roll_number || 0) - parseFloat(b.roll_number || 0));
+    await loadRecentAbsentDaysForStudents();
 
     // Subjects — from monitoring_subjects table
     const { data: subData, error: subErr } = await applySchoolScope(
@@ -152,6 +156,74 @@ async function loadClassData(className) {
 
     renderSubjectButtons();
     if (selectedSubject) renderTable();
+}
+
+async function loadRecentAbsentDaysForStudents() {
+    absentDaysByStudentId = new Map();
+    absentDaysByRoll = new Map();
+
+    const studentIds = students.map(s => s.id).filter(Boolean);
+    if (!studentIds.length) return;
+
+    try {
+        let q = applySchoolScope(
+            supabaseClient
+                .from('absent_days')
+                .select('student_id, roll, months')
+                .in('student_id', studentIds)
+        );
+
+        const { data, error } = await q;
+        if (error) throw error;
+
+        (data || []).forEach(row => {
+            if (row.student_id) absentDaysByStudentId.set(String(row.student_id), row.months || {});
+            if (row.roll !== undefined && row.roll !== null && String(row.roll).trim() !== '') {
+                absentDaysByRoll.set(String(row.roll).trim(), row.months || {});
+            }
+        });
+    } catch (e) {
+        console.error('Absent days load error:', e);
+    }
+}
+
+function getLastFiveMonthRefs() {
+    const refs = [];
+    const now = new Date();
+    // Always exclude current month and take the previous five months.
+    for (let i = 5; i >= 1; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        refs.push({ year: d.getFullYear(), month: MONTHS[d.getMonth()] });
+    }
+    return refs;
+}
+
+function getMonthValue(rawMonths, year, month) {
+    if (!rawMonths || typeof rawMonths !== 'object') return 0;
+    const keys = Object.keys(rawMonths);
+    const isYearKeyed = keys.length === 0 || keys.every(k => /^\d{4}$/.test(k));
+    const yearData = isYearKeyed ? (rawMonths[String(year)] || {}) : rawMonths;
+    const raw = yearData[month] !== undefined ? yearData[month] : '';
+    const n = Number(raw);
+    return Number.isFinite(n) && raw !== '' ? n : 0;
+}
+
+function getStudentLastFiveAbsenceText(student) {
+    const byId = absentDaysByStudentId.get(String(student.id));
+    const byRoll = absentDaysByRoll.get(String(student.roll_number || '').trim());
+    const monthsObj = byId || byRoll || {};
+    return getLastFiveMonthRefs()
+        .map(ref => String(getMonthValue(monthsObj, ref.year, ref.month)))
+        .join(' ');
+}
+
+function escapeHtml(str) {
+    return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\"/g, '&quot;')
+        .replace(/'/g, '&#039;');
 }
 
 // ── 4. Render Subject Buttons ──
@@ -355,10 +427,14 @@ function renderTable() {
     }
 
     filteredStudents.forEach(student => {
+        const absentFiveText = getStudentLastFiveAbsenceText(student);
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td><b>${student.roll_number || '-'}</b></td>
-            <td style="font-weight:bold;color:#333;">${student.full_name || 'Unknown'}</td>
+            <td style="font-weight:bold;color:#333;">
+                <div>${escapeHtml(student.full_name || 'Unknown')}</div>
+                <div class="absent-five-months">${absentFiveText}</div>
+            </td>
         `;
 
         visibleColumns.forEach(col => {
@@ -431,7 +507,12 @@ function printDefaulters(targetCol) {
         const scoreStr = scoresMap[`${student.id}_${targetCol.id}`];
         const scoreVal = parseFloat(scoreStr);
         if (isNaN(scoreVal) || scoreVal < minScore) {
-            defaulters.push({ roll: student.roll_number, name: student.full_name, score: scoreStr || 'N/A' });
+            defaulters.push({
+                roll: student.roll_number,
+                name: student.full_name,
+                absentFive: getStudentLastFiveAbsenceText(student),
+                score: scoreStr || 'N/A'
+            });
         }
     });
 
@@ -449,10 +530,11 @@ function printDefaulters(targetCol) {
             body { font-family: monospace; width: 100%; max-width: 260px; box-sizing: border-box; margin: 0 auto; padding: 5px; color: #000; font-size: 12px; }
             h3 { text-align: center; margin: 5px 0; font-size: 14px; text-transform: uppercase; }
             .meta { text-align: center; margin-bottom: 10px; font-size: 11px; border-bottom: 1px dashed #000; padding-bottom: 5px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 5px; table-layout: fixed; }
+            table { width: 100%; border-collapse: collapse; margin-top: 5px; table-layout: auto; }
             th { border-bottom: 1px dashed #000; text-align: left; padding: 4px 0; }
             td { padding: 4px 0; vertical-align: top; word-wrap: break-word; }
             .right { text-align: right; padding-right: 8px; }
+            .name-compact { white-space: nowrap; font-size: 11px; }
         </style>
         </head>
         <body onload="window.print()">
@@ -466,7 +548,7 @@ function printDefaulters(targetCol) {
             <tr><th style="width:25%">Roll</th><th style="width:50%">Name</th><th style="width:25%" class="right">Score</th></tr>
     `;
     defaulters.forEach(d => {
-        html += `<tr><td>${d.roll || '-'}</td><td>${d.name}</td><td class="right">${d.score}</td></tr>`;
+        html += `<tr><td>${d.roll || '-'}</td><td class="name-compact">${d.name || ''} [${d.absentFive || '0 0 0 0 0'}]</td><td class="right">${d.score}</td></tr>`;
     });
     html += `</table><div style="text-align:center;margin-top:15px;font-size:10px;">Total Defaulters: ${defaulters.length}</div></body></html>`;
     printWindow.document.write(html);
@@ -494,4 +576,6 @@ function clearData() {
     progressColumns = [];
     scoresMap = {};
     selectedSubject = null;
+    absentDaysByStudentId = new Map();
+    absentDaysByRoll = new Map();
 }

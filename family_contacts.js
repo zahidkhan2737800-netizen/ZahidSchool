@@ -274,7 +274,8 @@ function renderTable() {
             const matchesMob = row.fam.mobile.toLowerCase().includes(searchT);
             const matchesName = row.fam.primaryName.toLowerCase().includes(searchT);
             const matchesNo = row.fam.familyNo && String(row.fam.familyNo).toLowerCase().includes(searchT);
-            if (!matchesMob && !matchesName && !matchesNo) return false;
+            const matchesNotes = (row.data.commitment_notes || '').toLowerCase().includes(searchT);
+            if (!matchesMob && !matchesName && !matchesNo && !matchesNotes) return false;
         }
         if (statusF !== 'All' && row.data.row_status !== statusF) return false;
         return true;

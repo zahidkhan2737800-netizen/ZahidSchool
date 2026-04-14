@@ -15,14 +15,24 @@
         }
 
         .page-wrap {
-            max-width: 1100px;
+            width: min(1800px, calc(100vw - 24px));
             margin: 0 auto;
-            padding: 2rem;
+            padding: 1.5rem clamp(1rem, 2vw, 2rem) 2rem;
+            box-sizing: border-box;
         }
 
         /* Page Header */
         .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 1rem;
+            flex-wrap: wrap;
             margin-bottom: 2rem;
+        }
+
+        .page-header-main {
+            flex: 1 1 520px;
         }
 
         .page-header h1 {
@@ -44,6 +54,25 @@
             margin-right: 1.2rem;
         }
 
+        .page-header-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .page-header-links {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .page-header-links a {
+            margin-right: 0;
+        }
+
         /* Search Panel */
         .search-panel {
             background: var(--primary);
@@ -60,14 +89,14 @@
         }
 
         .search-row {
-            display: flex;
+            display: grid;
+            grid-template-columns: minmax(320px, 1fr);
             gap: 1rem;
-            flex-wrap: wrap;
         }
 
         .search-row input {
-            flex: 1;
-            min-width: 200px;
+            width: 100%;
+            min-width: 0;
             padding: 0.85rem 1.2rem;
             border: none;
             border-radius: 10px;
@@ -194,56 +223,187 @@
             background: var(--success);
         }
 
-        /* Workspace */
-        #workspace {
-            display: none;
+        /* Workspace Popup */
+        body.workspace-open {
+            overflow: hidden;
         }
 
-        /* Profile Strip */
+        #workspace {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 1200;
+            background: rgba(15, 23, 42, 0.45);
+            padding: 16px;
+            overflow: auto;
+            box-sizing: border-box;
+        }
+
+        #workspace.is-open {
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+        }
+
+        .workspace-dialog {
+            width: min(1680px, calc(100vw - 32px));
+            max-height: calc(100vh - 32px);
+            overflow: auto;
+            margin: 0 auto;
+            padding: 0.4rem;
+            box-sizing: border-box;
+            background: #f8fafc;
+            border: 1px solid rgba(226, 232, 240, 0.95);
+            border-radius: 22px;
+            box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+        }
+
+        .workspace-toolbar {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 0.75rem;
+        }
+
+        .workspace-close-btn {
+            border: none;
+            border-radius: 10px;
+            background: #0f172a;
+            color: #fff;
+            font-weight: 700;
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.2);
+        }
+
+        .workspace-close-btn:hover {
+            background: #1e293b;
+        }
+
+        #workspace.workspace-pop .workspace-dialog {
+            animation: workspacePop 0.45s ease;
+        }
+
+        @keyframes workspacePop {
+            0% {
+                transform: translateY(18px) scale(0.985);
+                box-shadow: 0 0 0 rgba(37, 99, 235, 0);
+            }
+            55% {
+                transform: translateY(0) scale(1.01);
+                box-shadow: 0 14px 34px rgba(37, 99, 235, 0.16);
+            }
+            100% {
+                transform: translateY(0) scale(1);
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            }
+        }
+
         .profile-strip {
             background: #ffffff;
-            border-radius: 12px;
-            padding: 1.5rem 2rem;
-            margin-bottom: 2rem;
+            border-radius: 16px;
+            padding: 1.25rem 1.5rem;
+            margin-bottom: 1rem;
             display: flex;
-            align-items: center;
-            gap: 1.5rem;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            flex-direction: column;
+            gap: 1rem;
+            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
             border: 1px solid #e2e8f0;
         }
 
         .big-avatar {
-            width: 70px;
-            height: 70px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, var(--primary), #1d4ed8);
-            color: white;
-            font-size: 2rem;
-            font-weight: 800;
+            display: none;
+        }
+
+        .profile-top {
             display: flex;
             align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
+            gap: 1rem;
+            width: 100%;
+            flex-wrap: nowrap;
+        }
+
+        .profile-data {
+            flex: 1 1 auto;
+            min-width: 0;
         }
 
         .profile-data h2 {
-            margin: 0 0 0.3rem 0;
-            font-size: 1.4rem;
+            margin: 0;
+            font-size: 1.45rem;
             color: #0f172a;
+            white-space: nowrap;
+        }
+
+        .profile-meta {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-top: 0.45rem;
         }
 
         .profile-data p {
-            margin: 0.2rem 0;
-            font-size: 0.9rem;
+            margin: 0;
+            font-size: 0.95rem;
             color: #475569;
+            white-space: nowrap;
+        }
+
+        .profile-total {
+            margin-left: auto;
+            font-weight: 700;
+            color: #0f172a;
+            background: linear-gradient(135deg, #eff6ff, #dbeafe);
+            border: 1px solid #93c5fd;
+            border-radius: 12px;
+            padding: 0.5rem 0.9rem;
+            font-size: 1.08rem;
+            box-shadow: 0 6px 16px rgba(37, 99, 235, 0.12);
+        }
+
+        /* History Table */
+        .history-table {
+            width: 100%;
+            min-width: 860px;
+            border-collapse: collapse;
+            font-size: 0.88rem;
+        }
+
+        .history-table th {
+            background: #f8fafc;
+            color: #64748b;
+            font-weight: 600;
+            padding: 0.7rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .profile-total strong {
+            font-size: 1rem;
+        }
+
+        #wsTotalFee {
+            font-size: 1.35rem;
+            font-weight: 800;
+            color: #1d4ed8;
+        }
+
+        .profile-bottom {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            width: 100%;
+            flex-wrap: wrap;
         }
 
         .profile-actions {
             display: flex;
             gap: 0.8rem;
-            margin-left: auto;
-            margin-right: 1.5rem;
+            margin-left: 0;
+            margin-right: 0;
             align-items: center;
+            flex-wrap: wrap;
         }
 
         .pay-all-btn {
@@ -435,6 +595,7 @@
         /* History Table */
         .history-table {
             width: 100%;
+            min-width: 860px;
             border-collapse: collapse;
             font-size: 0.88rem;
         }
@@ -456,6 +617,11 @@
 
         .history-table tr:last-child td {
             border-bottom: none;
+        }
+
+        .table-scroll {
+            width: 100%;
+            overflow-x: auto;
         }
 
         /* Checkout Panel */
@@ -542,6 +708,63 @@
             display: none;
         }
 
+        @media (max-width: 1100px) {
+            .search-row {
+                grid-template-columns: 1fr;
+            }
+
+            .student-card {
+                flex-wrap: wrap;
+                align-items: flex-start;
+            }
+
+            .profile-actions {
+                width: 100%;
+                margin-left: 0;
+            }
+
+            .profile-top,
+            .profile-bottom,
+            .profile-meta {
+                align-items: flex-start;
+            }
+        }
+
+        @media (max-width: 760px) {
+            .page-wrap {
+                width: 100%;
+                padding: 1rem;
+            }
+
+            .workspace-dialog {
+                width: calc(100vw - 16px);
+                max-height: calc(100vh - 16px);
+                padding: 0;
+            }
+
+            .profile-strip,
+            .section-panel,
+            .search-panel {
+                padding-left: 1rem;
+                padding-right: 1rem;
+            }
+
+            .dues-header,
+            .challan-item {
+                padding-left: 1rem;
+                padding-right: 1rem;
+            }
+
+            .profile-data h2,
+            .profile-data p {
+                white-space: normal;
+            }
+
+            .profile-total {
+                width: 100%;
+            }
+        }
+
         /* Print styles — handled by dedicated thermal block below */
     </style>
 </head>
@@ -551,20 +774,24 @@
     <div class="page-wrap" style="position:relative; z-index:2;">
 
         <div class="page-header">
-            <h1>💳 Collect Student Fee</h1>
-            <p>Search a student, select pending dues, and authorize payment with a printable receipt.</p>
-            <a href="dashboard.html">📊 Dashboard</a>
-            <a href="create_challan.html">Issue New Challans</a>
-            <a href="fee_contacts.html">📞 Fee Contacts</a>
+            <div class="page-header-main">
+                <h1>💳 Collect Student Fee</h1>
+                <p>Search a student, select pending dues, and authorize payment with a printable receipt.</p>
+            </div>
+            <div class="page-header-actions">
+                <div class="page-header-links">
+                    <a href="dashboard.html">📊 Dashboard</a>
+                    <a href="create_challan.html">Issue New Challans</a>
+                    <a href="fee_contacts.html">📞 Fee Contacts</a>
+                </div>
+            </div>
         </div>
 
         <!-- SEARCH PANEL -->
         <div class="search-panel">
             <h3>🔍 Search Student</h3>
             <div class="search-row">
-                <input type="text" id="filterName" placeholder="Search by Student Name..." autocomplete="off">
-                <input type="text" id="filterRoll" placeholder="Search by Roll Number..." autocomplete="off">
-                <input type="text" id="filterFather" placeholder="Search by Father Name..." autocomplete="off">
+                <input type="text" id="studentSearch" placeholder="Search by exact roll, student name, or father name..." autocomplete="off">
             </div>
             <p id="searchStatus">Loading student list from database...</p>
         </div>
@@ -575,32 +802,43 @@
             <div id="studentList"></div>
         </div>
 
-        <!-- VERTICAL WORKSPACE -->
-        <div id="workspace">
+        <!-- POPUP WORKSPACE -->
+        <div id="workspace" aria-hidden="true">
+            <div class="workspace-dialog">
+                <div class="workspace-toolbar">
+                    <button type="button" id="btnCloseWorkspace" class="workspace-close-btn">✕ Close</button>
+                </div>
             <!-- Profile Strip -->
             <div class="profile-strip">
-                <div class="big-avatar" id="wsAvatar">Z</div>
-                <div class="profile-data">
-                    <h2 id="wsName">—</h2>
-                    <p><strong>Roll:</strong> <span id="wsRoll">—</span> &nbsp;|&nbsp; <strong>Class:</strong> <span
-                            id="wsClass">—</span></p>
-                    <p><strong>Father:</strong> <span id="wsFather">—</span> &nbsp;|&nbsp; <strong>Contact:</strong>
-                        <span id="wsContact">—</span></p>
+                <div class="profile-top">
+                    <div class="big-avatar" id="wsAvatar">Z</div>
+                    <div class="profile-data">
+                        <h2 id="wsName">—</h2>
+                        <div class="profile-meta">
+                            <p><strong>Roll:</strong> <span id="wsRoll">—</span> &nbsp;|&nbsp; <strong>Class:</strong> <span
+                                    id="wsClass">—</span></p>
+                            <p><strong>Father:</strong> <span id="wsFather">—</span> &nbsp;|&nbsp; <strong>Contact:</strong>
+                                <span id="wsContact">—</span></p>
+                            <p class="profile-total"><strong>Total Fee:</strong> <span id="wsTotalFee">Rs 0</span></p>
+                        </div>
+                    </div>
                 </div>
-                <div class="profile-actions">
-                    <button id="btnPartial" class="partial-btn" style="display:none;">💳 Partial Payment</button>
-                    <button id="btnPayAll" class="pay-all-btn" style="display:none;">✅ Pay All Dues</button>
-                    <button id="btnReprint" class="reprint-btn" style="display:none;">🖨️ Reprint Last</button>
-                    <button id="btnToggleHistory" class="show-history-btn">📜 History</button>
-                </div>
+                <div class="profile-bottom">
+                    <div class="profile-actions">
+                        <button id="btnPartial" class="partial-btn" style="display:none;">💳 Partial Payment</button>
+                        <button id="btnPayAll" class="pay-all-btn" style="display:none;">✅ Pay All Dues</button>
+                        <button id="btnReprint" class="reprint-btn" style="display:none;">🖨️ Reprint Last</button>
+                        <button id="btnToggleHistory" class="show-history-btn">📜 History</button>
+                    </div>
 
-                <span class="stu-badge" id="wsStatusBadge">ACTIVE</span>
+                    <span class="stu-badge" id="wsStatusBadge">ACTIVE</span>
+                </div>
             </div>
 
             <!-- Payment History -->
             <div class="section-panel" id="historyPanel" style="display:none;">
                 <h2>📜 Payment History</h2>
-                <div style="overflow-x:auto;">
+                <div class="table-scroll">
                     <table class="history-table">
                         <thead>
                             <tr>
@@ -693,6 +931,7 @@
                 <button class="submit-btn" id="btnSubmit" disabled>Authorize Payment &amp; Print Receipt</button>
 
                 <div class="checkout-alert" id="checkoutAlert"></div>
+            </div>
             </div>
         </div>
 

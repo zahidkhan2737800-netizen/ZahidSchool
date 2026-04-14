@@ -23,6 +23,7 @@ var NAV_CATEGORIES = [
             { href: 'attendance.html', label: 'Attendance', icon: 'fas fa-calendar-check', key: 'attendance' },
             { href: 'Absent_days.html', label: 'Absent Days', icon: 'fas fa-calendar-minus', key: 'attendance' },
             { href: 'Absent_Report Card.html', label: 'Absent Days Reports', icon: 'fas fa-id-card', key: 'attendance' },
+            { href: 'syllabus_progress.html', label: 'Syllabus Progress', icon: 'fas fa-list-check', key: 'classes' },
         ]
     },
   {
