@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Examination - Zahid School</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --card: #ffffff;
+      --line: #d9e3f0;
+      --text: #10233f;
+      --muted: #5a6f8e;
+      --brand: #1d4ed8;
+      --brand2: #1e40af;
+      --ok: #065f46;
+      --err: #dc2626;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: 'Inter', sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 0% 0%, rgba(37, 99, 235, 0.10), transparent 35%),
+        radial-gradient(circle at 100% 100%, rgba(14, 165, 233, 0.08), transparent 35%),
+        var(--bg);
+      min-height: 100vh;
+      padding: 16px;
+    }
+
+    .wrap { max-width: 1280px; margin: 0 auto; }
+
+    .head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      border-radius: 14px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+      margin-bottom: 12px;
+    }
+
+    .head h1 { margin: 0; font-size: 1.18rem; }
+    .head p { margin: 4px 0 0; color: var(--muted); font-size: 0.88rem; }
+    .head a { color: var(--brand); text-decoration: none; font-weight: 700; }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: minmax(320px, 420px) 1fr;
+      gap: 12px;
+    }
+
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+      padding: 16px;
+    }
+
+    .panel h2 {
+      margin: 0 0 12px;
+      font-size: 1rem;
+      color: var(--text);
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .form-group {
+      margin-bottom: 12px;
+    }
+
+    .form-group.full {
+      grid-column: 1 / -1;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 6px;
+      font-weight: 700;
+    }
+
+    input, select {
+      width: 100%;
+      border: 1px solid #c4d2ea;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font: inherit;
+      font-size: 0.9rem;
+      color: var(--text);
+    }
+
+    .btn {
+      border: 1px solid #c7d5ed;
+      border-radius: 10px;
+      padding: 8px 12px;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      background: #fff;
+      color: #304863;
+      min-height: 36px;
+    }
+
+    .btn.primary {
+      background: var(--brand);
+      border-color: var(--brand);
+      color: #fff;
+    }
+
+    .btn.primary:hover { background: var(--brand2); }
+
+    .btn.secondary {
+      background: #ecf4ff;
+      border-color: #bfd8f3;
+      color: var(--brand);
+    }
+
+    .btn.secondary:hover { background: #e0eeff; }
+
+    .btn.danger {
+      background: #fee2e2;
+      border-color: #fca5a5;
+      color: var(--err);
+    }
+
+    .btn.danger:hover { background: #fecaca; }
+
+    .status {
+      margin-top: 10px;
+      font-size: 0.86rem;
+      color: var(--ok);
+      min-height: 18px;
+      font-weight: 700;
+    }
+
+    .table-wrap {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      overflow: auto;
+      max-height: 520px;
+      background: #fff;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+
+    th, td {
+      padding: 10px;
+      text-align: left;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+
+    th {
+      background: #f8fbff;
+      font-weight: 700;
+      color: var(--text);
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+
+    tr:hover { background: #f8fbff; }
+
+    .empty-msg {
+      color: var(--muted);
+      font-size: 0.9rem;
+      text-align: center;
+      padding: 20px;
+    }
+
+    .fee-cell {
+      font-weight: 700;
+      color: #0f3a53;
+    }
+
+    .action-btns {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .form-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .form-note {
+      margin: 0 0 12px;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    @media (max-width: 980px) {
+      .grid-2 {
+        grid-template-columns: 1fr;
+      }
+
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .head {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="head">
+      <div>
+        <h1>Examination</h1>
+        <p>Create examinations with session, dates, result announcement date, and fee.</p>
+      </div>
+      <a href="dashboard.html">Back to Dashboard</a>
+    </header>
+
+    <div class="grid-2">
+      <section class="panel">
+        <h2 id="formTitle">Add Examination</h2>
+        <p class="form-note">End date and result date can be left empty now and updated later through edit.</p>
+        <form id="examForm">
+          <div class="form-grid">
+            <div class="form-group full">
+              <label for="examName">Examination Name</label>
+              <input id="examName" type="text" placeholder="e.g., Terminal Examination" required>
+            </div>
+
+            <div class="form-group full">
+              <label for="examSession">Academic Session</label>
+              <select id="examSession" required>
+                <option value="">Loading sessions...</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="startDate">Start Date</label>
+              <input id="startDate" type="date" required>
+            </div>
+
+            <div class="form-group">
+              <label for="endDate">End Date</label>
+              <input id="endDate" type="date">
+            </div>
+
+            <div class="form-group">
+              <label for="resultDate">Result Announcement Date</label>
+              <input id="resultDate" type="date">
+            </div>
+
+            <div class="form-group">
+              <label for="examFee">Fee</label>
+              <input id="examFee" type="number" min="0" step="0.01" placeholder="e.g., 1500">
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button class="btn primary" id="saveBtn" type="submit">Save Examination</button>
+            <button class="btn secondary" id="cancelEditBtn" type="button" style="display: none;">Cancel Edit</button>
+          </div>
+          <div class="status" id="examStatus"></div>
+        </form>
+      </section>
+
+      <section class="panel">
+        <h2>Saved Examinations</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Examination</th>
+                <th>Session</th>
+                <th>Start</th>
+                <th>End</th>
+                <th>Result</th>
+                <th>Fee</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="examBody">
+              <tr>
+                <td colspan="7" class="empty-msg">Loading examinations...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script src="auth.js"></script>
+  <script src="examination.js"></script>
+</body>
+</html>

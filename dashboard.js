@@ -63,10 +63,19 @@ var NAV_CATEGORIES = [
       { href: 'staff_payments.html', label: 'Pay Salaries', icon: 'fas fa-money-check-alt', key: 'staff_payments' }
     ]
   },
+    {
+        id: 'examination', label: 'Examination', icon: 'fas fa-file-signature',
+        items: [
+            { href: 'examination.html', label: 'Examination', icon: 'fas fa-clipboard-check', key: 'examination' },
+            { href: 'slip.html', label: 'Exam Slip', icon: 'fas fa-id-card', key: 'examination' }
+        ]
+    },
   {
     id: 'admin', label: 'Administration', icon: 'fas fa-user-shield',
     items: [
       { href: 'classes.html', label: 'Manage Classes', icon: 'fas fa-chalkboard', key: 'classes' },
+      { href: 'curriculum_and_session.html', label: 'Curriculum & Session', icon: 'fas fa-book', key: 'classes' },
+      { href: 'class_subjects_assignment.html', label: 'Class Subjects', icon: 'fas fa-link', key: 'classes' },
       { href: 'access_control.html', label: 'Access Control', icon: 'fas fa-lock', key: 'access_control' },
     ]
   }

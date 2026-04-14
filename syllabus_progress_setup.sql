@@ -7,7 +7,7 @@ create table if not exists public.syllabus_progress (
   id uuid primary key default gen_random_uuid(),
   school_id uuid not null references public.schools(id) on delete cascade,
   class_id uuid not null references public.classes(id) on delete cascade,
-  month_key text null,
+  month_key text not null default 'default',
   columns_json jsonb not null default '[]'::jsonb,
   rows_json jsonb not null default '[]'::jsonb,
   updated_by uuid null references auth.users(id),
@@ -17,10 +17,12 @@ create table if not exists public.syllabus_progress (
 
 create index if not exists idx_syllabus_progress_school on public.syllabus_progress(school_id);
 create index if not exists idx_syllabus_progress_class on public.syllabus_progress(class_id);
+create index if not exists idx_syllabus_progress_month on public.syllabus_progress(month_key);
 
--- Unique per school+class+month (month_key nullable; coalesce makes NULL behave as one bucket)
-create unique index if not exists uq_syllabus_progress_scope
-on public.syllabus_progress (school_id, class_id, coalesce(month_key, '__global__'));
+-- Unique per school+class+session
+drop constraint if exists uq_syllabus_progress_school_class on public.syllabus_progress;
+drop index if exists uq_syllabus_progress_scope;
+alter table public.syllabus_progress add constraint uq_syllabus_progress_school_class_session unique (school_id, class_id, month_key);
 
 create or replace function public.set_updated_at_syllabus_progress()
 returns trigger

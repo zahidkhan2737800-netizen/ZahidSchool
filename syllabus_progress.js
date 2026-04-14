@@ -1,17 +1,19 @@
 document.addEventListener('DOMContentLoaded', () => {
   const classSelect = document.getElementById('classSelect');
+  const sessionInput = document.getElementById('sessionInput');
   const classButtons = document.getElementById('classButtons');
   const activeClassLabel = document.getElementById('activeClassLabel');
   const addColBtn = document.getElementById('addColBtn');
   const addRowBtn = document.getElementById('addRowBtn');
   const deleteModeBtn = document.getElementById('deleteModeBtn');
-  const saveBtn = document.getElementById('saveBtn');
   const tableHead = document.getElementById('tableHead');
   const tableBody = document.getElementById('tableBody');
   const statusText = document.getElementById('statusText');
 
   let classes = [];
+  let sessions = [];
   let selectedClassId = '';
+  let currentSession = '2025-26';
   let deleteMode = false;
   let grid = {
     columns: [],
@@ -33,10 +35,54 @@ document.addEventListener('DOMContentLoaded', () => {
     addColBtn.addEventListener('click', onAddColumn);
     addRowBtn.addEventListener('click', onAddRow);
     deleteModeBtn.addEventListener('click', toggleDeleteMode);
-    saveBtn.addEventListener('click', saveCurrentGrid);
     classSelect.addEventListener('change', onClassChange);
+    sessionInput.addEventListener('change', onSessionChange);
 
+    await loadSessions();
     await loadClasses();
+  }
+
+  async function loadSessions() {
+    try {
+      let q = window.supabaseClient
+        .from('session')
+        .select('session_value')
+        .order('session_value', { ascending: false });
+
+      if (window.currentSchoolId) q = q.eq('school_id', window.currentSchoolId);
+
+      const { data, error } = await q;
+      if (error) throw error;
+
+      sessions = Array.isArray(data) ? data.map(s => s.session_value) : [];
+      sessionInput.innerHTML = '';
+
+      if (sessions.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = '2025-26';
+        opt.textContent = '2025-26 (default)';
+        sessionInput.appendChild(opt);
+        sessions = ['2025-26'];
+      } else {
+        sessions.forEach(session => {
+          const opt = document.createElement('option');
+          opt.value = session;
+          opt.textContent = session;
+          sessionInput.appendChild(opt);
+        });
+      }
+
+      // Set to first session
+      sessionInput.value = sessions[0] || '2025-26';
+      currentSession = sessionInput.value;
+    } catch (err) {
+      console.error('Sessions load failed:', err);
+      const opt = document.createElement('option');
+      opt.value = '2025-26';
+      opt.textContent = '2025-26';
+      sessionInput.appendChild(opt);
+      currentSession = '2025-26';
+    }
   }
 
   async function loadClasses() {
@@ -103,6 +149,18 @@ document.addEventListener('DOMContentLoaded', () => {
     statusText.textContent = 'Class changed. Data loaded.';
   }
 
+  function onSessionChange() {
+    const newSession = (sessionInput.value || '').trim() || '2025-26';
+    if (newSession === currentSession) return;
+    
+    currentSession = newSession;
+    
+    if (selectedClassId) {
+      loadGridForClass(selectedClassId);
+      statusText.textContent = `Session changed to ${currentSession}. Data loaded.`;
+    }
+  }
+
   function renderClassButtons() {
     classButtons.innerHTML = '';
     classes.forEach(c => {
@@ -143,6 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     renderTable();
+    debounceAutoSave();
     statusText.textContent = `Column added: ${name}`;
   }
 
@@ -160,6 +219,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const row = Array.from({ length: grid.columns.length }, () => '');
     grid.rows.push(row);
     renderTable();
+    debounceAutoSave();
     statusText.textContent = 'Row added.';
   }
 
@@ -168,6 +228,7 @@ document.addEventListener('DOMContentLoaded', () => {
     grid.columns.splice(colIndex, 1);
     grid.rows = grid.rows.map(r => r.filter((_, i) => i !== colIndex));
     renderTable();
+    debounceAutoSave();
     statusText.textContent = `Column removed: ${name}`;
   }
 
@@ -179,6 +240,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     grid.rows.splice(rowIndex, 1);
     renderTable();
+    debounceAutoSave();
     statusText.textContent = 'Row removed.';
   }
 
@@ -198,9 +260,9 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
 
-  function storageKey(classId) {
+  function storageKey(classId, session) {
     const sid = window.currentSchoolId ? String(window.currentSchoolId) : 'global';
-    return `syllabus_progress_${sid}_${classId}`;
+    return `syllabus_progress_${sid}_${classId}_${session}`;
   }
 
   async function loadGridForClass(classId) {
@@ -212,12 +274,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
-      // Try to load from Supabase
+      // Try to load from Supabase with current session
       const { data, error } = await window.supabaseClient
         .from('syllabus_progress')
         .select('columns_json, rows_json')
         .eq('school_id', window.currentSchoolId)
         .eq('class_id', classId)
+        .eq('month_key', currentSession)
         .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
@@ -241,7 +304,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
       } else {
         // Fallback: try localStorage
-        const key = storageKey(classId);
+        const key = storageKey(classId, currentSession);
         const raw = localStorage.getItem(key);
         if (raw) {
           const parsed = JSON.parse(raw);
@@ -253,7 +316,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
       console.warn('Load from Supabase failed, trying localStorage:', err);
       // Fallback to localStorage
-      const key = storageKey(classId);
+      const key = storageKey(classId, currentSession);
       const raw = localStorage.getItem(key);
       if (raw) {
         try {
@@ -268,46 +331,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     renderTable();
-  }
-
-  async function saveCurrentGrid() {
-    if (!selectedClassId) {
-      statusText.textContent = 'Select class before saving.';
-      return;
-    }
-
-    syncTableIntoGrid();
-    statusText.textContent = 'Saving...';
-
-    try {
-      // Save to localStorage first (fallback)
-      const key = storageKey(selectedClassId);
-      localStorage.setItem(key, JSON.stringify(grid));
-
-      // Save to Supabase if school is set
-      if (window.currentSchoolId) {
-        const { error } = await window.supabaseClient
-          .from('syllabus_progress')
-          .upsert({
-            school_id: window.currentSchoolId,
-            class_id: selectedClassId,
-            columns_json: grid.columns,
-            rows_json: grid.rows,
-            updated_by: window.currentUserId || null
-          }, {
-            onConflict: 'school_id,class_id'
-          });
-
-        if (error) {
-          throw error;
-        }
-      }
-
-      statusText.textContent = 'Saved successfully.';
-    } catch (e) {
-      console.error('Save failed', e);
-      statusText.textContent = `Save failed: ${e.message || e}`;
-    }
   }
 
   function syncTableIntoGrid() {
@@ -464,7 +487,7 @@ document.addEventListener('DOMContentLoaded', () => {
       syncTableIntoGrid();
       try {
         // Save to localStorage first
-        const key = storageKey(selectedClassId);
+        const key = storageKey(selectedClassId, currentSession);
         localStorage.setItem(key, JSON.stringify(grid));
 
         // Save to Supabase if school is set
@@ -474,11 +497,12 @@ document.addEventListener('DOMContentLoaded', () => {
             .upsert({
               school_id: window.currentSchoolId,
               class_id: selectedClassId,
+              month_key: currentSession,
               columns_json: grid.columns,
               rows_json: grid.rows,
               updated_by: window.currentUserId || null
             }, {
-              onConflict: 'school_id,class_id'
+              onConflict: 'school_id,class_id,month_key'
             });
         }
         statusText.textContent = 'Auto-saved.';

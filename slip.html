@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Exam Slip Generator — Zahid School</title>
+  <style>
+    /* Reset & Base */
+    body { font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; background:#f0f2f5; margin: 0; color: #333; }
+    
+    /* Controls Styling */
+    .controls { 
+      background: #fff; 
+      padding: 20px; 
+      border-radius: 8px; 
+      margin-bottom: 25px; 
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08); 
+      max-width: 850px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .control-row { margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 15px; align-items: flex-start; }
+    
+    label { font-weight: 600; margin-bottom: 4px; display: block; font-size: 16px; }
+    select, input[type="text"] { padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; width: 100%; box-sizing: border-box; }
+    
+    /* Textarea for Multi-line Exam Name */
+    textarea {
+      padding: 8px 12px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      width: 100%;
+      box-sizing: border-box;
+      resize: vertical;
+      font-family: inherit;
+    }
+
+    button { padding: 8px 16px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; font-weight: 600; }
+    button:hover { background: #0056b3; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+
+    /* Schedule Input Grid */
+    .schedule-inputs { background: #f9f9f9; padding: 15px; border-radius: 6px; border: 1px solid #eee; margin-top: 15px; }
+    .schedule-header { display: flex; font-weight: bold; font-size: 13px; color: #555; margin-bottom: 5px; }
+    .schedule-row { display: flex; gap: 10px; margin-bottom: 8px; }
+    .schedule-row input { flex: 1; font-size: 13px; }
+    .schedule-row input:focus { border-color: #007bff; outline: none; }
+
+    /* =========================================
+       PRINT LAYOUT STYLES
+       ========================================= */
+    
+    .a4-page {
+      width: 210mm;
+      height: 297mm;
+      background: #fff;
+      margin: 0 auto 20px auto;
+      padding: 10mm;
+      box-sizing: border-box;
+      box-shadow: 0 0 15px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      page-break-after: always;
+    }
+
+    .slip {
+      width: 100%;
+      flex: 1; 
+      box-sizing: border-box;
+      border: 2px solid #333;
+      padding: 12px 18px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .cut-line {
+      height: 0;
+      margin: 8px 0;
+      border-top: 2px dashed #999;
+      position: relative;
+      text-align: center;
+    }
+    .cut-line span {
+      position: absolute;
+      top: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #fff;
+      padding: 0 8px;
+      color: #777;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* Inner Slip Content */
+    .slip-header { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; min-height: 75px; }
+    
+    .school-logo { 
+      width: 80px; 
+      height: 80px; 
+      object-fit: contain; 
+    }
+    
+    /* Fallback for when no logo is present */
+    .no-logo-box {
+      width: 80px; 
+      height: 80px; 
+      background: #f8f9fa;
+      border: 1px dashed #ccc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-size: 10px;
+      color: #888;
+    }
+
+    .header-center { flex: 1; text-align: center; }
+    
+    /* MULTI-LINE SUPPORT CSS */
+    .header-center h1 { 
+      margin: 0; 
+      font-size: 20px; 
+      text-transform: uppercase; 
+      letter-spacing: 0.5px; 
+      white-space: pre-wrap; /* This allows \n to break lines */
+      line-height: 1.2;
+    }
+    .header-center p { margin: 4px 0 0 0; font-size: 14px; color: #444; }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px 20px;
+      margin-bottom: 10px;
+      font-size: 18px;
+      border-bottom: 2px solid #eee;
+      padding-bottom: 8px;
+    }
+
+    /* Table Styles */
+    .exam-table { width: 100%; border-collapse: collapse; margin-top: 5px; flex: 1; }
+    .exam-table th { 
+      border: 1px solid #333; 
+      background: #eee; 
+      padding: 4px; 
+      font-size: 20px; 
+      text-align: center; 
+      font-weight: bold;
+    }
+    .exam-table td {
+      border: 1px solid #333;
+      padding: 4px 8px;
+      vertical-align: middle;
+      font-size: 16px;
+      height: 22px; 
+    }
+    .text-center { text-align: center; }
+
+    .a4-page:last-child { page-break-after: auto; }
+
+    @page { size: A4; margin: 0; }
+    @media print {
+      body { background: white; padding: 0; }
+      .controls { display: none !important; }
+      .a4-page { margin: 0; box-shadow: none; border: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="controls">
+    <div class="control-row">
+      <div style="flex: 2;">
+        <label>Select Examination:</label>
+        <select id="examName"><option>Loading...</option></select>
+      </div>
+
+      <div style="flex: 1;">
+        <label>Select Session:</label>
+        <select id="sessionFilter"><option>Loading...</option></select>
+      </div>
+      
+      <div style="flex: 1;">
+        <label>Select Class:</label>
+        <select id="classFilter"><option>Loading...</option></select>
+      </div>
+    </div>
+
+    <div class="schedule-inputs">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h4 style="margin:0;">Schedule & Syllabus</h4>
+        <div>
+          <span id="saveStatus" style="font-size:12px; margin-right:8px; font-weight:bold;"></span>
+          <button id="saveScheduleBtn" style="background:#17a2b8; font-size:13px;">Save Schedule to DB</button>
+        </div>
+      </div>
+      
+      <div class="schedule-header">
+        <span style="flex:1">Subject</span>
+        <span style="flex:2">Syllabus (Optional)</span>
+        <span style="flex:1">Date / Time</span>
+      </div>
+
+      <div id="scheduleRowsContainer"></div>
+    </div>
+
+    <div class="control-row" style="margin-top: 20px; justify-content: flex-end; align-items:center;">
+      <div>
+        <button id="loadBtn" style="background:#28a745; font-size:16px;">Generate Slips</button>
+        <button onclick="window.print()" style="background:#6c757d; margin-left:10px; font-size:16px;">Print</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="slipsContainer"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="auth.js"></script>
+  <script>
+    const classFilter = document.getElementById("classFilter");
+    const sessionFilter = document.getElementById("sessionFilter");
+    const loadBtn = document.getElementById("loadBtn");
+    const slipsContainer = document.getElementById("slipsContainer");
+    const scheduleRowsContainer = document.getElementById("scheduleRowsContainer");
+    const saveScheduleBtn = document.getElementById("saveScheduleBtn");
+    const saveStatus = document.getElementById("saveStatus");
+    const examNameInput = document.getElementById("examName");
+
+    const classesMap = {};
+
+    function getClassMetaByAdmissionClass(admissionClassValue) {
+      const cls = String(admissionClassValue || '').trim();
+      if (!cls) return null;
+
+      const all = Object.values(classesMap);
+      return all.find(c => String(c.displayName || '').trim() === cls)
+        || all.find(c => String(c.class_name || '').trim() === cls)
+        || null;
+    }
+
+    function waitForAuth() {
+      const timer = setInterval(() => {
+        if (window.authReady && window.supabaseClient) {
+          clearInterval(timer);
+          init();
+        }
+      }, 100);
+    }
+
+    async function init() {
+      await Promise.all([loadSessions(), loadClasses()]);
+      await onClassOrSessionChange();
+    }
+
+    async function loadExaminationsBySession(sessionId) {
+      examNameInput.innerHTML = "<option value=''>Loading...</option>";
+
+      if (!sessionId) {
+        examNameInput.innerHTML = "<option value=''>No session selected</option>";
+        return;
+      }
+
+      try {
+        let q = window.supabaseClient
+          .from('examination')
+          .select('id, name')
+          .eq('session_id', sessionId)
+          .order('start_date', { ascending: false });
+
+        if (window.currentSchoolId) q = q.eq('school_id', window.currentSchoolId);
+
+        const { data, error } = await q;
+        if (error) throw error;
+
+        examNameInput.innerHTML = "";
+        const list = Array.isArray(data) ? data : [];
+
+        if (!list.length) {
+          examNameInput.innerHTML = "<option value=''>No examinations in this session</option>";
+          return;
+        }
+
+        list.forEach((exam, idx) => {
+          const opt = document.createElement('option');
+          opt.value = exam.name || '';
+          opt.textContent = exam.name || 'Unnamed Examination';
+          if (idx === 0) opt.selected = true;
+          examNameInput.appendChild(opt);
+        });
+      } catch (err) {
+        console.error(err);
+        examNameInput.innerHTML = "<option value=''>Error loading examinations</option>";
+      }
+    }
+
+    function createScheduleInputs(subjects = [], schedule = []) {
+      const rowsCount = Math.max(8, subjects.length, schedule.length || 0);
+      let html = "";
+      for (let i = 0; i < rowsCount; i++) {
+        const saved = schedule[i] || {};
+        const defaultSubject = subjects[i] || "";
+        const subject = saved.sub || defaultSubject;
+        const syllabus = saved.syl || "";
+        const time = saved.time || "";
+
+        html += `
+          <div class="schedule-row">
+            <input type="text" class="inp-sub" placeholder="Subject" value="${escapeHtml(subject)}">
+            <input type="text" class="inp-syl" placeholder="Topics / Syllabus" style="flex:2" value="${escapeHtml(syllabus)}">
+            <input type="text" class="inp-time" placeholder="Date / Time" value="${escapeHtml(time)}">
+          </div>
+        `;
+      }
+      scheduleRowsContainer.innerHTML = html;
+    }
+
+    async function loadSessions() {
+      sessionFilter.innerHTML = "<option value=''>Loading...</option>";
+      try {
+        let q = window.supabaseClient
+          .from('session')
+          .select('id, session_value')
+          .order('session_value', { ascending: false });
+
+        if (window.currentSchoolId) q = q.eq('school_id', window.currentSchoolId);
+
+        const { data, error } = await q;
+        if (error) throw error;
+
+        sessionFilter.innerHTML = "";
+        (data || []).forEach((s, idx) => {
+          const opt = document.createElement("option");
+          opt.value = s.id;
+          opt.textContent = s.session_value;
+          if (idx === 0) opt.selected = true;
+          sessionFilter.appendChild(opt);
+        });
+
+        if (!sessionFilter.options.length) {
+          sessionFilter.innerHTML = "<option value=''>No sessions</option>";
+        }
+      } catch (err) {
+        console.error(err);
+        sessionFilter.innerHTML = "<option value=''>Error loading sessions</option>";
+      }
+    }
+
+    async function loadClasses() {
+      classFilter.innerHTML = "<option value='all'>All Classes</option>";
+      try {
+        let q = window.supabaseClient
+          .from('classes')
+          .select('id, class_name, section')
+          .order('class_name', { ascending: true })
+          .order('section', { ascending: true });
+
+        if (window.currentSchoolId) q = q.eq('school_id', window.currentSchoolId);
+
+        const { data, error } = await q;
+        if (error) throw error;
+
+        (data || []).forEach(c => {
+          const displayName = `${c.class_name} ${c.section || ''}`.trim();
+          classesMap[c.id] = { _id: c.id, class_name: c.class_name, section: c.section, displayName };
+          const opt = document.createElement("option");
+          opt.value = c.id;
+          opt.textContent = displayName;
+          classFilter.appendChild(opt);
+        });
+      } catch (err) {
+        console.error(err);
+        classFilter.innerHTML = "<option value='all'>All Classes</option>";
+      }
+    }
+
+    async function loadAssignedSubjects(classId) {
+      if (!classId || classId === 'all') return [];
+      try {
+        let q = window.supabaseClient
+          .from('class_subject')
+          .select('subject:subject_id(name)')
+          .eq('class_id', classId);
+
+        if (window.currentSchoolId) q = q.eq('school_id', window.currentSchoolId);
+
+        const { data, error } = await q;
+        if (error) throw error;
+
+        return (data || [])
+          .map(row => row.subject && row.subject.name ? row.subject.name : '')
+          .filter(Boolean);
+      } catch (err) {
+        console.error(err);
+        return [];
+      }
+    }
+
+    async function loadSavedSchedule(classId, sessionId) {
+      if (!classId || classId === 'all' || !sessionId) return null;
+      try {
+        let q = window.supabaseClient
+          .from('exam_slip_schedule')
+          .select('exam_name, schedule_json')
+          .eq('class_id', classId)
+          .eq('session_id', sessionId)
+          .limit(1)
+          .maybeSingle();
+
+        if (window.currentSchoolId) q = q.eq('school_id', window.currentSchoolId);
+
+        const { data, error } = await q;
+        if (error) throw error;
+        return data || null;
+      } catch (err) {
+        console.error(err);
+        return null;
+      }
+    }
+
+    async function onClassOrSessionChange() {
+      const classId = classFilter.value;
+      const sessionId = sessionFilter.value;
+
+      await loadExaminationsBySession(sessionId);
+
+      if (!classId || classId === 'all') {
+        saveScheduleBtn.disabled = true;
+        saveScheduleBtn.textContent = "Select a Class to Save";
+        createScheduleInputs();
+        return;
+      }
+
+      saveScheduleBtn.disabled = false;
+      saveScheduleBtn.textContent = "Save Schedule to DB";
+
+      const [subjects, saved] = await Promise.all([
+        loadAssignedSubjects(classId),
+        loadSavedSchedule(classId, sessionId)
+      ]);
+
+      if (saved) {
+        if (saved.exam_name) {
+          const exact = Array.from(examNameInput.options).find(o => o.value === saved.exam_name);
+          if (exact) {
+            examNameInput.value = saved.exam_name;
+          } else if (examNameInput.options.length) {
+            const custom = document.createElement('option');
+            custom.value = saved.exam_name;
+            custom.textContent = `${saved.exam_name} (saved)`;
+            examNameInput.insertBefore(custom, examNameInput.firstChild);
+            examNameInput.value = saved.exam_name;
+          }
+        }
+        createScheduleInputs(subjects, Array.isArray(saved.schedule_json) ? saved.schedule_json : []);
+      } else {
+        createScheduleInputs(subjects, []);
+      }
+    }
+
+    async function saveScheduleToSupabase() {
+      const classId = classFilter.value;
+      const sessionId = sessionFilter.value;
+
+      if (!classId || classId === 'all') {
+        alert("Please select a specific class to save the schedule.");
+        return;
+      }
+
+      if (!sessionId) {
+        alert("Please select a session.");
+        return;
+      }
+
+      saveStatus.textContent = "Saving...";
+      saveStatus.style.color = "orange";
+
+      const scheduleArr = [];
+      document.querySelectorAll(".schedule-row").forEach(row => {
+        const sub = row.querySelector('.inp-sub').value.trim();
+        const syl = row.querySelector('.inp-syl').value.trim();
+        const time = row.querySelector('.inp-time').value.trim();
+        if (sub || syl || time) scheduleArr.push({ sub, syl, time });
+      });
+
+      try {
+        const payload = {
+          school_id: window.currentSchoolId || null,
+          class_id: classId,
+          session_id: sessionId,
+          exam_name: (examNameInput.value || '').trim() || null,
+          schedule_json: scheduleArr
+        };
+
+        const { error } = await window.supabaseClient
+          .from('exam_slip_schedule')
+          .upsert(payload, { onConflict: 'school_id,class_id,session_id' });
+
+        if (error) throw error;
+
+        saveStatus.textContent = "Saved Successfully!";
+        saveStatus.style.color = "green";
+        setTimeout(() => { saveStatus.textContent = ""; }, 3000);
+      } catch (err) {
+        console.error(err);
+        saveStatus.textContent = "Error Saving";
+        saveStatus.style.color = "red";
+      }
+    }
+
+    async function generateSlips() {
+      slipsContainer.innerHTML = "<p style='text-align:center; padding:20px;'>Processing data...</p>";
+
+      const rawExamName = (examNameInput.value || '').trim() || "Examination Slip";
+      const selectedClassId = classFilter.value;
+
+      const scheduleData = [];
+      const inputRows = document.querySelectorAll('.schedule-row');
+      let showSyllabusColumn = false;
+
+      inputRows.forEach(row => {
+        const sub = row.querySelector('.inp-sub').value.trim();
+        const syl = row.querySelector('.inp-syl').value.trim();
+        const time = row.querySelector('.inp-time').value.trim();
+        if (sub || syl || time) {
+          scheduleData.push({ sub, syl, time });
+          if (syl !== "") showSyllabusColumn = true;
+        }
+      });
+
+      const minRows = 6;
+      while (scheduleData.length < minRows) scheduleData.push({ sub: '', syl: '', time: '' });
+
+      const tableHeader = `
+        <thead>
+          <tr>
+            <th style="width:30%">Subject</th>
+            ${showSyllabusColumn ? `<th style="width:45%">Syllabus</th>` : ''}
+            <th style="width:${showSyllabusColumn ? '25%' : '40%'}">Date / Time</th>
+          </tr>
+        </thead>
+      `;
+
+      let tableBody = "<tbody>";
+      scheduleData.forEach(row => {
+        tableBody += `
+          <tr>
+            <td contenteditable="true">${escapeHtml(row.sub)}</td>
+            ${showSyllabusColumn ? `<td contenteditable="true">${escapeHtml(row.syl)}</td>` : ''}
+            <td contenteditable="true" class="text-center">${escapeHtml(row.time)}</td>
+          </tr>
+        `;
+      });
+      tableBody += "</tbody>";
+      const fullTableHtml = `<table class="exam-table">${tableHeader}${tableBody}</table>`;
+
+      let q = window.supabaseClient
+        .from('admissions')
+        .select('id, full_name, father_name, roll_number, applying_for_class, status');
+
+      if (window.currentSchoolId) q = q.eq('school_id', window.currentSchoolId);
+
+      const { data, error } = await q;
+      if (error) {
+        console.error(error);
+        alert("Error loading students");
+        slipsContainer.innerHTML = "";
+        return;
+      }
+
+      let students = Array.isArray(data) ? data : [];
+
+      if (selectedClassId !== "all") {
+        const selectedName = classesMap[selectedClassId]?.displayName || "";
+        const selectedClassName = classesMap[selectedClassId]?.class_name || "";
+        students = students.filter(s => {
+          const cls = String(s.applying_for_class || '').trim();
+          return cls && (cls === selectedName || cls === selectedClassName);
+        });
+      }
+
+      if (!students.length) {
+        slipsContainer.innerHTML = "<p style='text-align:center;'>No students found.</p>";
+        return;
+      }
+
+      slipsContainer.innerHTML = "";
+
+      function getSlipHTML(s) {
+        const name = s.full_name || "—";
+        const roll = s.roll_number || "—";
+        const father = s.father_name || "—";
+        const classMeta = getClassMetaByAdmissionClass(s.applying_for_class);
+
+        let clsName = "—";
+        if (s.applying_for_class) clsName = s.applying_for_class;
+        else if (classFilter.value !== "all" && classesMap[classFilter.value]) clsName = classesMap[classFilter.value].displayName;
+
+        return `
+          <div class="slip">
+            <div class="slip-header">
+              <div class="header-center">
+                <h1>${escapeHtml(rawExamName)}</h1>
+                <p><strong>Class:</strong> ${escapeHtml(clsName)}</p>
+              </div>
+            </div>
+
+            <div class="info-grid">
+              <div><strong>Name:</strong> ${escapeHtml(name)}</div>
+              <div><strong>F.Name:</strong> ${escapeHtml(father)}</div>
+              <div><strong>Roll No:</strong> ${escapeHtml(roll)}</div>
+              <div><strong>Section:</strong> ${escapeHtml(classMeta?.section || '—')}</div>
+            </div>
+
+            ${fullTableHtml}
+          </div>
+        `;
+      }
+
+      for (let i = 0; i < students.length; i += 2) {
+        const s1 = students[i];
+        const s2 = students[i + 1];
+
+        const page = document.createElement("div");
+        page.className = "a4-page";
+
+        let content = getSlipHTML(s1);
+        if (s2) {
+          content += `<div class="cut-line"><span>Cut Here</span></div>`;
+          content += getSlipHTML(s2);
+        } else {
+          content += `<div class="cut-line"></div><div class="slip" style="visibility:hidden; border:none;"></div>`;
+        }
+        page.innerHTML = content;
+        slipsContainer.appendChild(page);
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return "";
+      return String(str)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    saveScheduleBtn.addEventListener("click", saveScheduleToSupabase);
+    loadBtn.addEventListener("click", generateSlips);
+    classFilter.addEventListener("change", onClassOrSessionChange);
+    sessionFilter.addEventListener("change", onClassOrSessionChange);
+
+    waitForAuth();
+  </script>
+</body>
+</html>

@@ -38,6 +38,10 @@ const PAGE_KEY_MAP = {
     'complaint_diary.html':     'complaints',
     'reports.html':             'reports',
     'finance.html':             'finance',
+    'examination.html':         'examination',
+    'slip.html':                'examination',
+    'curriculum_and_session.html': 'classes',
+    'class_subjects_assignment.html': 'classes',
     'staff_hiring.html':        'staff_hiring',
     'staff_attendance.html':    'staff_attendance',
     'staff_payroll.html':       'staff_payroll',
@@ -135,7 +139,7 @@ window.campusFeatureReady = false;
 
         // Auto-grant new module permissions to admin if missing from DB
         if (userRoleName === 'admin' || userRoleName === 'super_admin') {
-            ['dashboard', 'admissions', 'classes', 'access_control', 'fee_heads', 'challans', 'students', 'collect_fee', 'monitoring', 'attendance', 'pending_withdrawn', 'fee_contacts', 'family', 'collect_family_fee', 'homework', 'complaints', 'reports', 'finance', 'staff_hiring', 'staff_attendance', 'staff_payroll', 'staff_payments'].forEach(key => {
+            ['dashboard', 'admissions', 'classes', 'access_control', 'fee_heads', 'challans', 'students', 'collect_fee', 'monitoring', 'attendance', 'pending_withdrawn', 'fee_contacts', 'family', 'collect_family_fee', 'homework', 'complaints', 'reports', 'finance', 'examination', 'staff_hiring', 'staff_attendance', 'staff_payroll', 'staff_payments'].forEach(key => {
                 if (!userPermissions[key]) {
                     userPermissions[key] = { can_view: true, can_create: true, can_edit: true, can_delete: true };
                 }

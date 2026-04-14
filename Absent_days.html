@@ -464,7 +464,8 @@
       const rawMonths = JSON.parse(JSON.stringify(target.rawMonths || {}));
       const yearKey = String(col.year);
       if (!rawMonths[yearKey]) rawMonths[yearKey] = {};
-      rawMonths[yearKey][col.month] = fee === "" || fee === null ? "" : (Number(fee) || 0);
+      const normalized = String(fee ?? "").trim();
+      rawMonths[yearKey][col.month] = (normalized === "" || /^n\/a$/i.test(normalized)) ? "" : (Number(normalized) || 0);
       target.rawMonths = rawMonths;
       await updateRow(docId, { months: rawMonths, updated_at: new Date().toISOString() });
     }
@@ -503,7 +504,11 @@
     }
 
     function buildAbsentWaMessageFromTemplate(s, templateText) {
-      const cols = getVisibleCols();
+      const cols = getVisibleCols().filter(col => {
+        const isCurrentYear = Number(col.year) === CURRENT_YEAR;
+        const isCurrentMonth = col.month === months[CURRENT_MONTH_IDX];
+        return !(isCurrentYear && isCurrentMonth);
+      });
       let total = 0;
       const monthLines = cols.map(col => {
         const v = getCellValue(s.rawMonths || {}, col.year, col.month);
@@ -530,6 +535,18 @@
 
       if (!/Total\s*Absent\s*Days\s*:/i.test(parsed)) {
         parsed = `${parsed.trim()}\nTotal Absent Days: ${total}`;
+      }
+
+      // If template already includes a total label line, remove accidental standalone numeric total line.
+      if (/Total\s*Absent\s*Days\s*:/i.test(parsed)) {
+        const lines = parsed.split(/\r?\n/);
+        const cleaned = [];
+        for (const line of lines) {
+          const t = line.trim();
+          if (t === String(total)) continue;
+          cleaned.push(line);
+        }
+        parsed = cleaned.join("\n");
       }
 
       return parsed;
@@ -640,24 +657,33 @@
           inM.inputMode = "numeric";
           inM.pattern = "[0-9]*";
           const cellVal = getCellValue(s.rawMonths || {}, col.year, col.month);
-          inM.value = cellVal === "" ? "" : cellVal;
+          inM.value = cellVal === "" ? "N/A" : cellVal;
           if (s.promoted && cellVal !== "") {
             inM.style.background = "#fff7ed";
             inM.style.borderColor = "#f59e0b";
             inM.title = `Filled in previous class (${s.previous_class})`;
           }
 
+          inM.addEventListener("focus", () => {
+            if (String(inM.value).trim().toUpperCase() === "N/A") {
+              inM.value = "";
+            }
+          });
+
           inM.addEventListener("input", () => {
-                        inM.value = inM.value.replace(/[^0-9]/g, '');
+            inM.value = inM.value.replace(/[^0-9]/g, '');
             let tdSum = 0;
             tr.querySelectorAll("input.month-input").forEach(inp => {
-              if (inp.value !== "") tdSum += Number(inp.value) || 0;
+              const v = String(inp.value || "").trim();
+              if (v !== "" && !/^n\/a$/i.test(v)) tdSum += Number(v) || 0;
             });
             tdCell.textContent = tdSum;
           });
 
           inM.addEventListener("change", async () => {
             try {
+              const v = String(inM.value || "").trim();
+              if (v === "") inM.value = "N/A";
               await saveMonthFee(s.id, col, inM.value);
               const newTD = computeTDForStudent(s);
               tdCell.textContent = newTD;
