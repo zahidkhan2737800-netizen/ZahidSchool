@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <title>Exam Slip Generator — Zahid School</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <style>
     /* Reset & Base */
     body { font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; background:#f0f2f5; margin: 0; color: #333; }
@@ -44,6 +45,11 @@
     .schedule-row { display: flex; gap: 10px; margin-bottom: 8px; }
     .schedule-row input { flex: 1; font-size: 13px; }
     .schedule-row input:focus { border-color: #007bff; outline: none; }
+    .pattern-buttons { display: flex; gap: 8px; margin: 8px 0 12px; flex-wrap: wrap; }
+    .pattern-btn { font-size: 12px; padding: 6px 10px; background: #495057; }
+    .pattern-btn:hover { background: #343a40; }
+    .pattern-btn.active { background: #dc3545; }
+    .pattern-btn.active:hover { background: #c82333; }
 
     /* =========================================
        PRINT LAYOUT STYLES
@@ -68,7 +74,7 @@
       flex: 1; 
       box-sizing: border-box;
       border: 2px solid #333;
-      padding: 12px 18px;
+      padding: 6px 12px;
       overflow: hidden;
       display: flex;
       flex-direction: column;
@@ -95,7 +101,7 @@
     }
 
     /* Inner Slip Content */
-    .slip-header { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; min-height: 75px; }
+    .slip-header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; min-height: 50px; }
     
     .school-logo { 
       width: 80px; 
@@ -122,40 +128,40 @@
     /* MULTI-LINE SUPPORT CSS */
     .header-center h1 { 
       margin: 0; 
-      font-size: 20px; 
+      font-size: 18px; 
       text-transform: uppercase; 
       letter-spacing: 0.5px; 
       white-space: pre-wrap; /* This allows \n to break lines */
       line-height: 1.2;
     }
-    .header-center p { margin: 4px 0 0 0; font-size: 14px; color: #444; }
+    .header-center p { margin: 2px 0 0 0; font-size: 13px; color: #444; }
 
     .info-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 4px 20px;
-      margin-bottom: 10px;
-      font-size: 18px;
+      gap: 2px 15px;
+      margin-bottom: 4px;
+      font-size: 15px;
       border-bottom: 2px solid #eee;
-      padding-bottom: 8px;
+      padding-bottom: 4px;
     }
 
     /* Table Styles */
-    .exam-table { width: 100%; border-collapse: collapse; margin-top: 5px; flex: 1; }
+    .exam-table { width: 100%; border-collapse: collapse; margin-top: 3px; flex: 1; }
     .exam-table th { 
       border: 1px solid #333; 
       background: #eee; 
-      padding: 4px; 
-      font-size: 20px; 
+      padding: 3px; 
+      font-size: 15px; 
       text-align: center; 
       font-weight: bold;
     }
     .exam-table td {
       border: 1px solid #333;
-      padding: 4px 8px;
+      padding: 3px 6px;
       vertical-align: middle;
-      font-size: 16px;
-      height: 22px; 
+      font-size: 14px;
+      height: 18px; 
     }
     .text-center { text-align: center; }
 
@@ -187,6 +193,11 @@
         <label>Select Class:</label>
         <select id="classFilter"><option>Loading...</option></select>
       </div>
+      
+      <div style="flex: 1;">
+        <label>Copy Schedule From:</label>
+        <select id="copyClassFilter"><option value="">-- Optional --</option></select>
+      </div>
     </div>
 
     <div class="schedule-inputs">
@@ -201,7 +212,19 @@
       <div class="schedule-header">
         <span style="flex:1">Subject</span>
         <span style="flex:2">Syllabus (Optional)</span>
-        <span style="flex:1">Date / Time</span>
+        <span style="flex:0.9">Day</span>
+        <span style="flex:1">Date</span>
+        <span style="flex:1">Time</span>
+      </div>
+
+      <div class="pattern-buttons">
+        <button type="button" class="pattern-btn active" data-gap-days="1">Everyday Test</button>
+        <button type="button" class="pattern-btn" data-gap-days="2">Test After 1 Day Gap</button>
+        <button type="button" class="pattern-btn" data-gap-days="3">Test After 2 Days Gap</button>
+        <button type="button" id="satOffBtn" class="pattern-btn">Sat Off</button>
+        <button type="button" id="sunOffBtn" class="pattern-btn">Sun Off</button>
+        <button type="button" id="pickFirstDateBtn" class="pattern-btn">Pick First Date</button>
+        <input type="text" id="firstDatePicker" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;" tabindex="-1" aria-hidden="true">
       </div>
 
       <div id="scheduleRowsContainer"></div>
@@ -218,6 +241,7 @@
   <div id="slipsContainer"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <script src="auth.js"></script>
   <script>
     const classFilter = document.getElementById("classFilter");
@@ -228,8 +252,170 @@
     const saveScheduleBtn = document.getElementById("saveScheduleBtn");
     const saveStatus = document.getElementById("saveStatus");
     const examNameInput = document.getElementById("examName");
+    const copyClassFilter = document.getElementById("copyClassFilter");
+    const patternButtons = document.querySelectorAll('.pattern-btn[data-gap-days]');
+    const satOffBtn = document.getElementById('satOffBtn');
+    const sunOffBtn = document.getElementById('sunOffBtn');
+    const pickFirstDateBtn = document.getElementById('pickFirstDateBtn');
+    const firstDatePicker = document.getElementById('firstDatePicker');
 
     const classesMap = {};
+    const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    let selectedGapDays = 1;
+    let skipSaturday = false;
+    let skipSunday = false;
+    let selectedFirstDate = '';
+
+    function parseDMYToDate(dmyValue) {
+      const value = String(dmyValue || '').trim();
+      const m = value.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+      if (!m) return null;
+      const day = Number(m[1]);
+      const month = Number(m[2]);
+      const year = Number(m[3]);
+      const d = new Date(year, month - 1, day);
+      if (d.getFullYear() !== year || d.getMonth() !== month - 1 || d.getDate() !== day) return null;
+      return d;
+    }
+
+    function formatDateDMY(dateObj) {
+      if (!(dateObj instanceof Date)) return '';
+      const dd = String(dateObj.getDate()).padStart(2, '0');
+      const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const yyyy = String(dateObj.getFullYear());
+      return `${dd}-${mm}-${yyyy}`;
+    }
+
+    function getDayNameFromDateValue(dateValue) {
+      const d = parseDMYToDate(dateValue);
+      if (!d) return '';
+      return DAY_NAMES[d.getDay()];
+    }
+
+    function normalizeSavedDate(value) {
+      const raw = String(value || '').trim();
+      if (!raw) return '';
+
+      const dmy = parseDMYToDate(raw);
+      if (dmy) return formatDateDMY(dmy);
+
+      const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (iso) {
+        const d = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+        return formatDateDMY(d);
+      }
+
+      return raw;
+    }
+
+    function autoFillDayForRow(row) {
+      if (!row) return;
+      const dateInput = row.querySelector('.inp-date');
+      const dayInput = row.querySelector('.inp-day');
+      if (!dateInput || !dayInput) return;
+      const dayName = getDayNameFromDateValue(dateInput.value);
+      if (dayName) dayInput.value = dayName;
+    }
+
+    function initDatePickers() {
+      document.querySelectorAll('.inp-date').forEach(input => {
+        if (input.dataset.fpInit === '1') return;
+        input.dataset.fpInit = '1';
+        flatpickr(input, {
+          dateFormat: 'd-m-Y',
+          allowInput: true,
+          onChange: function(_selectedDates, dateStr) {
+            const row = input.closest('.schedule-row');
+            const dayInput = row ? row.querySelector('.inp-day') : null;
+            if (dayInput) dayInput.value = getDayNameFromDateValue(dateStr);
+          }
+        });
+      });
+
+      initFirstDatePicker();
+    }
+
+    function setActivePatternButton(gapDays) {
+      patternButtons.forEach(btn => {
+        const btnGap = Number(btn.dataset.gapDays || '1');
+        btn.classList.toggle('active', btnGap === gapDays);
+      });
+    }
+
+    function getFirstDateFromForm() {
+      if (selectedFirstDate) {
+        const selectedDate = parseDMYToDate(selectedFirstDate);
+        if (selectedDate) return selectedDate;
+      }
+
+      const rows = Array.from(document.querySelectorAll('.schedule-row'));
+      const firstDateInput = rows.find(r => (r.querySelector('.inp-date')?.value || '').trim())?.querySelector('.inp-date');
+      if (!firstDateInput) return null;
+      return parseDMYToDate(firstDateInput.value);
+    }
+
+    function applyDatePattern(gapDays, startDateOverride = null) {
+      const rows = Array.from(document.querySelectorAll('.schedule-row'));
+      if (!rows.length) return;
+
+      const startDate = startDateOverride || getFirstDateFromForm();
+      if (!startDate) {
+        alert('Please pick first date from calendar button or enter first date in Date column.');
+        return;
+      }
+
+      let currentDate = new Date(startDate);
+      rows.forEach(row => {
+        const sub = row.querySelector('.inp-sub')?.value.trim() || '';
+        const syl = row.querySelector('.inp-syl')?.value.trim() || '';
+        const time = row.querySelector('.inp-time')?.value.trim() || '';
+        const dateInput = row.querySelector('.inp-date');
+        const dayInput = row.querySelector('.inp-day');
+        if (!dateInput || !dayInput) return;
+
+        if (!(sub || syl || time)) {
+          dateInput.value = '';
+          dayInput.value = '';
+          return;
+        }
+
+        while ((skipSunday && currentDate.getDay() === 0) || (skipSaturday && currentDate.getDay() === 6)) {
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+
+        dateInput.value = formatDateDMY(currentDate);
+        dayInput.value = DAY_NAMES[currentDate.getDay()];
+
+        const nextDate = new Date(currentDate);
+        nextDate.setDate(nextDate.getDate() + gapDays);
+        currentDate = nextDate;
+      });
+
+      selectedFirstDate = formatDateDMY(startDate);
+      pickFirstDateBtn.classList.add('active');
+      if (firstDatePicker._flatpickr) firstDatePicker._flatpickr.setDate(startDate, false, 'd-m-Y');
+    }
+
+    function initFirstDatePicker() {
+      if (firstDatePicker.dataset.fpInit === '1') return;
+      firstDatePicker.dataset.fpInit = '1';
+      flatpickr(firstDatePicker, {
+        dateFormat: 'd-m-Y',
+        allowInput: false,
+        onChange: function(selectedDates, dateStr) {
+          if (!selectedDates || !selectedDates.length) return;
+          selectedFirstDate = dateStr;
+          pickFirstDateBtn.classList.add('active');
+          const firstRow = document.querySelector('.schedule-row');
+          if (firstRow) {
+            const firstDateInput = firstRow.querySelector('.inp-date');
+            if (firstDateInput) firstDateInput.value = dateStr;
+            autoFillDayForRow(firstRow);
+          }
+          applyDatePattern(selectedGapDays, selectedDates[0]);
+        }
+      });
+    }
 
     function getClassMetaByAdmissionClass(admissionClassValue) {
       const cls = String(admissionClassValue || '').trim();
@@ -304,17 +490,23 @@
         const defaultSubject = subjects[i] || "";
         const subject = saved.sub || defaultSubject;
         const syllabus = saved.syl || "";
+        const day = saved.day || "";
+        const date = normalizeSavedDate(saved.date || "");
         const time = saved.time || "";
 
         html += `
           <div class="schedule-row">
             <input type="text" class="inp-sub" placeholder="Subject" value="${escapeHtml(subject)}">
             <input type="text" class="inp-syl" placeholder="Topics / Syllabus" style="flex:2" value="${escapeHtml(syllabus)}">
-            <input type="text" class="inp-time" placeholder="Date / Time" value="${escapeHtml(time)}">
+            <input type="text" class="inp-day" placeholder="Day (Mon, Tue...)" style="flex:0.9" value="${escapeHtml(day)}">
+            <input type="text" class="inp-date" placeholder="DD-MM-YYYY" value="${escapeHtml(date)}">
+            <input type="text" class="inp-time" placeholder="Time" value="${escapeHtml(time)}">
           </div>
         `;
       }
       scheduleRowsContainer.innerHTML = html;
+      initDatePickers();
+      document.querySelectorAll('.schedule-row').forEach(autoFillDayForRow);
     }
 
     async function loadSessions() {
@@ -350,6 +542,7 @@
 
     async function loadClasses() {
       classFilter.innerHTML = "<option value='all'>All Classes</option>";
+      copyClassFilter.innerHTML = "<option value=''>-- Copy From --</option>";
       try {
         let q = window.supabaseClient
           .from('classes')
@@ -369,6 +562,11 @@
           opt.value = c.id;
           opt.textContent = displayName;
           classFilter.appendChild(opt);
+          
+          const optCopy = document.createElement("option");
+          optCopy.value = c.id;
+          optCopy.textContent = displayName;
+          copyClassFilter.appendChild(optCopy);
         });
       } catch (err) {
         console.error(err);
@@ -460,6 +658,21 @@
       }
     }
 
+    async function onCopyClassChange() {
+      const sourceClassId = copyClassFilter.value;
+      const sessionId = sessionFilter.value;
+      if (!sourceClassId || !sessionId) return;
+      
+      const [subjects, saved] = await Promise.all([
+        loadAssignedSubjects(classFilter.value), // Keep current subjects
+        loadSavedSchedule(sourceClassId, sessionId) // Get schedule from source class
+      ]);
+      
+      if (saved && Array.isArray(saved.schedule_json)) {
+        createScheduleInputs(subjects, saved.schedule_json);
+      }
+    }
+
     async function saveScheduleToSupabase() {
       const classId = classFilter.value;
       const sessionId = sessionFilter.value;
@@ -481,8 +694,11 @@
       document.querySelectorAll(".schedule-row").forEach(row => {
         const sub = row.querySelector('.inp-sub').value.trim();
         const syl = row.querySelector('.inp-syl').value.trim();
+        const day = row.querySelector('.inp-day').value.trim();
+        const dateRaw = row.querySelector('.inp-date').value.trim();
+        const date = normalizeSavedDate(dateRaw);
         const time = row.querySelector('.inp-time').value.trim();
-        if (sub || syl || time) scheduleArr.push({ sub, syl, time });
+        if (sub || syl || day || date || time) scheduleArr.push({ sub, syl, day, date, time });
       });
 
       try {
@@ -518,47 +734,35 @@
 
       const scheduleData = [];
       const inputRows = document.querySelectorAll('.schedule-row');
-      let showSyllabusColumn = false;
 
       inputRows.forEach(row => {
         const sub = row.querySelector('.inp-sub').value.trim();
         const syl = row.querySelector('.inp-syl').value.trim();
+        const day = row.querySelector('.inp-day').value.trim();
+        const date = normalizeSavedDate(row.querySelector('.inp-date').value.trim());
         const time = row.querySelector('.inp-time').value.trim();
-        if (sub || syl || time) {
-          scheduleData.push({ sub, syl, time });
-          if (syl !== "") showSyllabusColumn = true;
-        }
+        if (sub || syl || day || date || time) scheduleData.push({ sub, syl, day, date, time });
       });
 
       const minRows = 6;
-      while (scheduleData.length < minRows) scheduleData.push({ sub: '', syl: '', time: '' });
+      while (scheduleData.length < minRows) scheduleData.push({ sub: '', syl: '', day: '', date: '', time: '' });
 
       const tableHeader = `
         <thead>
           <tr>
-            <th style="width:30%">Subject</th>
-            ${showSyllabusColumn ? `<th style="width:45%">Syllabus</th>` : ''}
-            <th style="width:${showSyllabusColumn ? '25%' : '40%'}">Date / Time</th>
+            <th style="width:25%">Subject</th>
+            <th style="width:41%">Syllabus</th>
+            <th style="width:10%">Day</th>
+            <th style="width:12%">Date</th>
+            <th style="width:12%">Time</th>
           </tr>
         </thead>
       `;
 
-      let tableBody = "<tbody>";
-      scheduleData.forEach(row => {
-        tableBody += `
-          <tr>
-            <td contenteditable="true">${escapeHtml(row.sub)}</td>
-            ${showSyllabusColumn ? `<td contenteditable="true">${escapeHtml(row.syl)}</td>` : ''}
-            <td contenteditable="true" class="text-center">${escapeHtml(row.time)}</td>
-          </tr>
-        `;
-      });
-      tableBody += "</tbody>";
-      const fullTableHtml = `<table class="exam-table">${tableHeader}${tableBody}</table>`;
-
       let q = window.supabaseClient
         .from('admissions')
-        .select('id, full_name, father_name, roll_number, applying_for_class, status');
+        .select('id, full_name, father_name, roll_number, applying_for_class, status')
+        .eq('status', 'Active');
 
       if (window.currentSchoolId) q = q.eq('school_id', window.currentSchoolId);
 
@@ -597,6 +801,35 @@
         let clsName = "—";
         if (s.applying_for_class) clsName = s.applying_for_class;
         else if (classFilter.value !== "all" && classesMap[classFilter.value]) clsName = classesMap[classFilter.value].displayName;
+
+        let customData = {};
+        try {
+          const stored = localStorage.getItem(`slip_custom_${s.id}_${rawExamName}`);
+          if (stored) customData = JSON.parse(stored);
+        } catch (e) {}
+
+        let tableBody = "<tbody>";
+        scheduleData.forEach((row, rIdx) => {
+          const cRow = customData[rIdx] || {};
+          const sub = cRow.sub !== undefined ? cRow.sub : row.sub;
+          const syl = cRow.syl !== undefined ? cRow.syl : row.syl;
+          const day = cRow.day !== undefined ? cRow.day : row.day;
+          const date = cRow.date !== undefined ? cRow.date : row.date;
+          const time = cRow.time !== undefined ? cRow.time : row.time;
+
+          let timeStr = (time || "").replace(/=/g, '-');
+          tableBody += `
+            <tr>
+              <td contenteditable="true" data-student-id="${s.id}" data-row="${rIdx}" data-field="sub" style="font-size:17px; font-weight:bold; padding:2px;">${escapeHtml(sub)}</td>
+              <td contenteditable="true" data-student-id="${s.id}" data-row="${rIdx}" data-field="syl">${escapeHtml(syl)}</td>
+              <td contenteditable="true" data-student-id="${s.id}" data-row="${rIdx}" data-field="day" class="text-center" style="font-size:12px; padding:2px;">${escapeHtml(day)}</td>
+              <td contenteditable="true" data-student-id="${s.id}" data-row="${rIdx}" data-field="date" class="text-center" style="font-size:12px; padding:2px; white-space:nowrap;">${escapeHtml(date)}</td>
+              <td contenteditable="true" data-student-id="${s.id}" data-row="${rIdx}" data-field="time" class="text-center" style="font-size:12px; padding:2px; white-space:nowrap;">${escapeHtml(timeStr)}</td>
+            </tr>
+          `;
+        });
+        tableBody += "</tbody>";
+        const fullTableHtml = `<table class="exam-table">${tableHeader}${tableBody}</table>`;
 
         return `
           <div class="slip">
@@ -651,7 +884,74 @@
     saveScheduleBtn.addEventListener("click", saveScheduleToSupabase);
     loadBtn.addEventListener("click", generateSlips);
     classFilter.addEventListener("change", onClassOrSessionChange);
+    copyClassFilter.addEventListener("change", onCopyClassChange);
     sessionFilter.addEventListener("change", onClassOrSessionChange);
+    scheduleRowsContainer.addEventListener('input', (e) => {
+      if (!e.target.classList.contains('inp-date')) return;
+      autoFillDayForRow(e.target.closest('.schedule-row'));
+    });
+
+    slipsContainer.addEventListener('input', (e) => {
+      if (e.target.tagName === 'TD' && e.target.isContentEditable) {
+        const sid = e.target.getAttribute('data-student-id');
+        const rIdx = e.target.getAttribute('data-row');
+        const field = e.target.getAttribute('data-field');
+        if (!sid || !rIdx || !field) return;
+
+        const rawExamName = (examNameInput.value || '').trim() || "Examination Slip";
+        const lsKey = `slip_custom_${sid}_${rawExamName}`;
+        let customData = {};
+        try {
+          const stored = localStorage.getItem(lsKey);
+          if (stored) customData = JSON.parse(stored);
+        } catch(err){}
+
+        if (!customData[rIdx]) customData[rIdx] = {};
+        customData[rIdx][field] = e.target.textContent;
+        localStorage.setItem(lsKey, JSON.stringify(customData));
+      }
+    });
+
+    scheduleRowsContainer.addEventListener('click', (e) => {
+      if (!e.target.classList.contains('inp-time')) return;
+      const allTimeInputs = document.querySelectorAll('.inp-time');
+      if (allTimeInputs.length > 0 && e.target === allTimeInputs[0]) {
+        if (e.target.dataset.justPrompted) return;
+        
+        let userTime = prompt("Enter the time (e.g., 8:30-11:00) to auto-fill all rows:", e.target.value);
+        if (userTime !== null) {
+          userTime = userTime.replace(/=/g, '-');
+          allTimeInputs.forEach(input => {
+            input.value = userTime;
+          });
+        }
+        
+        e.target.dataset.justPrompted = "true";
+        setTimeout(() => { e.target.dataset.justPrompted = ""; }, 1000);
+      }
+    });
+
+    patternButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        selectedGapDays = Number(btn.dataset.gapDays || '1');
+        setActivePatternButton(selectedGapDays);
+        applyDatePattern(selectedGapDays);
+      });
+    });
+    satOffBtn.addEventListener('click', () => {
+      skipSaturday = !skipSaturday;
+      satOffBtn.classList.toggle('active', skipSaturday);
+      applyDatePattern(selectedGapDays);
+    });
+    sunOffBtn.addEventListener('click', () => {
+      skipSunday = !skipSunday;
+      sunOffBtn.classList.toggle('active', skipSunday);
+      applyDatePattern(selectedGapDays);
+    });
+    pickFirstDateBtn.addEventListener('click', () => {
+      pickFirstDateBtn.classList.add('active');
+      if (firstDatePicker._flatpickr) firstDatePicker._flatpickr.open();
+    });
 
     waitForAuth();
   </script>

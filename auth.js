@@ -19,6 +19,7 @@ const PAGE_KEY_MAP = {
     'attendance_register.html': 'attendance',
     'Absent_days.html':         'attendance',
     'Absent_Report Card.html':  'attendance',
+    'Ceritficates.html':        'attendance',
     'monitoring.html':          'monitoring',
     'pending_withdrawn.html':   'pending_withdrawn',
     'create_challan.html':      'challans',

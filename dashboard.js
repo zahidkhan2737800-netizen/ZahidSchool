@@ -24,6 +24,7 @@ var NAV_CATEGORIES = [
             { href: 'attendance_register.html', label: 'Attendance Register', icon: 'fas fa-table', key: 'attendance' },
             { href: 'Absent_days.html', label: 'Absent Days', icon: 'fas fa-calendar-minus', key: 'attendance' },
             { href: 'Absent_Report Card.html', label: 'Absent Days Reports', icon: 'fas fa-id-card', key: 'attendance' },
+            { href: 'Ceritficates.html', label: 'Ceritficates', icon: 'fas fa-award', key: 'attendance' },
             { href: 'syllabus_progress.html', label: 'Syllabus Progress', icon: 'fas fa-list-check', key: 'classes' },
         ]
     },
@@ -32,6 +33,7 @@ var NAV_CATEGORIES = [
     items: [
       { href: 'fee_paid_log.html', label: 'Open Paid Fee Log', icon: 'fas fa-list-check', key: 'collect_fee' },
       { href: 'fee_register.html', label: 'Fee Register', icon: 'fas fa-table', key: 'collect_fee' },
+      { href: 'fee_type_report.html', label: 'Fee Type Report', icon: 'fas fa-file-invoice', key: 'collect_fee' },
       { href: 'family_contacts.html', label: 'Open Family Fee Contacts', icon: 'fas fa-phone-volume', key: 'fee_contacts' },
             { href: 'thermal_print_settings.html', label: 'Thermal Print Settings', icon: 'fas fa-print', key: 'collect_fee' },
     ]
