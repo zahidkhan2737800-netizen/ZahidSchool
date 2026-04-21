@@ -118,9 +118,38 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Auto-generate Student ID
     const studentIdInput = document.getElementById('studentId');
-    const year = new Date().getFullYear();
-    const randomNum = Math.floor(1000 + Math.random() * 9000); // 4 digit
-    studentIdInput.value = `ZSM-${year}-${randomNum}`;
+
+    /**
+     * Generates a highly unique student ID using timestamp + random suffix.
+     * Format: ZSM-YYYY-TTTRRR  (T = last 4 digits of ms timestamp, R = 3-digit random)
+     * Gives ~10 million unique combinations per year — collisions are virtually impossible.
+     * Also verifies against the DB and retries if the ID somehow already exists.
+     */
+    async function generateUniqueStudentId() {
+        const year = new Date().getFullYear();
+        for (let attempt = 0; attempt < 5; attempt++) {
+            const ts  = Date.now().toString().slice(-4);          // last 4 ms digits
+            const rnd = Math.floor(100 + Math.random() * 900);   // 3-digit random
+            const id  = `ZSM-${year}-${ts}${rnd}`;
+
+            // Verify the ID doesn't already exist in the DB
+            try {
+                const { data } = await supabaseClient
+                    .from('admissions')
+                    .select('id')
+                    .eq('student_id', id)
+                    .limit(1);
+                if (!data || data.length === 0) return id; // ✅ unique
+            } catch (_) {
+                return id; // On network error, use it anyway — constraint will catch true dup
+            }
+        }
+        // Fallback: full timestamp ensures global uniqueness
+        return `ZSM-${year}-${Date.now()}`;
+    }
+
+    // Set ID on page load
+    generateUniqueStudentId().then(id => { studentIdInput.value = id; });
     
     // Auto age calculation
     const dobInput = document.getElementById('dob');
@@ -504,14 +533,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 let actionResult;
                 if (editingStudentRecordId) {
+                    // UPDATE existing student — student_id stays the same
                     actionResult = await supabaseClient
                         .from('admissions')
                         .update(formData)
                         .eq('id', editingStudentRecordId);
                 } else {
-                    actionResult = await supabaseClient
-                        .from('admissions')
-                        .insert([formData]);
+                    // INSERT new student — retry up to 3 times if student_id collides
+                    let insertError = null;
+                    for (let attempt = 0; attempt < 3; attempt++) {
+                        if (attempt > 0) {
+                            // Regenerate a fresh ID on retry
+                            formData.student_id = await generateUniqueStudentId();
+                            studentIdInput.value = formData.student_id;
+                        }
+                        actionResult = await supabaseClient
+                            .from('admissions')
+                            .insert([formData]);
+                        insertError = actionResult.error;
+
+                        // Only retry on student_id unique constraint violation
+                        if (!insertError || !insertError.message.includes('admissions_student_id_key')) break;
+                    }
                 }
                 const { error } = actionResult;
 
@@ -539,8 +582,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     submitBtn.style.boxShadow = '';
                 }
                 
-                // Regenerate ID for next student
-                studentIdInput.value = `ZSM-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+                // Regenerate a fresh unique ID for the next student
+                generateUniqueStudentId().then(id => { studentIdInput.value = id; });
                 if(photoPreview) photoPreview.innerHTML = 'No image selected';
                 ageInput.value = '';
                 

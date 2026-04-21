@@ -200,6 +200,13 @@
       </div>
     </div>
 
+    <div class="control-row">
+      <div style="flex: 1;">
+        <label>Specific Roll Numbers (Optional):</label>
+        <input type="text" id="rollNumberFilter" placeholder="e.g. 23, 45, 67 (Leave blank to generate for all students)" />
+      </div>
+    </div>
+
     <div class="schedule-inputs">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
         <h4 style="margin:0;">Schedule & Syllabus</h4>
@@ -732,7 +739,7 @@
       const rawExamName = (examNameInput.value || '').trim() || "Examination Slip";
       const selectedClassId = classFilter.value;
 
-      const scheduleData = [];
+      const uiScheduleData = [];
       const inputRows = document.querySelectorAll('.schedule-row');
 
       inputRows.forEach(row => {
@@ -741,11 +748,32 @@
         const day = row.querySelector('.inp-day').value.trim();
         const date = normalizeSavedDate(row.querySelector('.inp-date').value.trim());
         const time = row.querySelector('.inp-time').value.trim();
-        if (sub || syl || day || date || time) scheduleData.push({ sub, syl, day, date, time });
+        if (sub || syl || day || date || time) uiScheduleData.push({ sub, syl, day, date, time });
       });
 
       const minRows = 6;
-      while (scheduleData.length < minRows) scheduleData.push({ sub: '', syl: '', day: '', date: '', time: '' });
+      while (uiScheduleData.length < minRows) uiScheduleData.push({ sub: '', syl: '', day: '', date: '', time: '' });
+
+      const sessionId = sessionFilter.value;
+      let allSchedulesMap = {};
+      if (sessionId && selectedClassId === "all") {
+        try {
+          let qs = window.supabaseClient
+            .from('exam_slip_schedule')
+            .select('class_id, schedule_json')
+            .eq('session_id', sessionId);
+          if (window.currentSchoolId) qs = qs.eq('school_id', window.currentSchoolId);
+          
+          const { data: schData } = await qs;
+          if (schData) {
+            schData.forEach(sch => {
+              allSchedulesMap[sch.class_id] = Array.isArray(sch.schedule_json) ? sch.schedule_json : [];
+            });
+          }
+        } catch(err) {
+          console.error("Error fetching class schedules for batch printing:", err);
+        }
+      }
 
       const tableHeader = `
         <thead>
@@ -785,6 +813,14 @@
         });
       }
 
+      const rollInput = document.getElementById('rollNumberFilter')?.value.trim();
+      if (rollInput) {
+        const rollArray = rollInput.split(',').map(r => r.trim()).filter(Boolean);
+        if (rollArray.length > 0) {
+          students = students.filter(s => rollArray.includes(String(s.roll_number)));
+        }
+      }
+
       if (!students.length) {
         slipsContainer.innerHTML = "<p style='text-align:center;'>No students found.</p>";
         return;
@@ -809,13 +845,22 @@
         } catch (e) {}
 
         let tableBody = "<tbody>";
-        scheduleData.forEach((row, rIdx) => {
+        
+        let studentSchedule = uiScheduleData;
+        if (selectedClassId === "all" && classMeta && classMeta._id && allSchedulesMap[classMeta._id]) {
+          studentSchedule = allSchedulesMap[classMeta._id];
+        }
+        
+        let finalSchedule = Array.isArray(studentSchedule) ? [...studentSchedule] : [];
+        while (finalSchedule.length < minRows) finalSchedule.push({ sub: '', syl: '', day: '', date: '', time: '' });
+
+        finalSchedule.forEach((row, rIdx) => {
           const cRow = customData[rIdx] || {};
-          const sub = cRow.sub !== undefined ? cRow.sub : row.sub;
-          const syl = cRow.syl !== undefined ? cRow.syl : row.syl;
-          const day = cRow.day !== undefined ? cRow.day : row.day;
-          const date = cRow.date !== undefined ? cRow.date : row.date;
-          const time = cRow.time !== undefined ? cRow.time : row.time;
+          const sub = cRow.sub !== undefined ? cRow.sub : (row.sub || "");
+          const syl = cRow.syl !== undefined ? cRow.syl : (row.syl || "");
+          const day = cRow.day !== undefined ? cRow.day : (row.day || "");
+          const date = cRow.date !== undefined ? cRow.date : (row.date || "");
+          const time = cRow.time !== undefined ? cRow.time : (row.time || "");
 
           let timeStr = (time || "").replace(/=/g, '-');
           tableBody += `

@@ -34,6 +34,7 @@ var NAV_CATEGORIES = [
       { href: 'fee_paid_log.html', label: 'Open Paid Fee Log', icon: 'fas fa-list-check', key: 'collect_fee' },
       { href: 'fee_register.html', label: 'Fee Register', icon: 'fas fa-table', key: 'collect_fee' },
       { href: 'fee_type_report.html', label: 'Fee Type Report', icon: 'fas fa-file-invoice', key: 'collect_fee' },
+      { href: 'fee_unpaid_head_report.html', label: 'Fee Not Paid Head Wise', icon: 'fas fa-exclamation-circle', key: 'collect_fee' },
       { href: 'family_contacts.html', label: 'Open Family Fee Contacts', icon: 'fas fa-phone-volume', key: 'fee_contacts' },
             { href: 'thermal_print_settings.html', label: 'Thermal Print Settings', icon: 'fas fa-print', key: 'collect_fee' },
     ]

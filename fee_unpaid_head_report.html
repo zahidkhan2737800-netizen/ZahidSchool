@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zahid School - Unpaid Fee Head Report</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="fee_type_report.css">
+</head>
+<body>
+    <div class="page-wrap">
+        <header class="top-head">
+            <div class="title-wrap">
+                <div class="icon">⚠️</div>
+                <div>
+                    <h1>Unpaid Fee Head Report</h1>
+                    <p>View students who have not paid a specific fee head</p>
+                </div>
+            </div>
+            <div class="head-links">
+                <a href="dashboard.html"><i class="fas fa-chart-line"></i> Dashboard</a>
+                <a href="collect_fee.html"><i class="fas fa-hand-holding-usd"></i> Collect Fee</a>
+            </div>
+        </header>
+
+        <section class="filters">
+            <div class="field">
+                <label for="feeTypeFilter">Select Fee Head</label>
+                <select id="feeTypeFilter">
+                    <option value="">Loading...</option>
+                </select>
+            </div>
+            <div class="field">
+                <label for="classFilter">Select Class</label>
+                <select id="classFilter">
+                    <option value="">All Classes</option>
+                </select>
+            </div>
+            <div class="field search-field">
+                <label for="searchText">Search</label>
+                <input type="text" id="searchText" placeholder="Student name or roll no">
+            </div>
+            <div class="field slider-field">
+                <label for="fontSizeRange">Font Size <span id="fontSizeValue">8.5px</span></label>
+                <input type="range" id="fontSizeRange" min="7" max="20" step="0.5" value="8.5">
+            </div>
+            <div class="field slider-field">
+                <label for="compactnessRange">Compactness <span id="compactnessValue">80%</span></label>
+                <input type="range" id="compactnessRange" min="0" max="100" step="5" value="80">
+            </div>
+            <div class="actions" style="grid-column: 1 / -1; display: flex; justify-content: flex-end;">
+                <button id="loadBtn" class="btn-primary"><i class="fas fa-sync"></i> Load</button>
+                <button id="printBtn" class="btn-primary"><i class="fas fa-print"></i> Print</button>
+            </div>
+        </section>
+
+        <section class="summary" id="summaryBar">
+            <div class="card">
+                <span class="lbl">Total Students</span>
+                <strong id="rowCount">0</strong>
+            </div>
+            <div class="card">
+                <span class="lbl" id="summaryFeeLabel">Total Unpaid Amount</span>
+                <strong id="totalAmount">Rs 0</strong>
+            </div>
+        </section>
+
+        <section class="table-wrap">
+            <div id="printDateHeader" class="print-date-header"></div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Roll No</th>
+                        <th>Student Name</th>
+                        <th>Father Name</th>
+                        <th>Class</th>
+                        <th>Fee Month</th>
+                        <th>Status</th>
+                        <th style="text-align: right;">Total Amount</th>
+                        <th style="text-align: right;">Paid Amount</th>
+                        <th style="text-align: right;">Remaining</th>
+                    </tr>
+                </thead>
+                <tbody id="reportLogBody">
+                    <tr>
+                        <td colspan="10" class="empty">Please select a Fee Head and click Load.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+    </div>
+
+    <script src="auth.js"></script>
+    <script src="fee_unpaid_head_report.js"></script>
+</body>
+</html>

@@ -19,10 +19,10 @@ const totalAmountEl = document.getElementById('totalAmount');
 const summaryFeeLabel = document.getElementById('summaryFeeLabel');
 
 const LS_KEYS = {
-    feeType: 'feeTypeReport.feeType',
-    className: 'feeTypeReport.className',
-    fontSize: 'feeTypeReport.fontSize',
-    compactness: 'feeTypeReport.compactness'
+    feeType: 'feeUnpaidHeadReport.feeType',
+    className: 'feeUnpaidHeadReport.className',
+    fontSize: 'feeUnpaidHeadReport.fontSize',
+    compactness: 'feeUnpaidHeadReport.compactness'
 };
 
 function applySchoolScope(query) {
@@ -44,10 +44,10 @@ function updatePrintHeader() {
         month: 'short',
         year: 'numeric'
     });
-    const total = getFilteredRows().reduce((sum, row) => sum + row.paidAmount, 0);
+    const total = getFilteredRows().reduce((sum, row) => sum + row.remainingAmount, 0);
     const feeTypeName = feeTypeFilter.options[feeTypeFilter.selectedIndex]?.text || '';
     
-    printDateHeader.innerHTML = `Fee Type Report: <strong>${feeTypeName}</strong> | Date: ${dateLabel} ${timeLabel} | Total Collected: ${toCurrencyLabel(total)}`;
+    printDateHeader.innerHTML = `Unpaid Fee Head Report: <strong>${feeTypeName}</strong> | Date: ${dateLabel} ${timeLabel} | Total Unpaid: ${toCurrencyLabel(total)}`;
 }
 
 function applyLayoutControls() {
@@ -111,7 +111,7 @@ async function initFilters() {
                 .order('name');
         if (feeErr) throw feeErr;
 
-        feeTypeFilter.innerHTML = '<option value="" disabled selected>-- Select Fee Type --</option>' + 
+        feeTypeFilter.innerHTML = '<option value="" disabled selected>-- Select Fee Head --</option>' + 
             (feeTypes || []).map(f => `<option value="${f.name}">${f.name}</option>`).join('');
 
         const savedFeeType = localStorage.getItem(LS_KEYS.feeType);
@@ -160,7 +160,7 @@ async function loadReport() {
     const selectedClass = classFilter.value;
 
     if (!selectedFeeType) {
-        alert("Please select a Fee Type first.");
+        alert("Please select a Fee Head first.");
         return;
     }
 
@@ -169,7 +169,7 @@ async function loadReport() {
 
     loadBtn.disabled = true;
     loadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading';
-    reportLogBody.innerHTML = '<tr><td colspan="9" class="empty">Loading report data...</td></tr>';
+    reportLogBody.innerHTML = '<tr><td colspan="10" class="empty">Loading report data...</td></tr>';
 
     try {
         // 1. Fetch Students (Filtered by Class if selected)
@@ -196,13 +196,13 @@ async function loadReport() {
         const studentIds = students.map(s => s.id);
 
         // 2. Fetch Challans for these students with the target Fee Type
-        // We want students who have PAID (or partially paid) this fee.
+        // We want students who have NOT fully paid this fee.
         const { data: chData, error: chErr } = await applySchoolScope(
             db.from('challans')
                 .select('id, student_id, fee_type, fee_month, amount, paid_amount, status')
                 .eq('fee_type', selectedFeeType)
                 .in('student_id', studentIds)
-                .gt('paid_amount', 0)
+                .in('status', ['Unpaid', 'Partially Paid'])
                 .neq('status', 'Cancelled')
         );
 
@@ -215,6 +215,9 @@ async function loadReport() {
 
         allRows = challans.map(ch => {
             const stu = admissionsMap.get(ch.student_id) || {};
+            const totalAmount = Number(ch.amount || 0);
+            const paidAmount = Number(ch.paid_amount || 0);
+            const remainingAmount = totalAmount - paidAmount;
             
             return {
                 rollNo: stu.roll_number || 'N/A',
@@ -222,14 +225,21 @@ async function loadReport() {
                 fatherName: stu.father_name || 'N/A',
                 className: stu.applying_for_class || 'N/A',
                 feeMonth: ch.fee_month || 'N/A',   
-                totalAmount: Number(ch.amount || 0),
-                paidAmount: Number(ch.paid_amount || 0),
+                totalAmount: totalAmount,
+                paidAmount: paidAmount,
+                remainingAmount: remainingAmount,
                 status: ch.status
             };
         });
 
-        // Sort by Roll Number then Name
+        // Filter out any valid anamolies where remainingAmount <= 0
+        allRows = allRows.filter(r => r.remainingAmount > 0);
+
+        // Sort by Class, then Roll Number, then Name
         allRows.sort((a, b) => {
+            if (a.className !== b.className) {
+                return (a.className || '').localeCompare(b.className || '');
+            }
             if (a.rollNo !== 'N/A' && b.rollNo !== 'N/A') {
                 return Number(a.rollNo) - Number(b.rollNo);
             }
@@ -239,7 +249,7 @@ async function loadReport() {
         renderRows();
     } catch (err) {
         console.error('Report load error:', err);
-        reportLogBody.innerHTML = `<tr><td colspan="9" class="empty" style="color:#dc2626;">Failed to load data: ${err.message}</td></tr>`;
+        reportLogBody.innerHTML = `<tr><td colspan="10" class="empty" style="color:#dc2626;">Failed to load data: ${err.message}</td></tr>`;
         rowCountEl.textContent = '0';
         totalAmountEl.textContent = 'Rs 0';
     } finally {
@@ -264,24 +274,22 @@ function renderRows() {
     const filtered = getFilteredRows();
 
     if (filtered.length === 0) {
-        reportLogBody.innerHTML = '<tr><td colspan="9" class="empty">No records found for this filter.</td></tr>';
+        reportLogBody.innerHTML = '<tr><td colspan="10" class="empty">No records found for this filter.</td></tr>';
         rowCountEl.textContent = '0';
         totalAmountEl.textContent = 'Rs 0';
         updatePrintHeader();
         return;
     }
 
-    let totalCollected = 0;
+    let totalRemaining = 0;
     
     // Render
     let rowsHtml = '';
     filtered.forEach((row, idx) => {
-        totalCollected += row.paidAmount;
+        totalRemaining += row.remainingAmount;
 
         let statusBadge = '';
-        if (row.status === 'Paid') {
-            statusBadge = '<span class="badge badge-paid">✓ Paid</span>';
-        } else if (row.status === 'Partial') {
+        if (row.status === 'Partial' || row.status === 'Partially Paid') {
             statusBadge = '<span class="badge badge-partial">Partial</span>';
         } else {
             statusBadge = `<span class="badge badge-unpaid">${row.status}</span>`;
@@ -297,7 +305,8 @@ function renderRows() {
                 <td>${row.feeMonth}</td>
                 <td>${statusBadge}</td>
                 <td style="text-align: right;">Rs ${Math.round(row.totalAmount).toLocaleString()}</td>
-                <td style="text-align: right;"><strong>Rs ${Math.round(row.paidAmount).toLocaleString()}</strong></td>
+                <td style="text-align: right;">Rs ${Math.round(row.paidAmount).toLocaleString()}</td>
+                <td style="text-align: right; color:#dc2626;"><strong>Rs ${Math.round(row.remainingAmount).toLocaleString()}</strong></td>
             </tr>
         `;
     });
@@ -308,7 +317,7 @@ function renderRows() {
     const uniqueStudents = new Set(filtered.map(r => r.rollNo + r.studentName)).size;
     rowCountEl.textContent = uniqueStudents.toLocaleString();
     
-    totalAmountEl.textContent = toCurrencyLabel(totalCollected);
+    totalAmountEl.textContent = toCurrencyLabel(totalRemaining);
     
     updatePrintHeader();
 }
