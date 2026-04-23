@@ -50,6 +50,7 @@ const sumGrandTotal = document.getElementById('sumGrandTotal');
 const sumRemaining  = document.getElementById('sumRemaining');
 const btnSubmit     = document.getElementById('btnSubmit');
 const btnReprint    = document.getElementById('btnReprint');
+const btnBill       = document.getElementById('btnBill');
 const checkoutAlert = document.getElementById('checkoutAlert');
 const workspaceDialog = document.querySelector('.workspace-dialog');
 
@@ -161,6 +162,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (receiptCache.length === 0) return;
         reprintFromHistory(receiptCache[0]); // Reprint the most recent receipt
     });
+    
+    btnBill.addEventListener('click', printBill);
 
     btnPayAll.addEventListener('click', () => {
         if (pendingDues.length === 0) return;
@@ -308,6 +311,7 @@ async function openStudent(student) {
     historyPanel.style.display = 'none';
     btnToggleHistory.textContent = '📜 History';
     btnReprint.style.display = 'none';
+    btnBill.style.display = 'none';
     recalcCart();
 
     workspace.classList.remove('workspace-pop');
@@ -379,6 +383,12 @@ function reprintFromHistory(receipt) {
     document.getElementById('rctClass').textContent     = receipt.class_name;
     document.getElementById('rctTotal').textContent     = Number(receipt.total_paid).toLocaleString();
     document.getElementById('rctRemaining').textContent = Number(receipt.remaining).toLocaleString();
+    
+    // Ensure visibility
+    document.getElementById('rowReceiptNo').style.display = 'flex';
+    document.getElementById('rowTotalPaid').style.display = 'flex';
+    document.getElementById('rctFooter').textContent = 'Thank you! — Zahid School System';
+    
     // Method, Ref, Remarks removed from receipt layout
 
     const lines = Array.isArray(receipt.fee_lines) ? receipt.fee_lines : [];
@@ -417,6 +427,7 @@ async function loadDues(uuid) {
         if (pendingDues.length === 0) {
             btnPayAll.style.display = 'none';
             btnPartial.style.display = 'none';
+            btnBill.style.display = 'none';
             challansList.innerHTML = `
                 <div style="text-align:center; padding:2rem; background:#f0fdf4; border-radius:12px;">
                     <span style="font-size:2.5rem;">🎉</span>
@@ -429,6 +440,7 @@ async function loadDues(uuid) {
 
         btnPayAll.style.display = 'block';
         btnPartial.style.display = 'block';
+        btnBill.style.display = 'inline-block';
         renderDues();
     } catch (e) {
         challansList.innerHTML = `<p style="color:red;">Error loading dues: ${e.message}</p>`;
@@ -680,6 +692,11 @@ function printReceipt(receiptId, txRecords, totalPaid, remaining) {
     document.getElementById('rctClass').textContent    = activeStudent.applying_for_class;
     document.getElementById('rctTotal').textContent    = totalPaid.toLocaleString();
     document.getElementById('rctRemaining').textContent = remaining.toLocaleString();
+    
+    // Ensure visibility
+    document.getElementById('rowReceiptNo').style.display = 'flex';
+    document.getElementById('rowTotalPaid').style.display = 'flex';
+    document.getElementById('rctFooter').textContent = 'Thank you! — Zahid School System';
     // Method, Ref, Remarks removed from receipt layout
 
     // Build itemised fee lines for thermal receipt
@@ -695,6 +712,60 @@ function printReceipt(receiptId, txRecords, totalPaid, remaining) {
     }).join('');
 
     // Delay so browser fully renders receipt DOM before print dialog opens
+    setTimeout(() => window.print(), 350);
+}
+
+// ─── Print Bill ───────────────────────────────────────────────────────────────
+function printBill() {
+    if (!activeStudent || pendingDues.length === 0) return;
+
+    let totalRemaining = 0;
+    let totalPreviouslyPaid = 0;
+
+    const txRecords = pendingDues.map(c => {
+        const rem = parseFloat(c.amount) - parseFloat(c.paid_amount || 0);
+        totalRemaining += rem;
+        totalPreviouslyPaid += parseFloat(c.paid_amount || 0);
+        
+        let desc = c.fee_type;
+        if (c.fee_month && c.fee_month !== 'N/A') desc += ` (${c.fee_month})`;
+        
+        const displayName = activeStudent.full_name.split(' ')[0];
+        desc = `[${displayName} (${activeStudent.roll_number})] ${desc}`;
+
+        return {
+           fee_details: desc,
+           amount_paid: rem
+        };
+    });
+
+    applyThermalSettings('collect_fee');
+    document.getElementById('rctNo').textContent       = 'BILL-' + Date.now().toString().slice(-4);
+    document.getElementById('rctDate').textContent     = new Date().toLocaleString();
+    document.getElementById('rctName').textContent     = activeStudent.full_name;
+    document.getElementById('rctRoll').textContent     = activeStudent.roll_number;
+    document.getElementById('rctFather').textContent   = activeStudent.father_name || 'N/A';
+    document.getElementById('rctClass').textContent    = activeStudent.applying_for_class;
+    
+    // Hide details for Bill
+    document.getElementById('rowReceiptNo').style.display = 'none';
+    document.getElementById('rowTotalPaid').style.display = 'none';
+    
+    document.getElementById('lblRemaining').textContent = "Remaining";
+    document.getElementById('rctRemaining').textContent = totalRemaining.toLocaleString();
+
+    document.getElementById('rctFooter').textContent = 'No Payment Received in This Bill';
+
+    const rctBody = document.getElementById('rctBody');
+    rctBody.innerHTML = txRecords.map(tx => {
+        const desc = tx.fee_details; 
+        const amt  = Number(tx.amount_paid).toLocaleString();
+        return `<div class="th-fee-row">
+                    <span class="th-fee-desc">${desc}</span>
+                    <span class="th-fee-amt">Rs ${amt}</span>
+                </div>`;
+    }).join('');
+
     setTimeout(() => window.print(), 350);
 }
 

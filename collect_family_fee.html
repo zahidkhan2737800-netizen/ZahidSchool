@@ -559,6 +559,7 @@
                 <button id="btnPayAll" class="pay-all-btn" style="display:none;">✅ Pay All Dues</button>
                 <button id="btnReprint" class="reprint-btn" style="display:none;">🖨️ Reprint Last</button>
                 <button id="btnToggleHistory" class="show-history-btn">📜 History</button>
+                <button id="btnBill" class="show-history-btn" style="display:none;">🧾 Bill</button>
             </div>
         </div>
 
@@ -866,7 +867,7 @@
         <div class="th-row"><span class="th-label">Family Name</span><span class="th-value" id="rctName"></span></div>
         <div class="th-row" id="rctNoRow"><span class="th-label">Family #</span><span class="th-value"
                 id="rctFamilyNo"></span></div>
-        <div class="th-row"><span class="th-label">Receipt #</span><span class="th-value" id="rctNo"></span></div>
+        <div class="th-row" id="rowReceiptNo"><span class="th-label">Receipt #</span><span class="th-value" id="rctNo"></span></div>
         <hr class="th-divider">
 
         <div class="th-center" style="font-size:20px; font-weight:900; margin-bottom:5px;">FAMILY COMBINED STATEMENT
@@ -877,15 +878,15 @@
         <hr class="th-divider">
 
         <!-- Totals -->
-        <div class="th-total-row">
-            <span>Total Paid</span><span>Rs <span id="rctTotal"></span></span>
+        <div class="th-total-row" id="rowTotalPaid">
+            <span id="lblTotalPaid">Total Paid</span><span>Rs <span id="rctTotal"></span></span>
         </div>
         <div class="th-remain-row">
-            <span>Remaining</span><span>Rs <span id="rctRemaining"></span></span>
+            <span id="lblRemaining">Remaining</span><span>Rs <span id="rctRemaining"></span></span>
         </div>
         <hr class="th-divider">
 
-        <div class="th-footer">Thank you! — Zahid School System</div>
+        <div class="th-footer" id="rctFooter">Thank you! — Zahid School System</div>
     </div>
 
     <script src="auth.js"></script>

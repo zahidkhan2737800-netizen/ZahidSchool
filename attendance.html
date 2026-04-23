@@ -9,6 +9,7 @@
     
     <!-- Supabase JS -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -110,6 +111,7 @@
                             <th>Class</th>
                             <th>Global Absences</th>
                             <th>Status (<span id="tableDateDisplay"></span>)</th>
+                            <th id="colWaHeader" style="display:none; width: 40px; text-align: center;" title="Send WhatsApp Message">W</th>
                             <th>Quick Actions</th>
                         </tr>
                     </thead>
@@ -121,6 +123,34 @@
             </div>
         </div>
     </main>
+
+    <!-- WhatsApp Message Modal -->
+    <div id="waModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:3000; align-items:center; justify-content:center;">
+        <div style="background:white; border-radius:12px; padding:1.5rem; width:90%; max-width:450px; box-shadow:0 10px 25px rgba(0,0,0,0.2);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                <h3 style="margin:0; display:flex; align-items:center; gap:0.5rem; color:#0f172a;">
+                    <i class="fab fa-whatsapp" style="color:#25D366; font-size:1.5rem;"></i> Send WhatsApp Message
+                </h3>
+            </div>
+            
+            <!-- Template Selection -->
+            <div style="margin-bottom:1rem; display:flex; gap:0.5rem; align-items:center;">
+                <select id="waTemplateDropdown" style="flex-grow:1; padding:0.6rem; border-radius:8px; border:1px solid #cbd5e1; font-weight:600; color:#475569; outline:none;" onchange="applySelectedWaTemplate()">
+                    <option value="">Loading Templates...</option>
+                </select>
+                <a href="wa_templates.html" target="_blank" title="Manage Templates" style="padding:0.6rem; border-radius:8px; border:1px solid #cbd5e1; background:white; cursor:pointer; font-weight:700; text-decoration:none; color:inherit; display:flex; align-items:center;">⚙️</a>
+                <button onclick="loadWaTemplates()" title="Refresh Templates" style="padding:0.6rem; border-radius:8px; border:1px solid #cbd5e1; background:#f8fafc; cursor:pointer; font-size:1.1rem; border-left:none;">🔄</button>
+            </div>
+
+            <textarea id="waMessageText" rows="12" style="width:100%; box-sizing:border-box; padding:0.8rem; border-radius:8px; border:1px solid #cbd5e1; font-family:inherit; font-size:0.95rem; resize:vertical;"></textarea>
+            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1rem;">
+                <button onclick="closeWaModal()" style="padding:0.6rem 1rem; border-radius:8px; border:none; background:#e2e8f0; color:#475569; font-weight:600; cursor:pointer;">Cancel</button>
+                <button id="btnSendWa" style="padding:0.6rem 1rem; border-radius:8px; border:none; background:#25D366; color:white; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:0.4rem;">
+                    Send <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- Essential Javascript Linking -->
     <script src="auth.js"></script>

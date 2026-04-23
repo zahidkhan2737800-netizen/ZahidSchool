@@ -5,6 +5,9 @@ let absenceCountMap   = {};      // { student_id: totalAbsences }  (only absent 
 let selectedDate      = '';
 const currentSchoolId = window.currentSchoolId || null;
 
+let waTemplates = [];
+let currentOpenStudentId = null;
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
     const picker = document.getElementById('globalDate');
@@ -36,6 +39,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('btnBulkHoliday').addEventListener('click', () => applyBulkStatus('Holiday'));
 
     showToast('Initializing System...', 'success');
+    await loadWaTemplates();
     await loadDatabase();
 });
 
@@ -90,7 +94,7 @@ async function loadDatabase() {
             // 1 – Students (fetched once, never re-fetched)
             scopedQuery(
                 'admissions',
-                'id, roll_number, full_name, applying_for_class',
+                'id, roll_number, full_name, applying_for_class, father_name, father_mobile',
                 [['status', 'Active']]
             ),
             // 2 – Only today's attendance records
@@ -282,57 +286,123 @@ function renderData() {
     document.getElementById('statPresent').textContent = stats.p;
     document.getElementById('statAbsent').textContent  = stats.a;
 
+    // Toggle WA column header based on filter
+    const showWa = statusVal === 'Absent';
+    const headerCol = document.getElementById('colWaHeader');
+    if (headerCol) headerCol.style.display = showWa ? 'table-cell' : 'none';
+
     // ── Table rows (respects all filters) ──
     // Build fragment off-DOM for a single reflow
     const fragment = document.createDocumentFragment();
     const viewList  = [...classFiltered].sort((a, b) => a.roll_number - b.roll_number);
-    let   rowCount  = 0;
 
-    viewList.forEach(student => {
+    let filteredList = viewList.filter(student => {
         const record  = todayAttMap[student.id] || {};
         const stType  = record.status || '-';
-        const totalAb = absenceCountMap[student.id] || 0;
-
-        // Apply filters
-        if (statusVal !== 'All' && stType !== statusVal) return;
+        if (statusVal !== 'All' && stType !== statusVal) return false;
         if (searchVal) {
             const composite = `${student.roll_number} ${student.full_name} ${student.applying_for_class}`.toLowerCase();
-            if (!composite.includes(searchVal)) return;
+            if (!composite.includes(searchVal)) return false;
         }
+        return true;
+    });
 
-        const tr       = document.createElement('tr');
-        tr.id          = `row-${student.id}`;
-        tr.dataset.id  = student.id;
-        const badgeCls = totalAb > 2 ? 'critical' : '';
+    let grouped = {};
+    let singles = [];
+    let families = [];
 
-        tr.innerHTML = `
-            <td class="col-roll">${student.roll_number}</td>
-            <td><strong>${student.full_name}</strong></td>
-            <td>${student.applying_for_class}</td>
-            <td><span class="absent-count ${badgeCls}">${totalAb}</span></td>
-            <td>
-                <select class="inline-select ${stType !== '-' ? stType : ''}" onchange="updateRow('${student.id}')">
-                    ${stType === '-' ? '<option value="-" selected disabled>---</option>' : ''}
-                    <option value="Present" ${stType === 'Present' ? 'selected' : ''}>Present</option>
-                    <option value="Absent"  ${stType === 'Absent'  ? 'selected' : ''}>Absent</option>
-                    <option value="Late"    ${stType === 'Late'    ? 'selected' : ''}>Late</option>
-                    <option value="Holiday" ${stType === 'Holiday' ? 'selected' : ''}>Holiday</option>
-                </select>
+    filteredList.forEach(s => {
+        const mob = (s.father_mobile || '').trim();
+        // Phone numbers should be long enough to be valid
+        if (mob && mob.length > 5) {
+            if (!grouped[mob]) grouped[mob] = [];
+            grouped[mob].push(s);
+        } else {
+            singles.push(s);
+        }
+    });
+
+    for (let mob in grouped) {
+        if (grouped[mob].length > 1) {
+            families.push({ mobile: mob, members: grouped[mob] });
+        } else {
+            singles.push(grouped[mob][0]);
+        }
+    }
+
+    let rowCount = 0;
+
+    // Render Families
+    families.forEach(fam => {
+        const fatherName = fam.members[0].father_name || 'Relative';
+        const stIdsStr = fam.members.map(m => m.id).join(',');
+        
+        // Render Family Header
+        const headerTr = document.createElement('tr');
+        headerTr.style.background = '#fef3c7'; // soft yellow
+        headerTr.innerHTML = `
+            <td colspan="4" style="text-align:left; font-weight:800; color:#b45309; padding-left:1rem;">
+                👨‍👩‍👧‍👦 Family of ${fatherName} (${fam.mobile}) — ${fam.members.length} student(s) 
             </td>
-            <td>
-                <button class="btn-icon save" onclick="updateRow('${student.id}')" title="Force Save">💾</button>
-            </td>`;
+            <td></td>
+            ${showWa ? `<td><button class="btn-icon" style="color:#2563eb; font-size:1.2rem; background:transparent; border:none; cursor:pointer;" title="Send Family WhatsApp" onclick="openWaModal('${stIdsStr}')"><i class="fab fa-whatsapp"></i></button></td>` : ''}
+            <td></td>
+        `;
+        fragment.appendChild(headerTr);
 
+        fam.members.forEach(student => {
+            const tr = createStudentRow(student, showWa, true);
+            fragment.appendChild(tr);
+            rowCount++;
+        });
+    });
+
+    // Render Singles
+    singles.forEach(student => {
+        const tr = createStudentRow(student, showWa, false);
         fragment.appendChild(tr);
         rowCount++;
     });
 
     tbody.innerHTML = '';
     if (rowCount === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" style="padding:2rem;text-align:center;">No students matched the filtering criteria.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" style="padding:2rem;text-align:center;">No students matched the filtering criteria.</td></tr>`;
     } else {
         tbody.appendChild(fragment);
     }
+}
+
+function createStudentRow(student, showWa, isFamilyMember) {
+    const record  = todayAttMap[student.id] || {};
+    const stType  = record.status || '-';
+    const totalAb = absenceCountMap[student.id] || 0;
+    const badgeCls = totalAb > 2 ? 'critical' : '';
+
+    const tr = document.createElement('tr');
+    tr.id = `row-${student.id}`;
+    tr.dataset.id = student.id;
+    if (isFamilyMember) tr.style.background = '#fffbeb'; // lighter yellow
+
+    tr.innerHTML = `
+        <td class="col-roll">${student.roll_number}</td>
+        <td><strong>${student.full_name}</strong></td>
+        <td>${student.applying_for_class}</td>
+        <td><span class="absent-count ${badgeCls}">${totalAb}</span></td>
+        <td>
+            <select class="inline-select ${stType !== '-' ? stType : ''}" onchange="updateRow('${student.id}')">
+                ${stType === '-' ? '<option value="-" selected disabled>---</option>' : ''}
+                <option value="Present" ${stType === 'Present' ? 'selected' : ''}>Present</option>
+                <option value="Absent"  ${stType === 'Absent'  ? 'selected' : ''}>Absent</option>
+                <option value="Late"    ${stType === 'Late'    ? 'selected' : ''}>Late</option>
+                <option value="Holiday" ${stType === 'Holiday' ? 'selected' : ''}>Holiday</option>
+            </select>
+        </td>
+        ${showWa ? (isFamilyMember ? `<td style="color:#94a3b8; font-size:0.8rem; font-style:italic;">via Family</td>` : `<td><button class="btn-icon" style="color:#25D366; font-size:1.2rem; background:transparent; border:none; cursor:pointer;" title="Send WhatsApp Message" onclick="openWaModal('${student.id}')"><i class="fab fa-whatsapp"></i></button></td>`) : ''}
+        <td>
+            <button class="btn-icon save" onclick="updateRow('${student.id}')" title="Force Save">💾</button>
+        </td>`;
+
+    return tr;
 }
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
@@ -348,3 +418,101 @@ function showToast(msg, type = 'success') {
         t.addEventListener('animationend', () => t.remove());
     }, 3000);
 }
+
+// ─── WA Modal Methods ──────────────────────────────────────────────────────────
+
+async function loadWaTemplates() {
+    try {
+        const { data, error } = await supabaseClient.from('wa_templates').select('*').order('created_at', { ascending: true });
+        if (!error && data) {
+            waTemplates = data;
+            const dropdown = document.getElementById('waTemplateDropdown');
+            if(dropdown) {
+                dropdown.innerHTML = '';
+                const lastUsed = localStorage.getItem('lastWaTemplate_Att');
+                let selectedId = null;
+                
+                if (lastUsed && waTemplates.find(t => t.id === lastUsed)) {
+                    selectedId = lastUsed;
+                } else if (waTemplates.length > 0) {
+                    selectedId = waTemplates[0].id;
+                }
+
+                waTemplates.forEach(t => {
+                    const opt = document.createElement('option');
+                    opt.value = t.id;
+                    opt.textContent = t.title;
+                    if(t.id === selectedId) opt.selected = true;
+                    dropdown.appendChild(opt);
+                });
+            }
+        }
+    } catch(e) { console.error("Error loading WA templates", e); }
+}
+
+window.openWaModal = function(studentId) {
+    currentOpenStudentId = studentId;
+    applySelectedWaTemplate();
+    document.getElementById('waModal').style.display = 'flex';
+};
+
+window.applySelectedWaTemplate = function() {
+    if(!currentOpenStudentId) return;
+    const ids = String(currentOpenStudentId).split(',');
+    const students = ids.map(id => allStudents.find(x => x.id === id)).filter(Boolean);
+    if (students.length === 0) return;
+
+    let s = students[0];
+
+    let templateText = "";
+    const dropdown = document.getElementById('waTemplateDropdown');
+    
+    if (dropdown && dropdown.value) {
+        const t = waTemplates.find(x => x.id === dropdown.value);
+        if(t) {
+            templateText = t.message_text;
+            localStorage.setItem('lastWaTemplate_Att', t.id);
+        }
+    }
+
+    if (!templateText) {
+        templateText = "Dear {{FATHER_NAME}},\n\nYour child {{STUDENT_NAME}} is absent today ({{TODAY_DATE}}).";
+    }
+
+    const todayDate = new Date(selectedDate).toLocaleDateString('en-GB', {day: 'numeric', month: 'short', year: 'numeric'});
+    
+    let namesStr = students.map(x => x.full_name).join(', ');
+    if (students.length > 1) {
+        const lastIndex = namesStr.lastIndexOf(', ');
+        namesStr = namesStr.substring(0, lastIndex) + ' and ' + namesStr.substring(lastIndex + 2);
+    }
+
+    let parsed = templateText.replace(/{{TODAY_DATE}}/g, todayDate)
+                             .replace(/{{FATHER_NAME}}/g, s.father_name || 'Relative')
+                             .replace(/{{STUDENT_NAME}}/g, namesStr);
+                             
+    // Remove formatting tokens that only make sense in fee bills
+    parsed = parsed.replace(/{{BILL_DETAILS}}/g, '').replace(/{{GRAND_TOTAL}}/g, '');
+
+    document.getElementById('waMessageText').value = parsed;
+    
+    const btnSend = document.getElementById('btnSendWa');
+    btnSend.onclick = function() {
+        const text = document.getElementById('waMessageText').value;
+        if(!s.father_mobile) {
+            alert("This student has no mobile number registered.");
+            closeWaModal();
+            return;
+        }
+        let phone = String(s.father_mobile).replace(/[^0-9]/g, '');
+        if (phone.startsWith('0') && phone.length === 11) {
+            phone = '92' + phone.substring(1);
+        }
+        window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
+        closeWaModal();
+    };
+};
+
+window.closeWaModal = function() {
+    document.getElementById('waModal').style.display = 'none';
+};

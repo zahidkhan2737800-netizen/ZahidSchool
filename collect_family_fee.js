@@ -47,6 +47,7 @@ const sumGrandTotal   = document.getElementById('sumGrandTotal');
 const sumRemaining    = document.getElementById('sumRemaining');
 const btnSubmit       = document.getElementById('btnSubmit');
 const btnReprint      = document.getElementById('btnReprint');
+const btnBill         = document.getElementById('btnBill');
 const checkoutAlert   = document.getElementById('checkoutAlert');
 
 function applyThermalSettings(moduleName) {
@@ -142,6 +143,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (receiptCache.length === 0) return;
         reprintFromHistory(receiptCache[0]); // Reprint the most recent receipt
     });
+    
+    if (btnBill) btnBill.addEventListener('click', printBill);
 
     btnPayAll.addEventListener('click', () => {
         if (pendingDues.length === 0) return;
@@ -302,6 +305,7 @@ async function openFamily(fam) {
     
     if(historyPanel) historyPanel.style.display = 'none';
     if(btnToggleHistory) btnToggleHistory.textContent = '📜 History';
+    if(btnBill) btnBill.style.display = 'none';
 
     recalcCart();
 
@@ -405,6 +409,14 @@ function reprintFromHistory(receipt) {
     document.getElementById('rctTotal').textContent     = Number(receipt.total_paid).toLocaleString();
     document.getElementById('rctRemaining').textContent = Number(receipt.remaining).toLocaleString();
 
+    // Ensure visibility
+    const rowReceiptNo = document.getElementById('rowReceiptNo');
+    if(rowReceiptNo) rowReceiptNo.style.display = 'flex';
+    const rowTotalPaid = document.getElementById('rowTotalPaid');
+    if(rowTotalPaid) rowTotalPaid.style.display = 'flex';
+    const rctFooter = document.getElementById('rctFooter');
+    if(rctFooter) rctFooter.textContent = 'Thank you! — Zahid School System';
+
     const lines = Array.isArray(receipt.fee_lines) ? receipt.fee_lines : [];
     
     document.getElementById('rctBody').innerHTML = lines.map(line => `
@@ -450,6 +462,7 @@ async function loadFamilyDues(members) {
         if (pendingDues.length === 0) {
             btnPayAll.style.display = 'none';
             btnPartial.style.display = 'none';
+            if(btnBill) btnBill.style.display = 'none';
             challansList.innerHTML = `
                 <div style="text-align:center; padding:2rem; background:#f0fdf4; border-radius:12px;">
                     <span style="font-size:2.5rem;">🎉</span>
@@ -462,6 +475,7 @@ async function loadFamilyDues(members) {
 
         btnPayAll.style.display = 'block';
         btnPartial.style.display = 'block';
+        if(btnBill) btnBill.style.display = 'inline-block';
         renderDues();
     } catch (e) {
         challansList.innerHTML = `<p style="color:red;">Error loading dues: ${e.message}</p>`;
@@ -763,6 +777,69 @@ function printReceipt(receiptId, txRecords, totalPaid, remaining) {
     
     document.getElementById('rctTotal').textContent    = totalPaid.toLocaleString();
     document.getElementById('rctRemaining').textContent = remaining.toLocaleString();
+
+    // Ensure visibility
+    const rowReceiptNo = document.getElementById('rowReceiptNo');
+    if(rowReceiptNo) rowReceiptNo.style.display = 'flex';
+    const rowTotalPaid = document.getElementById('rowTotalPaid');
+    if(rowTotalPaid) rowTotalPaid.style.display = 'flex';
+    const rctFooter = document.getElementById('rctFooter');
+    if(rctFooter) rctFooter.textContent = 'Thank you! — Zahid School System';
+
+    const rctBody = document.getElementById('rctBody');
+    rctBody.innerHTML = txRecords.map(tx => {
+        return `<div class="th-fee-row">
+                    <span class="th-fee-desc">${tx.fee_details}</span>
+                    <span class="th-fee-amt">Rs ${Number(tx.amount_paid).toLocaleString()}</span>
+                </div>`;
+    }).join('');
+
+    setTimeout(() => window.print(), 350);
+}
+
+// ─── Print Bill ───────────────────────────────────────────────────────────────
+function printBill() {
+    if (!activeFamily || pendingDues.length === 0) return;
+
+    let totalRemaining = 0;
+    let totalPreviouslyPaid = 0;
+
+    const txRecords = pendingDues.map(c => {
+        const rem = parseFloat(c.amount) - parseFloat(c.paid_amount || 0);
+        totalRemaining += rem;
+        totalPreviouslyPaid += parseFloat(c.paid_amount || 0);
+        
+        let desc = c.fee_type;
+        if (c.fee_month && c.fee_month !== 'N/A') desc += ` (${c.fee_month})`;
+        
+        desc = `[${c._studentName.split(' ')[0]} (${c._studentRoll})] ${desc}`;
+
+        return {
+           fee_details: desc,
+           amount_paid: rem
+        };
+    });
+
+    applyThermalSettings('collect_family_fee');
+    document.getElementById('rctNo').textContent       = 'BILL-' + Date.now().toString().slice(-4);
+    document.getElementById('rctDate').textContent     = new Date().toLocaleString();
+    document.getElementById('rctName').textContent     = `Family of ${activeFamily.primaryName}`;
+    
+    const rctFamNode = document.getElementById('rctFamilyNo');
+    if(rctFamNode) rctFamNode.textContent = activeFamily.familyNo || 'N/A';
+    
+    // Hide details for Bill
+    const rowReceiptNo = document.getElementById('rowReceiptNo');
+    if(rowReceiptNo) rowReceiptNo.style.display = 'none';
+    const rowTotalPaid = document.getElementById('rowTotalPaid');
+    if(rowTotalPaid) rowTotalPaid.style.display = 'none';
+    
+    const lblRemaining = document.getElementById('lblRemaining');
+    if(lblRemaining) lblRemaining.textContent = "Remaining";
+    document.getElementById('rctRemaining').textContent = totalRemaining.toLocaleString();
+
+    const rctFooter = document.getElementById('rctFooter');
+    if(rctFooter) rctFooter.textContent = 'No Payment Received in This Bill';
 
     const rctBody = document.getElementById('rctBody');
     rctBody.innerHTML = txRecords.map(tx => {
