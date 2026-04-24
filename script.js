@@ -170,23 +170,92 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    // Photo Preview
+    // Photo Preview + Compression
     const photoInput = document.getElementById('studentPhoto');
     const photoPreview = document.getElementById('studentPhotoPreview');
-    
+
+    // Compress image to ≤ targetKB using Canvas (iterative quality reduction)
+    function compressImageToMaxKB(file, targetKB = 30) {
+        return new Promise((resolve) => {
+            const img = new Image();
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    // Scale down if image is very large
+                    let W = img.width, H = img.height;
+                    const maxDim = 400;
+                    if (W > maxDim || H > maxDim) {
+                        const ratio = Math.min(maxDim / W, maxDim / H);
+                        W = Math.round(W * ratio);
+                        H = Math.round(H * ratio);
+                    }
+                    canvas.width = W;
+                    canvas.height = H;
+                    canvas.getContext('2d').drawImage(img, 0, 0, W, H);
+
+                    // Iteratively reduce quality until ≤ targetKB
+                    let quality = 0.9;
+                    let dataUrl;
+                    do {
+                        dataUrl = canvas.toDataURL('image/jpeg', quality);
+                        quality -= 0.07;
+                    } while (dataUrl.length * 0.75 > targetKB * 1024 && quality > 0.1);
+
+                    // Convert dataUrl to Blob
+                    const byteStr = atob(dataUrl.split(',')[1]);
+                    const arr = new Uint8Array(byteStr.length);
+                    for (let i = 0; i < byteStr.length; i++) arr[i] = byteStr.charCodeAt(i);
+                    const blob = new Blob([arr], { type: 'image/jpeg' });
+                    resolve({ blob, dataUrl });
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    let compressedPhotoBlob = null;
+
     if(photoInput) {
-        photoInput.addEventListener('change', function() {
+        photoInput.addEventListener('change', async function() {
             const file = this.files[0];
             if(file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    photoPreview.innerHTML = `<img src="${e.target.result}" alt="Student Photo" style="width:100px; height:auto; border-radius:8px; border:2px solid var(--primary); margin-top:10px;">`;
-                }
-                reader.readAsDataURL(file);
+                photoPreview.innerHTML = '<span style="color:#64748b;">⏳ Compressing...</span>';
+                const { blob, dataUrl } = await compressImageToMaxKB(file, 30);
+                compressedPhotoBlob = blob;
+                const sizeKB = (blob.size / 1024).toFixed(1);
+                photoPreview.innerHTML = `<img src="${dataUrl}" alt="Student Photo" style="width:100px; height:auto; border-radius:8px; border:2px solid var(--primary); margin-top:10px;">
+                    <div style="font-size:0.75rem; color:#64748b; margin-top:4px;">Compressed: ${sizeKB} KB</div>`;
             } else {
+                compressedPhotoBlob = null;
                 photoPreview.innerHTML = 'No image selected';
             }
         });
+    }
+
+    // Upload compressed blob to Supabase Storage and return the public URL
+    async function uploadStudentPhoto(studentId) {
+        if (!compressedPhotoBlob) return null;
+        try {
+            const path = `student-photos/${studentId}.jpg`;
+            const { error: upErr } = await supabaseClient.storage
+                .from('school-assets')
+                .upload(path, compressedPhotoBlob, { upsert: true, contentType: 'image/jpeg' });
+            if (upErr) {
+                console.error('Photo upload error:', upErr);
+                formAlert.textContent = `⚠️ Photo could not be saved: ${upErr.message}. Make sure the "school-assets" Storage bucket exists in Supabase.`;
+                formAlert.style.display = 'block';
+                return null;
+            }
+            const { data } = supabaseClient.storage.from('school-assets').getPublicUrl(path);
+            return data?.publicUrl || null;
+        } catch(e) {
+            console.error('Photo upload failed:', e);
+            formAlert.textContent = `⚠️ Photo upload failed: ${e.message}`;
+            formAlert.style.display = 'block';
+            return null;
+        }
     }
 
     // Print Form
@@ -404,6 +473,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 300);
         
         setVal('siblingInSchool', student.sibling_in_school);
+
+        // Show saved photo if exists
+        if (student.photo_url && photoPreview) {
+            photoPreview.innerHTML = `<img src="${student.photo_url}" alt="Student Photo" style="width:100px; height:auto; border-radius:8px; border:2px solid var(--primary); margin-top:10px;">
+                <div style="font-size:0.75rem; color:#64748b; margin-top:4px;">Saved photo</div>`;
+            compressedPhotoBlob = null; // no new upload unless user picks a new file
+        }
         
         const submitBtn = document.getElementById('submitBtn');
         if (submitBtn) {
@@ -504,6 +580,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (currentSchoolId) formData.school_id = currentSchoolId;
                 if (window.campusFeatureReady && window.currentCampusId) formData.campus_id = window.currentCampusId;
 
+                // Upload photo if a new one was selected
+                const studentUid = editingStudentRecordId || formData.student_id;
+                const photoUrl = await uploadStudentPhoto(studentUid);
+                if (photoUrl) {
+                    formData.photo_url = photoUrl;
+                }
+
                 // Final Duplicate Check Before Save
                 const isDuplicate = await isRollNumberDuplicate(formData.roll_number, editingStudentRecordId);
                 if (isDuplicate) {
@@ -585,6 +668,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Regenerate a fresh unique ID for the next student
                 generateUniqueStudentId().then(id => { studentIdInput.value = id; });
                 if(photoPreview) photoPreview.innerHTML = 'No image selected';
+                compressedPhotoBlob = null;
                 ageInput.value = '';
                 
             } catch (error) {

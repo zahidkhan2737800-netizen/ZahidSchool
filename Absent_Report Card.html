@@ -137,14 +137,15 @@
     }
 
     function getMonthValue(rawMonths, year, monthLabel) {
-      if (!rawMonths || typeof rawMonths !== "object") return 0;
+      if (!rawMonths || typeof rawMonths !== "object") return "";
       const yearKey = String(year);
       const keys = Object.keys(rawMonths);
       const isYearKeyed = keys.length === 0 || keys.every(k => /^\d{4}$/.test(k));
       const yearData = isYearKeyed ? (rawMonths[yearKey] || {}) : rawMonths;
       const raw = yearData[monthLabel];
+      if (raw === undefined || raw === "") return "";
       const n = Number(raw);
-      return Number.isFinite(n) ? n : 0;
+      return Number.isFinite(n) ? n : "";
     }
 
     function renderClassOptions(students) {
@@ -240,8 +241,8 @@
           let total = 0;
           for (const col of visibleCols) {
             const val = getMonthValue(monthsRaw, col.year, col.monthLabel);
-            monthValues.push(val);
-            total += val;
+            monthValues.push(val === "" ? "N/A" : val);
+            total += (val === "" ? 0 : val);
           }
 
           return {
@@ -355,7 +356,7 @@
           pagesHtml += '<th style="border:1px solid #333; padding:4px;">Total Absent Days</th>';
           pagesHtml += '</tr></thead><tbody><tr>';
           pagesHtml += `<td style="border:1px solid #333; padding:6px; text-align:left; font-weight:700;">${escapeHtml(String(s.roll || ""))}</td>`;
-          s.monthValues.forEach(v => { pagesHtml += `<td style="border:1px solid #333; padding:6px;">${String(v || 0)}</td>`; });
+          s.monthValues.forEach(v => { pagesHtml += `<td style="border:1px solid #333; padding:6px;">${v}</td>`; });
           pagesHtml += `<td style="border:1px solid #333; padding:6px; font-weight:700;">${String(s.total || 0)}</td>`;
           pagesHtml += '</tr></tbody></table>';
 

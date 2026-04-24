@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Report Cards - Zahid School System</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --primary: #0b73ff;
+            --primary-hover: #0959c6;
+            --success: #10b981;
+            --danger: #ef4444;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+        }
+
+        * { box-sizing: border-box; }
+        
+        body {
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text-main);
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        .page-header {
+            margin-bottom: 20px;
+        }
+
+        .page-header h1 {
+            margin: 0;
+            font-size: 24px;
+            color: var(--primary);
+        }
+
+        .control-panel {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+            border: 1px solid var(--border);
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .control-group label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .control-input {
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 14px;
+            min-width: 180px;
+        }
+
+        .btn {
+            padding: 10px 16px;
+            border-radius: 6px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-family: inherit;
+            font-size: 14px;
+        }
+
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: var(--primary-hover); }
+        .btn-success { background: var(--success); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+
+        .builder-section {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+            border: 1px solid var(--border);
+            margin-bottom: 40px;
+        }
+
+        .subject-card {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            background: #fdfdfd;
+        }
+
+        .subject-header {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .topics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+        }
+
+        .topic-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            background: var(--bg);
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .topic-row input {
+            padding: 6px;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            width: 100%;
+        }
+
+        /* Print Area */
+        #printArea {
+            display: none;
+        }
+
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            body {
+                background: white;
+                padding: 0;
+            }
+            #printArea, #printArea * {
+                visibility: visible;
+            }
+            #printArea {
+                display: block;
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+            }
+            .a4-page {
+                width: 210mm;
+                min-height: 297mm;
+                padding: 20mm;
+                margin: 0 auto;
+                box-sizing: border-box;
+                page-break-after: always;
+            }
+            .rc-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 15px;
+                margin-bottom: 15px;
+                font-family: Arial, sans-serif;
+            }
+            .rc-table th, .rc-table td {
+                border: 1px solid #000;
+                padding: 8px;
+                text-align: center;
+                font-size: 14px;
+            }
+            .rc-table th {
+                font-weight: bold;
+            }
+            .school-header {
+                text-align: center;
+                margin-bottom: 20px;
+                border-bottom: 2px solid #000;
+                padding-bottom: 10px;
+            }
+            .school-header h1 { margin: 0; font-size: 28px; }
+            .school-header p { margin: 5px 0 0; font-size: 16px; }
+            
+            .student-info {
+                display: flex;
+                justify-content: space-between;
+                font-size: 16px;
+                margin-bottom: 20px;
+            }
+
+            .remarks-box {
+                border: 1px solid #000;
+                padding: 10px;
+                min-height: 60px;
+                margin-top: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container" id="noPrint">
+        <div class="page-header">
+            <h1><i class="fas fa-file-contract"></i> Report Card Builder</h1>
+            <p style="color: var(--text-muted);">Design and print customizable report cards for Zahid School.</p>
+        </div>
+
+        <div class="control-panel">
+            <div class="control-group">
+                <label>Class</label>
+                <select id="classSelect" class="control-input" onchange="loadStudents()">
+                    <option value="">- Select Class -</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label>Student</label>
+                <select id="studentSelect" class="control-input" onchange="loadReportCard()">
+                    <option value="">- Select Student -</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label>Examination Term</label>
+                <select id="termName" class="control-input" onchange="loadReportCard()">
+                    <option value="">- Select Examination -</option>
+                </select>
+            </div>
+
+            <div class="control-group" style="margin-left: auto;">
+                <button class="btn" style="background:#475569; color:white;" onclick="saveClassTemplate()"><i class="fas fa-layer-group"></i> Save as Class Form</button>
+                <button class="btn btn-primary" onclick="saveReportCard()"><i class="fas fa-save"></i> Save Student Data</button>
+                <button class="btn btn-success" onclick="printReportCard()"><i class="fas fa-print"></i> Print A4</button>
+            </div>
+        </div>
+
+        <div class="builder-section" id="builderArea" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="margin: 0;">Subjects &amp; Marks</h3>
+                <div id="builderPhotoBox" style="margin-left: 16px; margin-right: auto;"></div>
+                <button class="btn" style="background:#e2e8f0; color:#0f172a;" onclick="addSubject()">+ Add Subject</button>
+            </div>
+
+            <div id="subjectsList">
+                <!-- Subjects will be rendered here -->
+            </div>
+
+            <div class="control-group" style="margin-top: 30px;">
+                <label>Overall Remarks / Comments</label>
+                <textarea id="overallRemarks" class="control-input" style="width: 100%; min-height: 80px; resize: vertical;"></textarea>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Print Canvas -->
+    <div id="printArea"></div>
+
+    <script src="auth.js"></script>
+    <script>
+        const db = window.supabaseClient;
+        let allStudents = [];
+        let currentSchoolId = null;
+        let currentReportId = null;
+
+        let reportData = []; 
+        // Array of subjects: { id, name, maxMarks, topics: [{id, name, marks}] }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await waitForAuthContext();
+            await loadExaminations();
+            await loadClassesAndStudents();
+        });
+
+        async function waitForAuthContext(timeoutMs = 10000) {
+            const start = Date.now();
+            while (Date.now() - start < timeoutMs) {
+                if (window.authReady === true && window.supabaseClient) {
+                    currentSchoolId = window.currentSchoolId || null;
+                    return;
+                }
+                await new Promise(r => setTimeout(r, 80));
+            }
+        }
+
+        async function loadExaminations() {
+            let q = db.from('examination').select('id, name').order('created_at', { ascending: false });
+            if(currentSchoolId) q = q.eq('school_id', currentSchoolId);
+            
+            const { data, error } = await q;
+            if (error) {
+                console.error(error);
+                return;
+            }
+            
+            const termSel = document.getElementById('termName');
+            termSel.innerHTML = '<option value="">- Select Examination -</option>';
+            if(data) {
+                data.forEach(ex => {
+                    const o = document.createElement('option');
+                    // Store the name so it corresponds to term_name in report_cards table
+                    o.value = ex.name;
+                    o.textContent = ex.name;
+                    termSel.appendChild(o);
+                });
+            }
+        }
+
+        async function loadClassesAndStudents() {
+            let q = db.from('admissions').select('id, full_name, roll_number, applying_for_class, father_name, photo_url').eq('status', 'Active');
+            if(currentSchoolId) q = q.eq('school_id', currentSchoolId);
+            
+            const { data, error } = await q;
+            if (error) {
+                console.error(error);
+                return;
+            }
+            allStudents = data || [];
+
+            const classes = [...new Set(allStudents.map(s => s.applying_for_class).filter(Boolean))].sort();
+            const classSel = document.getElementById('classSelect');
+            classes.forEach(c => {
+                const o = document.createElement('option');
+                o.value = c; o.textContent = c;
+                classSel.appendChild(o);
+            });
+        }
+
+        function loadStudents() {
+            const classVal = document.getElementById('classSelect').value;
+            const stuSel = document.getElementById('studentSelect');
+            stuSel.innerHTML = '<option value="">- Select Student -</option>';
+            
+            const filtered = allStudents.filter(s => s.applying_for_class === classVal);
+            filtered.sort((a,b) => a.roll_number - b.roll_number);
+
+            filtered.forEach(s => {
+                const o = document.createElement('option');
+                o.value = s.id; o.textContent = `[Roll: ${s.roll_number}] ${s.full_name}`;
+                stuSel.appendChild(o);
+            });
+            
+            document.getElementById('builderArea').style.display = 'none';
+        }
+
+        async function loadReportCard() {
+            const studentId = document.getElementById('studentSelect').value;
+            const termName = document.getElementById('termName').value.trim();
+            
+            if(!studentId || !termName) {
+                document.getElementById('builderArea').style.display = 'none';
+                return;
+            }
+
+            document.getElementById('builderArea').style.display = 'block';
+            reportData = [];
+            currentReportId = null;
+            document.getElementById('overallRemarks').value = '';
+
+            // Fetch fresh photo_url from DB (in case it was saved after page loaded)
+            let livePhotoUrl = null;
+            try {
+                const { data: freshData } = await db.from('admissions')
+                    .select('photo_url')
+                    .eq('id', studentId)
+                    .single();
+                if (freshData && freshData.photo_url) {
+                    livePhotoUrl = freshData.photo_url;
+                    // Update the local cache so print also uses the fresh URL
+                    const cached = allStudents.find(x => x.id === studentId);
+                    if (cached) cached.photo_url = livePhotoUrl;
+                }
+            } catch(e) { console.warn('Could not fetch fresh photo_url', e); }
+
+            let photoEl = document.getElementById('builderPhotoBox');
+            if (photoEl) {
+                photoEl.innerHTML = livePhotoUrl
+                    ? `<img src="${livePhotoUrl}" alt="Student Photo" style="width:90px; height:90px; object-fit:cover; border-radius:8px; border:2px solid var(--primary);">`
+                    : `<div style="width:90px; height:90px; border-radius:8px; border:2px dashed #cbd5e1; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-size:11px;">No Photo</div>`;
+            }
+
+            let q = db.from('report_cards').select('*')
+                      .eq('student_id', studentId)
+                      .eq('term_name', termName);
+            if(currentSchoolId) q = q.eq('school_id', currentSchoolId);
+
+            const { data, error } = await q.single();
+
+            if (data && data.data) {
+                currentReportId = data.id;
+                reportData = data.data || [];
+                document.getElementById('overallRemarks').value = data.remarks || '';
+            } else {
+                // Look for an explicitly saved Class Template
+                const sInfo = allStudents.find(x => x.id === studentId);
+                const classVal = sInfo ? sInfo.applying_for_class : '';
+
+                if (classVal) {
+                    let tmpQ = db.from('report_card_templates')
+                        .select('data')
+                        .eq('term_name', termName)
+                        .eq('class_name', classVal);
+                    if(currentSchoolId) tmpQ = tmpQ.eq('school_id', currentSchoolId);
+                        
+                    const tmpRes = await tmpQ.single();
+                    if (tmpRes.data && tmpRes.data.data) {
+                        // Deep clone the array, marks will already be 0 from template save logic
+                        reportData = JSON.parse(JSON.stringify(tmpRes.data.data));
+                        reportData.forEach(sub => {
+                            sub.topics.forEach(t => t.marks = 0);
+                        });
+                    }
+                }
+
+               // If no template in class, provide 1 blank empty subject
+               if (reportData.length === 0) {
+                   reportData = [{
+                       id: Date.now(),
+                       name: 'Example Subject',
+                       maxMarks: 100,
+                       topics: [
+                           { id: Date.now()+1, name: 'Topic 1', marks: 0 }
+                       ]
+                   }];
+               }
+            }
+
+            renderBuilder();
+        }
+
+        function generateId() { return Math.floor(Math.random() * 1000000); }
+
+        function addSubject() {
+            reportData.push({
+                id: generateId(),
+                name: 'New Subject',
+                maxMarks: 100,
+                topics: [
+                    { id: generateId(), name: 'Topic 1', marks: 0 }
+                ]
+            });
+            renderBuilder();
+        }
+
+        function addTopic(subId) {
+            const sub = reportData.find(s => s.id === subId);
+            if(sub) {
+                sub.topics.push({ id: generateId(), name: 'New Topic', marks: 0 });
+                renderBuilder();
+            }
+        }
+
+        function deleteSubject(subId) {
+            reportData = reportData.filter(s => s.id !== subId);
+            renderBuilder();
+        }
+
+        function deleteTopic(subId, topicId) {
+            const sub = reportData.find(s => s.id === subId);
+            if(sub) {
+                sub.topics = sub.topics.filter(t => t.id !== topicId);
+                renderBuilder();
+            }
+        }
+
+        // Setup delegated listener for two-way binding inputs without losing focus
+        document.getElementById('subjectsList').addEventListener('input', (e) => {
+            const tg = e.target;
+            const subId = parseInt(tg.dataset.subid);
+            const topicId = parseInt(tg.dataset.topicid);
+            const field = tg.dataset.field;
+
+            const sub = reportData.find(s => s.id === subId);
+            if(!sub) return;
+
+            if (field === 'subName') sub.name = tg.value;
+            if (field === 'subMax')  sub.maxMarks = parseFloat(tg.value) || 0;
+
+            if (topicId) {
+                const top = sub.topics.find(t => t.id === topicId);
+                if (top) {
+                    if (field === 'topName') top.name = tg.value;
+                    if (field === 'topMarks') top.marks = parseFloat(tg.value) || 0;
+                }
+            }
+
+            if (field === 'topMarks') {
+                // Update specific summary without full re-render to keep cursor focus
+                const totalObtained = sub.topics.reduce((sum, t) => sum + (parseFloat(t.marks)||0), 0);
+                const sumEl = document.getElementById(`sum-${subId}`);
+                if(sumEl) sumEl.textContent = totalObtained;
+            }
+        });
+
+        function renderBuilder() {
+            const list = document.getElementById('subjectsList');
+            list.innerHTML = '';
+
+            reportData.forEach(sub => {
+                const totalObtained = sub.topics.reduce((sum, t) => sum + (parseFloat(t.marks)||0), 0);
+
+                let topicsHtml = sub.topics.map(t => `
+                    <div class="topic-row">
+                        <input type="text" value="${t.name}" data-subid="${sub.id}" data-topicid="${t.id}" data-field="topName" placeholder="Topic Name" style="flex: 2;">
+                        <input type="number" value="${t.marks}" data-subid="${sub.id}" data-topicid="${t.id}" data-field="topMarks" placeholder="Marks" style="flex: 1;">
+                        <button class="btn btn-danger" style="padding: 6px 10px;" onclick="deleteTopic(${sub.id}, ${t.id})"><i class="fas fa-times"></i></button>
+                    </div>
+                `).join('');
+
+                const div = document.createElement('div');
+                div.className = 'subject-card';
+                div.innerHTML = `
+                    <div class="subject-header">
+                        <input type="text" class="control-input" value="${sub.name}" data-subid="${sub.id}" data-field="subName" style="font-weight: 700; font-size: 16px;">
+                        <div style="display:flex; align-items:center; gap:5px;">
+                            <span style="font-size:12px; color:var(--text-muted);">Max:</span>
+                            <input type="number" class="control-input" value="${sub.maxMarks}" data-subid="${sub.id}" data-field="subMax" style="width:80px; min-width:80px;">
+                        </div>
+                        <div style="margin-left: auto; font-weight: 800; font-size: 15px;">
+                            Obtained: <span id="sum-${sub.id}" style="color: var(--primary);">${totalObtained}</span>
+                        </div>
+                        <button class="btn btn-danger" onclick="deleteSubject(${sub.id})"><i class="fas fa-trash"></i></button>
+                    </div>
+                    <div class="topics-grid">
+                        ${topicsHtml}
+                        <button class="btn" style="background:#f1f5f9; color:#475569; width: 100%; border: 1px dashed #cbd5e1;" onclick="addTopic(${sub.id})">+ Add Sub-topic</button>
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        async function saveReportCard() {
+            const studentId = document.getElementById('studentSelect').value;
+            const termName = document.getElementById('termName').value.trim();
+            const remarks = document.getElementById('overallRemarks').value.trim();
+
+            if(!studentId || !termName) return alert("Select student and term name.");
+
+            let grandTotal = 0;
+            let maxTotal = 0;
+
+            reportData.forEach(sub => {
+                maxTotal += parseFloat(sub.maxMarks) || 0;
+                grandTotal += sub.topics.reduce((sum, t) => sum + (parseFloat(t.marks)||0), 0);
+            });
+
+            const percentage = maxTotal > 0 ? ((grandTotal / maxTotal) * 100).toFixed(2) : 0;
+
+            const payload = {
+                student_id: studentId,
+                term_name: termName,
+                data: reportData,
+                grand_total: grandTotal,
+                max_marks: maxTotal,
+                percentage: percentage,
+                remarks: remarks,
+                updated_at: new Date().toISOString()
+            };
+
+            if (currentSchoolId) payload.school_id = currentSchoolId;
+
+            let res;
+            if (currentReportId) {
+                res = await db.from('report_cards').update(payload).eq('id', currentReportId);
+            } else {
+                res = await db.from('report_cards').insert([payload]).select();
+            }
+
+            if(res.error) {
+                alert("Failed to save: " + res.error.message);
+            } else {
+                if(res.data && res.data.length > 0) currentReportId = res.data[0].id;
+                alert("Saved successfully!");
+            }
+        }
+
+        async function saveClassTemplate() {
+            const classVal = document.getElementById('classSelect').value;
+            const termName = document.getElementById('termName').value.trim();
+
+            if(!classVal || !termName) return alert("Select Class and Examination Term first.");
+
+            // Clone structure, strip marks down to 0
+            const templateData = JSON.parse(JSON.stringify(reportData));
+            templateData.forEach(sub => {
+                sub.topics.forEach(t => t.marks = 0);
+            });
+
+            const payload = {
+                class_name: classVal,
+                term_name: termName,
+                data: templateData,
+                updated_at: new Date().toISOString()
+            };
+
+            if (currentSchoolId) payload.school_id = currentSchoolId;
+
+            // Upsert based on unique constraint
+            const { error } = await db.from('report_card_templates').upsert(payload, { onConflict: 'school_id, class_name, term_name' });
+
+            if(error) {
+                alert("Failed to save class template: " + error.message);
+            } else {
+                alert("Class form template saved successfully! \nThis exact structure will now apply automatically whenever you load a new student in this class.");
+            }
+        }
+
+        function printReportCard() {
+            const studentId = document.getElementById('studentSelect').value;
+            if(!studentId) return alert("Select student and generate report first.");
+            
+            const studentInfo = allStudents.find(s => s.id === studentId);
+            const termName = document.getElementById('termName').value.trim();
+            const remarks = document.getElementById('overallRemarks').value.trim();
+            const photoUrl = studentInfo && studentInfo.photo_url ? studentInfo.photo_url : null;
+            const photoHtml = photoUrl
+                ? `<img src="${photoUrl}" alt="Student Photo" style="width:110px; height:110px; object-fit:cover; border:2px solid #000; border-radius:4px;">`
+                : `<div style="width:110px; height:110px; border:2px solid #000; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:11px; color:#666;">No Photo</div>`;
+            
+            let html = `
+            <div class="a4-page">
+                <div class="school-header">
+                    <h1>Zahid School</h1>
+                    <p style="margin: 5px 0 0; font-size: 16px;">Contact: 03337502737</p>
+                    <p style="margin: 5px 0 0; font-size: 16px;">Academic Report Card - ${termName}</p>
+                </div>
+
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px;">
+                    <table style="font-size:14px; border-collapse:collapse; flex:1;">
+                        <tr>
+                            <td style="padding:4px 6px 4px 0; white-space:nowrap; width:1%;"><strong>Student Name:</strong></td>
+                            <td style="padding:4px 24px 4px 4px;">${studentInfo.full_name}</td>
+                            <td style="padding:4px 6px 4px 0; white-space:nowrap; width:1%;"><strong>Roll No:</strong></td>
+                            <td style="padding:4px 0 4px 4px;">${studentInfo.roll_number}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding:4px 6px 4px 0; white-space:nowrap; width:1%;"><strong>Father's Name:</strong></td>
+                            <td style="padding:4px 24px 4px 4px;">${studentInfo.father_name || 'N/A'}</td>
+                            <td style="padding:4px 6px 4px 0; white-space:nowrap; width:1%;"><strong>Class:</strong></td>
+                            <td style="padding:4px 0 4px 4px;">${studentInfo.applying_for_class}</td>
+                        </tr>
+                    </table>
+                    <div>${photoHtml}</div>
+                </div>
+
+                <table class="rc-table">
+            `;
+
+            let overallObtained = 0;
+            let overallMax = 0;
+
+            reportData.forEach(sub => {
+                const subObtained = sub.topics.reduce((sum, t) => sum + (parseFloat(t.marks)||0), 0);
+                overallObtained += subObtained;
+                overallMax += parseFloat(sub.maxMarks) || 0;
+
+                // Math to calculate layout exactly like the prompt
+                // Topics split into 2 columns. 
+                // Rows = Math.ceil(topics.length / 2)
+                const rowsCount = Math.max(1, Math.ceil(sub.topics.length / 2));
+                
+                for(let i=0; i<rowsCount; i++) {
+                    html += `<tr>`;
+                    
+                    if (i === 0) {
+                        html += `<td rowspan="${rowsCount}" style="font-weight:bold; font-size: 16px;">${sub.name}</td>`;
+                        html += `<td rowspan="${rowsCount}">Total Marks<br><b>${sub.maxMarks}</b></td>`;
+                    }
+
+                    // Column 1 topic
+                    const t1 = sub.topics[i * 2];
+                    if (t1) {
+                        html += `<td>${t1.name}</td><td>${t1.marks}</td>`;
+                    } else {
+                        html += `<td></td><td></td>`;
+                    }
+
+                    // Column 2 topic
+                    const t2 = sub.topics[i * 2 + 1];
+                    if (t2) {
+                        html += `<td>${t2.name}</td><td>${t2.marks}</td>`;
+                    } else {
+                        html += `<td></td><td></td>`;
+                    }
+
+                    if (i === 0) {
+                        html += `<td rowspan="${rowsCount}">Obtained Marks<br><b>${subObtained}</b></td>`;
+                    }
+
+                    html += `</tr>`;
+                }
+            });
+
+            // Summary Footer
+            const pct = overallMax > 0 ? ((overallObtained / overallMax) * 100).toFixed(2) : 0;
+            
+            html += `
+                </table>
+                <div style="display:flex; justify-content:flex-end; font-size:16px; margin-top:20px;">
+                    <div style="border: 2px solid #000; padding:10px 20px;">
+                        <b>Grand Total:</b> ${overallObtained} / ${overallMax} <br><br>
+                        <b>Percentage:</b> ${pct}%
+                    </div>
+                </div>
+
+                <div class="remarks-box">
+                    <strong>Remarks / Comments:</strong><br>
+                    ${remarks.replace(/\n/g, '<br>')}
+                </div>
+                
+                <div style="margin-top: 50px; display:flex; justify-content:space-between; font-weight:bold;">
+                    <div>Class Teacher's Signature</div>
+                    <div>Principal's Signature</div>
+                </div>
+            </div>`;
+
+            document.getElementById('printArea').innerHTML = html;
+            window.print();
+        }
+
+    </script>
+</body>
+</html>
