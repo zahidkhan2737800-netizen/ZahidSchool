@@ -70,7 +70,8 @@ var NAV_CATEGORIES = [
         id: 'examination', label: 'Examination', icon: 'fas fa-file-signature',
         items: [
             { href: 'examination.html', label: 'Examination', icon: 'fas fa-clipboard-check', key: 'examination' },
-            { href: 'slip.html', label: 'Exam Slip', icon: 'fas fa-id-card', key: 'examination' }
+            { href: 'slip.html', label: 'Exam Slip', icon: 'fas fa-id-card', key: 'examination' },
+            { href: 'report_cards.html', label: 'Report Card', icon: 'fas fa-id-card-alt', key: 'examination' }
         ]
     },
   {

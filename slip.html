@@ -231,6 +231,7 @@
         <button type="button" id="satOffBtn" class="pattern-btn">Sat Off</button>
         <button type="button" id="sunOffBtn" class="pattern-btn">Sun Off</button>
         <button type="button" id="pickFirstDateBtn" class="pattern-btn">Pick First Date</button>
+        <button type="button" id="toggleSyllabusBtn" class="pattern-btn active">Syllabus</button>
         <input type="text" id="firstDatePicker" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;" tabindex="-1" aria-hidden="true">
       </div>
 
@@ -265,6 +266,7 @@
     const sunOffBtn = document.getElementById('sunOffBtn');
     const pickFirstDateBtn = document.getElementById('pickFirstDateBtn');
     const firstDatePicker = document.getElementById('firstDatePicker');
+    const toggleSyllabusBtn = document.getElementById('toggleSyllabusBtn');
 
     const classesMap = {};
     const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -272,6 +274,7 @@
     let skipSaturday = false;
     let skipSunday = false;
     let selectedFirstDate = '';
+    let showSyllabusColumn = true;
 
     function parseDMYToDate(dmyValue) {
       const value = String(dmyValue || '').trim();
@@ -775,11 +778,13 @@
         }
       }
 
+      const syllabusHeader = showSyllabusColumn ? `<th style="width:41%">Syllabus</th>` : '';
+      const subjectWidth = showSyllabusColumn ? '25%' : '66%';
       const tableHeader = `
         <thead>
           <tr>
-            <th style="width:25%">Subject</th>
-            <th style="width:41%">Syllabus</th>
+            <th style="width:${subjectWidth}">Subject</th>
+            ${syllabusHeader}
             <th style="width:10%">Day</th>
             <th style="width:12%">Date</th>
             <th style="width:12%">Time</th>
@@ -862,11 +867,12 @@
           const date = cRow.date !== undefined ? cRow.date : (row.date || "");
           const time = cRow.time !== undefined ? cRow.time : (row.time || "");
 
+          const syllabusCell = showSyllabusColumn ? `<td contenteditable="true" data-student-id="${s.id}" data-row="${rIdx}" data-field="syl">${escapeHtml(syl)}</td>` : '';
           let timeStr = (time || "").replace(/=/g, '-');
           tableBody += `
             <tr>
               <td contenteditable="true" data-student-id="${s.id}" data-row="${rIdx}" data-field="sub" style="font-size:17px; font-weight:bold; padding:2px;">${escapeHtml(sub)}</td>
-              <td contenteditable="true" data-student-id="${s.id}" data-row="${rIdx}" data-field="syl">${escapeHtml(syl)}</td>
+              ${syllabusCell}
               <td contenteditable="true" data-student-id="${s.id}" data-row="${rIdx}" data-field="day" class="text-center" style="font-size:12px; padding:2px;">${escapeHtml(day)}</td>
               <td contenteditable="true" data-student-id="${s.id}" data-row="${rIdx}" data-field="date" class="text-center" style="font-size:12px; padding:2px; white-space:nowrap;">${escapeHtml(date)}</td>
               <td contenteditable="true" data-student-id="${s.id}" data-row="${rIdx}" data-field="time" class="text-center" style="font-size:12px; padding:2px; white-space:nowrap;">${escapeHtml(timeStr)}</td>
@@ -996,6 +1002,14 @@
     pickFirstDateBtn.addEventListener('click', () => {
       pickFirstDateBtn.classList.add('active');
       if (firstDatePicker._flatpickr) firstDatePicker._flatpickr.open();
+    });
+
+    toggleSyllabusBtn.addEventListener('click', () => {
+      showSyllabusColumn = !showSyllabusColumn;
+      toggleSyllabusBtn.classList.toggle('active', showSyllabusColumn);
+      if (document.querySelector('.a4-page')) {
+        generateSlips();
+      }
     });
 
     waitForAuth();
