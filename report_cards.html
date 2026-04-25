@@ -96,6 +96,60 @@
         .btn-primary:hover { background: var(--primary-hover); }
         .btn-success { background: var(--success); color: white; }
         .btn-danger { background: var(--danger); color: white; }
+        .btn-warning { background: #f59e0b; color: white; }
+        .btn-warning:hover { background: #d97706; }
+
+        /* Copy Form Modal */
+        .modal-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(15,23,42,0.55);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-backdrop.show { display: flex; }
+        .modal-box {
+            background: #fff;
+            border-radius: 16px;
+            padding: 32px;
+            width: 100%;
+            max-width: 480px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+            position: relative;
+        }
+        .modal-box h2 {
+            margin: 0 0 6px;
+            font-size: 20px;
+            color: var(--primary);
+        }
+        .modal-box p { margin: 0 0 20px; color: var(--text-muted); font-size: 13px; }
+        .modal-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+        .modal-field label { font-size: 13px; font-weight: 600; color: var(--text-muted); }
+        .modal-field select, .modal-field input {
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 14px;
+        }
+        .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
+        .modal-close {
+            position: absolute;
+            top: 14px; right: 16px;
+            background: none; border: none;
+            font-size: 20px; cursor: pointer;
+            color: var(--text-muted);
+        }
+        .copy-arrow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            color: var(--primary);
+            margin: 4px 0;
+        }
 
         .builder-section {
             background: var(--card);
@@ -249,6 +303,7 @@
             </div>
 
             <div class="control-group" style="margin-left: auto;">
+                <button class="btn btn-warning" onclick="openCopyModal()"><i class="fas fa-copy"></i> Copy Form</button>
                 <button class="btn" style="background:#475569; color:white;" onclick="saveClassTemplate()"><i class="fas fa-layer-group"></i> Save as Class Form</button>
                 <button class="btn btn-primary" onclick="saveReportCard()"><i class="fas fa-save"></i> Save Student Data</button>
                 <button class="btn btn-success" onclick="printReportCard()"><i class="fas fa-print"></i> Print A4</button>
@@ -272,6 +327,39 @@
             </div>
         </div>
 
+    </div>
+
+    <!-- Copy Form Modal -->
+    <div class="modal-backdrop" id="copyModal">
+        <div class="modal-box">
+            <button class="modal-close" onclick="closeCopyModal()" title="Close">&times;</button>
+            <h2><i class="fas fa-copy" style="margin-right:8px;"></i>Copy Class Form</h2>
+            <p>Copy the saved subject structure from one class to another. Student marks are not copied — only the form layout.</p>
+
+            <div class="modal-field">
+                <label>Examination Term</label>
+                <select id="copyTerm"></select>
+            </div>
+
+            <div class="modal-field">
+                <label>Source Class (copy from)</label>
+                <select id="copyFromClass"></select>
+            </div>
+
+            <div class="copy-arrow"><i class="fas fa-arrow-down"></i></div>
+
+            <div class="modal-field">
+                <label>Target Class (copy to)</label>
+                <select id="copyToClass"></select>
+            </div>
+
+            <div id="copyStatus" style="font-size:13px; min-height:18px; color:var(--text-muted);"></div>
+
+            <div class="modal-actions">
+                <button class="btn" style="background:#e2e8f0; color:#475569;" onclick="closeCopyModal()">Cancel</button>
+                <button class="btn btn-warning" id="copyConfirmBtn" onclick="executeCopyForm()"><i class="fas fa-copy"></i> Copy Now</button>
+            </div>
+        </div>
     </div>
 
     <!-- Print Canvas -->
@@ -769,6 +857,125 @@
 
             document.getElementById('printArea').innerHTML = html;
             window.print();
+        }
+
+
+        // ─── Copy Form Feature ─────────────────────────────────────────────────────
+        function openCopyModal() {
+            const modal = document.getElementById('copyModal');
+            const termSelect   = document.getElementById('termName');
+            const copyTerm     = document.getElementById('copyTerm');
+            const copyFrom     = document.getElementById('copyFromClass');
+            const copyTo       = document.getElementById('copyToClass');
+
+            // Populate terms from the main term selector
+            copyTerm.innerHTML = '';
+            Array.from(termSelect.options).forEach(opt => {
+                if (opt.value) {
+                    const o = document.createElement('option');
+                    o.value = opt.value;
+                    o.textContent = opt.textContent;
+                    copyTerm.appendChild(o);
+                }
+            });
+            // Pre-select current term if one is chosen
+            if (termSelect.value) copyTerm.value = termSelect.value;
+
+            // Populate class lists from all students
+            const classes = [...new Set(allStudents.map(s => s.applying_for_class).filter(Boolean))].sort();
+            const buildOpts = (sel) => {
+                sel.innerHTML = '<option value="">- Select Class -</option>';
+                classes.forEach(c => {
+                    const o = document.createElement('option');
+                    o.value = c; o.textContent = c;
+                    sel.appendChild(o);
+                });
+            };
+            buildOpts(copyFrom);
+            buildOpts(copyTo);
+
+            // Pre-select current class as source if one is chosen
+            const currentClass = document.getElementById('classSelect').value;
+            if (currentClass) copyFrom.value = currentClass;
+
+            document.getElementById('copyStatus').textContent = '';
+            modal.classList.add('show');
+        }
+
+        function closeCopyModal() {
+            document.getElementById('copyModal').classList.remove('show');
+        }
+
+        // Close modal when clicking outside the box
+        document.getElementById('copyModal').addEventListener('click', function(e) {
+            if (e.target === this) closeCopyModal();
+        });
+
+        async function executeCopyForm() {
+            const term     = document.getElementById('copyTerm').value;
+            const fromClass = document.getElementById('copyFromClass').value;
+            const toClass   = document.getElementById('copyToClass').value;
+            const statusEl  = document.getElementById('copyStatus');
+            const btn       = document.getElementById('copyConfirmBtn');
+
+            if (!term)      return statusEl.textContent = '⚠️ Please select an examination term.';
+            if (!fromClass) return statusEl.textContent = '⚠️ Please select a source class.';
+            if (!toClass)   return statusEl.textContent = '⚠️ Please select a target class.';
+            if (fromClass === toClass) return statusEl.textContent = '⚠️ Source and target class must be different.';
+
+            btn.disabled = true;
+            statusEl.style.color = 'var(--text-muted)';
+            statusEl.textContent = '🔄 Fetching source template...';
+
+            try {
+                // 1. Load the source class template
+                let srcQ = db.from('report_card_templates')
+                    .select('data')
+                    .eq('term_name', term)
+                    .eq('class_name', fromClass);
+                if (currentSchoolId) srcQ = srcQ.eq('school_id', currentSchoolId);
+
+                const { data: srcData, error: srcErr } = await srcQ.single();
+
+                if (srcErr || !srcData) {
+                    statusEl.style.color = '#ef4444';
+                    statusEl.textContent = `❌ No saved template found for class "${fromClass}" & term "${term}". Save it first using "Save as Class Form".`;
+                    btn.disabled = false;
+                    return;
+                }
+
+                // 2. Deep-clone and reset all marks to 0
+                const clonedData = JSON.parse(JSON.stringify(srcData.data));
+                clonedData.forEach(sub => sub.topics.forEach(t => t.marks = 0));
+
+                // 3. Upsert into target class
+                statusEl.textContent = `🔄 Copying to "${toClass}"...`;
+
+                const payload = {
+                    class_name: toClass,
+                    term_name: term,
+                    data: clonedData,
+                    updated_at: new Date().toISOString()
+                };
+                if (currentSchoolId) payload.school_id = currentSchoolId;
+
+                const { error: destErr } = await db.from('report_card_templates')
+                    .upsert(payload, { onConflict: 'school_id, class_name, term_name' });
+
+                if (destErr) throw destErr;
+
+                statusEl.style.color = '#10b981';
+                statusEl.textContent = `✅ Template copied from "${fromClass}" → "${toClass}" successfully!`;
+
+                // Auto-close after 2 seconds
+                setTimeout(() => closeCopyModal(), 2000);
+
+            } catch (err) {
+                statusEl.style.color = '#ef4444';
+                statusEl.textContent = '❌ Error: ' + (err.message || err);
+            } finally {
+                btn.disabled = false;
+            }
         }
 
     </script>
