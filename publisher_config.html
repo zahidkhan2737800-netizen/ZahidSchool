@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Publisher Config - Zahid School System</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="complaint_diary.css">
+    <!-- Supabase JS Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .config-table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        .config-table th, .config-table td { padding: 0.75rem; border: 1px solid #e2e8f0; text-align: left; }
+        .config-table th { background: #f8fafc; font-weight: 600; color: #475569; }
+        .config-table td { color: #334155; }
+        .tag { display: inline-block; background: #e2e8f0; color: #475569; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.85rem; margin: 2px; }
+    </style>
+</head>
+<body>
+    <div class="page-container" style="max-width: 1200px; margin: 0 auto;">
+        <!-- Header -->
+        <div class="header">
+            <div>
+                <h1 style="margin:0; color:#0f172a; font-size:2rem; font-weight:800;">⚙️ Publisher Configuration</h1>
+                <p style="margin:0.5rem 0 0 0; color:#64748b;">Configure category buttons and complaint messages per class for the Homework Publisher.</p>
+            </div>
+            <div class="header-nav">
+                <a href="homework.html">📝 Homework Publisher</a>
+                <a href="dashboard.html">📊 Dashboard</a>
+            </div>
+        </div>
+
+        <!-- Class Selector -->
+        <div class="section-card" style="display:flex; gap:1rem; align-items:center;">
+            <label style="font-weight:600; color:#475569;">Select Class:</label>
+            <select id="classSelect" style="padding:0.6rem; border-radius:8px; border:2px solid #e2e8f0; font-size:1rem; min-width:200px;">
+                <option value="">-- Select Class --</option>
+            </select>
+            <button class="btn btn-primary" id="loadConfigBtn">Load Configuration</button>
+        </div>
+
+        <div id="configArea" style="display:none;">
+            <!-- Form -->
+            <div class="section-card">
+                <h3 id="formTitle">➕ Add Category for Class</h3>
+                <form id="configForm">
+                    <input type="hidden" id="editId">
+                    <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));">
+                        <div class="form-group">
+                            <label>Category Name (e.g., Homework, Books)</label>
+                            <input type="text" id="categoryName" required placeholder="Homework">
+                        </div>
+                        <div class="form-group">
+                            <label>Complaint Prefix (e.g., Undone Homework of)</label>
+                            <input type="text" id="complaintPrefix" required placeholder="Undone Homework of">
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label>Items / Buttons (Comma separated, e.g., English, Math, Science)</label>
+                            <input type="text" id="categoryItems" required placeholder="English, Math, Science">
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary" id="saveBtn">Save Category</button>
+                        <button type="button" class="btn btn-secondary" id="cancelBtn" style="display:none;">Cancel Edit</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Existing Configs -->
+            <div class="section-card">
+                <h3>📋 Configured Categories for <span id="displayClassName" style="color:var(--primary);"></span></h3>
+                <div id="configsList">
+                    <p style="color:#94a3b8;">Loading...</p>
+                </div>
+            </div>
+
+            <!-- Copy System -->
+            <div class="section-card" id="copyConfigCard" style="margin-top: 1rem;">
+                <h3>📋 Copy Configurations to Another Class</h3>
+                <div style="display:flex; gap:1rem; align-items:center; flex-wrap: wrap;">
+                    <label>Copy all categories from <strong id="copySourceClass"></strong> to:</label>
+                    <select id="copyTargetClassSelect" style="padding:0.6rem; border-radius:8px; border:2px solid #e2e8f0; min-width:200px;">
+                        <option value="">-- Select Target Class --</option>
+                    </select>
+                    <button class="btn btn-primary" id="copyConfigBtn">Copy Now</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast container -->
+    <div class="toast-box" id="toastContainer"></div>
+
+    <script src="auth.js"></script>
+    <script src="publisher_config.js"></script>
+</body>
+</html>
