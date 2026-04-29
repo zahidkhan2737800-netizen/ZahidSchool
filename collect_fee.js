@@ -637,7 +637,14 @@ async function submitPayment() {
         if (txErr) throw txErr;
 
         // ── Save receipt to receipts table for future reprinting ──
-        const remaining = Math.max(0, grandTotal - paying);
+        // Calculate overall remaining balance for the student
+        const totalFeeDueBeforePayment = pendingDues.reduce((sum, c) => {
+            const amount = parseFloat(c.amount || 0);
+            const paid = parseFloat(c.paid_amount || 0);
+            return sum + Math.max(0, amount - paid);
+        }, 0);
+        const remaining = Math.max(0, totalFeeDueBeforePayment + fine - discount - paying);
+
         const feeLines  = txRecords.map(tx => ({ desc: tx.fee_details, amount: tx.amount_paid }));
         const receiptRecord = {
             receipt_number:    baseReceipt,
