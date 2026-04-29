@@ -374,6 +374,13 @@
             </div>
 
             <div class="control-group">
+                <label>Print Class As</label>
+                <select id="printClassSelect" class="control-input">
+                    <option value="">- Use Current Class -</option>
+                </select>
+            </div>
+
+            <div class="control-group">
                 <label>Examination Term</label>
                 <select id="termName" class="control-input" onchange="loadReportCard()">
                     <option value="">- Select Examination -</option>
@@ -514,10 +521,15 @@
 
             const classes = [...new Set(allStudents.map(s => s.applying_for_class).filter(Boolean))].sort();
             const classSel = document.getElementById('classSelect');
+            const printClassSel = document.getElementById('printClassSelect');
             classes.forEach(c => {
                 const o = document.createElement('option');
                 o.value = c; o.textContent = c;
                 classSel.appendChild(o);
+
+                const po = document.createElement('option');
+                po.value = c; po.textContent = c;
+                printClassSel.appendChild(po);
             });
         }
 
@@ -844,6 +856,9 @@
                 ? `<img src="${photoUrl}" alt="Student Photo" style="width:110px; height:110px; object-fit:cover; border:2px solid #000; border-radius:4px;">`
                 : ``;
 
+            const overrideClass = document.getElementById('printClassSelect').value;
+            const printClass = overrideClass ? overrideClass : studentInfo.applying_for_class;
+
             let html = `
             <div class="a4-page">
                 <div class="school-header">
@@ -864,7 +879,7 @@
                             <td style="padding:4px 6px 4px 0; white-space:nowrap; width:1%;"><strong>Father's Name:</strong></td>
                             <td style="padding:4px 24px 4px 4px;">${studentInfo.father_name || 'N/A'}</td>
                             <td style="padding:4px 6px 4px 0; white-space:nowrap; width:1%;"><strong>Class:</strong></td>
-                            <td style="padding:4px 0 4px 4px;">${studentInfo.applying_for_class}</td>
+                            <td style="padding:4px 0 4px 4px;">${printClass}</td>
                         </tr>
                     </table>
                     <div>${photoHtml}</div>
