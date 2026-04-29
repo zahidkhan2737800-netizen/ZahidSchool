@@ -163,7 +163,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const label = document.getElementById('lastAdmittedRoll');
             if (label) {
                 if (!error && data && data.length > 0) {
-                    label.textContent = `Last admitted roll no: ${data[0].roll_number}`;
+                    label.innerHTML = `Last admitted roll no: <span style="background-color: #fef08a; padding: 2px 6px; border-radius: 4px; color: #854d0e; font-weight: 600;">${data[0].roll_number}</span>`;
                 } else {
                     label.textContent = `No previous admissions found.`;
                 }
