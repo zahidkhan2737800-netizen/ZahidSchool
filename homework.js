@@ -110,6 +110,14 @@ async function loadStudentsForClass(cls) {
             studentCountEl.textContent = '0 students';
             return;
         }
+
+        // Sort students numerically by roll number
+        students.sort((a, b) => {
+            const numA = parseInt(a.roll_number, 10) || 0;
+            const numB = parseInt(b.roll_number, 10) || 0;
+            return numA - numB;
+        });
+
         studentCountEl.textContent = `${students.length} student(s)`;
 
         // Fetch existing complaints for today under the active category
