@@ -570,9 +570,9 @@
                 const { data: freshData } = await db.from('admissions')
                     .select('photo_url')
                     .eq('id', studentId)
-                    .single();
-                if (freshData && freshData.photo_url) {
-                    livePhotoUrl = freshData.photo_url;
+                    .limit(1);
+                if (freshData && freshData.length > 0 && freshData[0].photo_url) {
+                    livePhotoUrl = freshData[0].photo_url;
                     // Update the local cache so print also uses the fresh URL
                     const cached = allStudents.find(x => x.id === studentId);
                     if (cached) cached.photo_url = livePhotoUrl;
@@ -591,12 +591,12 @@
                 .eq('term_name', termName);
             if (currentSchoolId) q = q.eq('school_id', currentSchoolId);
 
-            const { data, error } = await q.single();
+            const { data, error } = await q.limit(1);
 
-            if (data && data.data) {
-                currentReportId = data.id;
-                reportData = data.data || [];
-                document.getElementById('overallRemarks').value = data.remarks || '';
+            if (data && data.length > 0 && data[0].data) {
+                currentReportId = data[0].id;
+                reportData = data[0].data || [];
+                document.getElementById('overallRemarks').value = data[0].remarks || '';
             } else {
                 // Look for an explicitly saved Class Template
                 const sInfo = allStudents.find(x => x.id === studentId);
@@ -609,10 +609,10 @@
                         .eq('class_name', classVal);
                     if (currentSchoolId) tmpQ = tmpQ.eq('school_id', currentSchoolId);
 
-                    const tmpRes = await tmpQ.single();
-                    if (tmpRes.data && tmpRes.data.data) {
+                    const tmpRes = await tmpQ.limit(1);
+                    if (tmpRes.data && tmpRes.data.length > 0 && tmpRes.data[0].data) {
                         // Deep clone the array, marks will already be 0 from template save logic
-                        reportData = JSON.parse(JSON.stringify(tmpRes.data.data));
+                        reportData = JSON.parse(JSON.stringify(tmpRes.data[0].data));
                         reportData.forEach(sub => {
                             sub.topics.forEach(t => t.marks = 0);
                         });
@@ -1036,9 +1036,9 @@
                     .eq('class_name', fromClass);
                 if (currentSchoolId) srcQ = srcQ.eq('school_id', currentSchoolId);
 
-                const { data: srcData, error: srcErr } = await srcQ.single();
+                const { data: srcData, error: srcErr } = await srcQ.limit(1);
 
-                if (srcErr || !srcData) {
+                if (srcErr || !srcData || srcData.length === 0) {
                     statusEl.style.color = '#ef4444';
                     statusEl.textContent = `❌ No saved template found for class "${fromClass}" & term "${term}". Save it first using "Save as Class Form".`;
                     btn.disabled = false;
@@ -1046,7 +1046,7 @@
                 }
 
                 // 2. Deep-clone and reset all marks to 0
-                const clonedData = JSON.parse(JSON.stringify(srcData.data));
+                const clonedData = JSON.parse(JSON.stringify(srcData[0].data));
                 clonedData.forEach(sub => sub.topics.forEach(t => t.marks = 0));
 
                 // 3. Upsert into target class
