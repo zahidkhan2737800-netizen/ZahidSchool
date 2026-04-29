@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Promote Students - Zahid School System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg-color: #f0f4f8;
+        }
+        body { background-color: var(--bg-color); font-family: 'Inter', sans-serif; }
+        .glass-panel {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            width: 100%;
+        }
+        .header {
+            display: flex; justify-content: space-between; align-items: center; 
+            background: white; padding: 1rem 1.5rem; border-radius: 12px; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 1.5rem; 
+            border: 1px solid #e2e8f0;
+        }
+        .student-list {
+            margin-top: 2rem;
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border: 1px solid #e2e8f0;
+        }
+        .student-row {
+            display: flex; justify-content: space-between; padding: 0.8rem;
+            border-bottom: 1px solid #e2e8f0; align-items: center;
+        }
+        .student-row:last-child { border-bottom: none; }
+        .student-row:hover { background: #f8fafc; }
+        .btn-primary {
+            background: var(--primary); color: white; border: none; padding: 0.6rem 1.2rem;
+            border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s;
+        }
+        .btn-primary:hover { background: var(--primary-hover); }
+        select {
+            padding: 0.6rem; border-radius: 8px; border: 2px solid #e2e8f0; font-size: 1rem;
+            min-width: 200px;
+        }
+    </style>
+</head>
+<body>
+    <div style="width: 100%; padding: 1.5rem; max-width: 1200px; margin: 0 auto;">
+        <header class="header">
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <div style="font-size: 2rem; background: #e0f2fe; padding: 0.5rem; border-radius: 8px;">🎓</div>
+                <div>
+                    <h1 style="margin: 0; font-size: 1.4rem; color: #0f172a; font-weight: 700;">Promote Students</h1>
+                    <p style="margin: 0.2rem 0 0; font-size: 0.9rem; color: #64748b;">Bulk promote students from one class to another</p>
+                </div>
+            </div>
+            <div><a href="dashboard.html" style="color:var(--primary); font-weight:600; text-decoration:none;">← Dashboard</a></div>
+        </header>
+
+        <div class="glass-panel">
+            <div style="display:flex; gap:1.5rem; flex-wrap:wrap; align-items:flex-end;">
+                <div>
+                    <label style="display:block; margin-bottom:0.5rem; font-weight:600;">From Class:</label>
+                    <select id="fromClassSelect">
+                        <option value="">-- Select Source Class --</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="display:block; margin-bottom:0.5rem; font-weight:600;">To Class:</label>
+                    <select id="toClassSelect">
+                        <option value="">-- Select Target Class --</option>
+                    </select>
+                </div>
+                <button class="btn-primary" id="loadStudentsBtn">Load Students</button>
+            </div>
+            <div id="alertBox" style="display:none; padding:1rem; border-radius:8px; margin-top:1rem; text-align:center; font-weight:500;"></div>
+        </div>
+
+        <div class="student-list" id="studentListContainer" style="display:none;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                <h3 style="margin:0;">Students in <span id="displayFromClass" style="color:var(--primary);"></span> (<span id="studentCount">0</span>)</h3>
+                <div>
+                    <button class="btn-primary" id="selectAllBtn" style="background:#10b981;">Select All</button>
+                    <button class="btn-primary" id="deselectAllBtn" style="background:#64748b;">Deselect All</button>
+                </div>
+            </div>
+            
+            <div id="studentsArea" style="max-height:60vh; overflow-y:auto; border:1px solid #e2e8f0; border-radius:8px;">
+                <!-- Student rows go here -->
+            </div>
+
+            <div style="margin-top:1.5rem; text-align:right;">
+                <button class="btn-primary" id="promoteBtn" style="font-size:1.1rem; padding:0.8rem 2rem;">Promote Selected Students 🚀</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="auth.js"></script>
+    <script src="promote_students.js"></script>
+</body>
+</html>

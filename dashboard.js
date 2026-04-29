@@ -79,6 +79,7 @@ var NAV_CATEGORIES = [
     id: 'admin', label: 'Administration', icon: 'fas fa-user-shield',
     items: [
       { href: 'classes.html', label: 'Manage Classes', icon: 'fas fa-chalkboard', key: 'classes' },
+      { href: 'promote_students.html', label: 'Promote Students', icon: 'fas fa-level-up-alt', key: 'classes' },
       { href: 'curriculum_and_session.html', label: 'Curriculum & Session', icon: 'fas fa-book', key: 'classes' },
       { href: 'class_subjects_assignment.html', label: 'Class Subjects', icon: 'fas fa-link', key: 'classes' },
       { href: 'access_control.html', label: 'Access Control', icon: 'fas fa-lock', key: 'access_control' },
