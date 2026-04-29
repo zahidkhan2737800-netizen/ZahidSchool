@@ -151,6 +151,29 @@ document.addEventListener('DOMContentLoaded', () => {
     // Set ID on page load
     generateUniqueStudentId().then(id => { studentIdInput.value = id; });
     
+    // Fetch last admitted roll number
+    async function fetchLastAdmittedRoll() {
+        try {
+            const { data, error } = await applySchoolScope(supabaseClient
+                .from('admissions')
+                .select('roll_number')
+                .order('created_at', { ascending: false })
+                .limit(1));
+            
+            const label = document.getElementById('lastAdmittedRoll');
+            if (label) {
+                if (!error && data && data.length > 0) {
+                    label.textContent = `Last admitted roll no: ${data[0].roll_number}`;
+                } else {
+                    label.textContent = `No previous admissions found.`;
+                }
+            }
+        } catch (e) {
+            console.error('Error fetching last roll number:', e);
+        }
+    }
+    fetchLastAdmittedRoll();
+    
     // Auto age calculation
     const dobInput = document.getElementById('dob');
     const ageInput = document.getElementById('age');
@@ -349,10 +372,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const searchQueryInput = document.getElementById('searchQuery');
     const searchResultsContainer = document.getElementById('searchResults');
     
+    let searchTimeout;
     if (searchQueryInput) {
+        searchQueryInput.addEventListener('input', () => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                if (searchStudentBtn) searchStudentBtn.click();
+            }, 300);
+        });
         searchQueryInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault(); // Prevent form submission
+                clearTimeout(searchTimeout);
                 if (searchStudentBtn) searchStudentBtn.click();
             }
         });
@@ -362,7 +393,8 @@ document.addEventListener('DOMContentLoaded', () => {
         searchStudentBtn.addEventListener('click', async () => {
             const query = searchQueryInput.value.trim();
             if (!query) {
-                alert('Please enter a name or roll number to search.');
+                searchResultsContainer.style.display = 'none';
+                searchResultsContainer.innerHTML = '';
                 return;
             }
             
@@ -667,6 +699,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 // Regenerate a fresh unique ID for the next student
                 generateUniqueStudentId().then(id => { studentIdInput.value = id; });
+                fetchLastAdmittedRoll();
                 if(photoPreview) photoPreview.innerHTML = 'No image selected';
                 compressedPhotoBlob = null;
                 ageInput.value = '';
