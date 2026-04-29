@@ -37,6 +37,63 @@ body { background-color: var(--bg-color); }
 }
 .header-nav a:hover { opacity: 0.8; }
 
+/* ─── Category Tabs ──────────────────────────────────────── */
+.category-tabs {
+    display: flex;
+    gap: 0.6rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.cat-tab {
+    padding: 0.55rem 1.4rem;
+    border-radius: 10px;
+    border: 2px solid #e2e8f0;
+    background: #ffffff;
+    font-weight: 700;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: #475569;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+}
+.cat-tab:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    transform: translateY(-1px);
+}
+/* Active states per tab */
+.cat-tab.active[data-cat="Homework"] {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: white;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+}
+.cat-tab.active[data-cat="Book(s)"] {
+    background: #7c3aed;
+    border-color: #7c3aed;
+    color: white;
+    box-shadow: 0 4px 12px rgba(124, 58, 237, 0.35);
+}
+.cat-tab.active[data-cat="Stationery"] {
+    background: #d97706;
+    border-color: #d97706;
+    color: white;
+    box-shadow: 0 4px 12px rgba(217, 119, 6, 0.35);
+}
+.cat-tab.active[data-cat="Fair Copy"] {
+    background: #16a34a;
+    border-color: #16a34a;
+    color: white;
+    box-shadow: 0 4px 12px rgba(22, 163, 74, 0.35);
+}
+.cat-tab.active[data-cat="Worksheet"] {
+    background: #0891b2;
+    border-color: #0891b2;
+    color: white;
+    box-shadow: 0 4px 12px rgba(8, 145, 178, 0.35);
+}
+
 /* Controls bar */
 .controls-bar {
     display: flex;

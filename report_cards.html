@@ -1,10 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Report Cards - Zahid School System</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -20,8 +22,10 @@
             --border: #e2e8f0;
         }
 
-        * { box-sizing: border-box; }
-        
+        * {
+            box-sizing: border-box;
+        }
+
         body {
             margin: 0;
             font-family: 'Inter', sans-serif;
@@ -49,7 +53,7 @@
             background: var(--card);
             border-radius: 12px;
             padding: 20px;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
             margin-bottom: 20px;
             border: 1px solid var(--border);
             display: flex;
@@ -92,56 +96,111 @@
             font-size: 14px;
         }
 
-        .btn-primary { background: var(--primary); color: white; }
-        .btn-primary:hover { background: var(--primary-hover); }
-        .btn-success { background: var(--success); color: white; }
-        .btn-danger { background: var(--danger); color: white; }
-        .btn-warning { background: #f59e0b; color: white; }
-        .btn-warning:hover { background: #d97706; }
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-warning {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background: #d97706;
+        }
 
         /* Copy Form Modal */
         .modal-backdrop {
             display: none;
             position: fixed;
             inset: 0;
-            background: rgba(15,23,42,0.55);
+            background: rgba(15, 23, 42, 0.55);
             z-index: 1000;
             align-items: center;
             justify-content: center;
         }
-        .modal-backdrop.show { display: flex; }
+
+        .modal-backdrop.show {
+            display: flex;
+        }
+
         .modal-box {
             background: #fff;
             border-radius: 16px;
             padding: 32px;
             width: 100%;
             max-width: 480px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
             position: relative;
         }
+
         .modal-box h2 {
             margin: 0 0 6px;
             font-size: 20px;
             color: var(--primary);
         }
-        .modal-box p { margin: 0 0 20px; color: var(--text-muted); font-size: 13px; }
-        .modal-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
-        .modal-field label { font-size: 13px; font-weight: 600; color: var(--text-muted); }
-        .modal-field select, .modal-field input {
+
+        .modal-box p {
+            margin: 0 0 20px;
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+
+        .modal-field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 16px;
+        }
+
+        .modal-field label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .modal-field select,
+        .modal-field input {
             padding: 10px 12px;
             border: 1px solid var(--border);
             border-radius: 8px;
             font-family: inherit;
             font-size: 14px;
         }
-        .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 24px;
+        }
+
         .modal-close {
             position: absolute;
-            top: 14px; right: 16px;
-            background: none; border: none;
-            font-size: 20px; cursor: pointer;
+            top: 14px;
+            right: 16px;
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
             color: var(--text-muted);
         }
+
         .copy-arrow {
             display: flex;
             align-items: center;
@@ -155,7 +214,7 @@
             background: var(--card);
             border-radius: 12px;
             padding: 20px;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
             border: 1px solid var(--border);
             margin-bottom: 40px;
         }
@@ -209,13 +268,17 @@
             body * {
                 visibility: hidden;
             }
+
             body {
                 background: white;
                 padding: 0;
             }
-            #printArea, #printArea * {
+
+            #printArea,
+            #printArea * {
                 visibility: visible;
             }
+
             #printArea {
                 display: block;
                 position: absolute;
@@ -223,6 +286,7 @@
                 top: 0;
                 width: 100%;
             }
+
             .a4-page {
                 width: 210mm;
                 min-height: 297mm;
@@ -231,6 +295,7 @@
                 box-sizing: border-box;
                 page-break-after: always;
             }
+
             .rc-table {
                 width: 100%;
                 border-collapse: collapse;
@@ -238,24 +303,36 @@
                 margin-bottom: 15px;
                 font-family: Arial, sans-serif;
             }
-            .rc-table th, .rc-table td {
+
+            .rc-table th,
+            .rc-table td {
                 border: 1px solid #000;
                 padding: 8px;
                 text-align: center;
                 font-size: 14px;
             }
+
             .rc-table th {
                 font-weight: bold;
             }
+
             .school-header {
                 text-align: center;
                 margin-bottom: 20px;
                 border-bottom: 2px solid #000;
                 padding-bottom: 10px;
             }
-            .school-header h1 { margin: 0; font-size: 28px; }
-            .school-header p { margin: 5px 0 0; font-size: 16px; }
-            
+
+            .school-header h1 {
+                margin: 0;
+                font-size: 28px;
+            }
+
+            .school-header p {
+                margin: 5px 0 0;
+                font-size: 16px;
+            }
+
             .student-info {
                 display: flex;
                 justify-content: space-between;
@@ -272,6 +349,7 @@
         }
     </style>
 </head>
+
 <body>
 
     <div class="container" id="noPrint">
@@ -287,7 +365,7 @@
                     <option value="">- Select Class -</option>
                 </select>
             </div>
-            
+
             <div class="control-group">
                 <label>Student</label>
                 <select id="studentSelect" class="control-input" onchange="loadReportCard()">
@@ -304,9 +382,12 @@
 
             <div class="control-group" style="margin-left: auto;">
                 <button class="btn btn-warning" onclick="openCopyModal()"><i class="fas fa-copy"></i> Copy Form</button>
-                <button class="btn" style="background:#475569; color:white;" onclick="saveClassTemplate()"><i class="fas fa-layer-group"></i> Save as Class Form</button>
-                <button class="btn btn-primary" onclick="saveReportCard()"><i class="fas fa-save"></i> Save Student Data</button>
-                <button class="btn btn-success" onclick="printReportCard()"><i class="fas fa-print"></i> Print A4</button>
+                <button class="btn" style="background:#475569; color:white;" onclick="saveClassTemplate()"><i
+                        class="fas fa-layer-group"></i> Save as Class Form</button>
+                <button class="btn btn-primary" onclick="saveReportCard()"><i class="fas fa-save"></i> Save Student
+                    Data</button>
+                <button class="btn btn-success" onclick="printReportCard()"><i class="fas fa-print"></i> Print
+                    A4</button>
             </div>
         </div>
 
@@ -314,7 +395,8 @@
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h3 style="margin: 0;">Subjects &amp; Marks</h3>
                 <div id="builderPhotoBox" style="margin-left: 16px; margin-right: auto;"></div>
-                <button class="btn" style="background:#e2e8f0; color:#0f172a;" onclick="addSubject()">+ Add Subject</button>
+                <button class="btn" style="background:#e2e8f0; color:#0f172a;" onclick="addSubject()">+ Add
+                    Subject</button>
             </div>
 
             <div id="subjectsList">
@@ -323,7 +405,8 @@
 
             <div class="control-group" style="margin-top: 30px;">
                 <label>Overall Remarks / Comments</label>
-                <textarea id="overallRemarks" class="control-input" style="width: 100%; min-height: 80px; resize: vertical;"></textarea>
+                <textarea id="overallRemarks" class="control-input"
+                    style="width: 100%; min-height: 80px; resize: vertical;"></textarea>
             </div>
         </div>
 
@@ -334,7 +417,8 @@
         <div class="modal-box">
             <button class="modal-close" onclick="closeCopyModal()" title="Close">&times;</button>
             <h2><i class="fas fa-copy" style="margin-right:8px;"></i>Copy Class Form</h2>
-            <p>Copy the saved subject structure from one class to another. Student marks are not copied — only the form layout.</p>
+            <p>Copy the saved subject structure from one class to another. Student marks are not copied — only the form
+                layout.</p>
 
             <div class="modal-field">
                 <label>Examination Term</label>
@@ -356,8 +440,10 @@
             <div id="copyStatus" style="font-size:13px; min-height:18px; color:var(--text-muted);"></div>
 
             <div class="modal-actions">
-                <button class="btn" style="background:#e2e8f0; color:#475569;" onclick="closeCopyModal()">Cancel</button>
-                <button class="btn btn-warning" id="copyConfirmBtn" onclick="executeCopyForm()"><i class="fas fa-copy"></i> Copy Now</button>
+                <button class="btn" style="background:#e2e8f0; color:#475569;"
+                    onclick="closeCopyModal()">Cancel</button>
+                <button class="btn btn-warning" id="copyConfirmBtn" onclick="executeCopyForm()"><i
+                        class="fas fa-copy"></i> Copy Now</button>
             </div>
         </div>
     </div>
@@ -372,7 +458,7 @@
         let currentSchoolId = null;
         let currentReportId = null;
 
-        let reportData = []; 
+        let reportData = [];
         // Array of subjects: { id, name, maxMarks, topics: [{id, name, marks}] }
 
         document.addEventListener('DOMContentLoaded', async () => {
@@ -394,17 +480,17 @@
 
         async function loadExaminations() {
             let q = db.from('examination').select('id, name').order('created_at', { ascending: false });
-            if(currentSchoolId) q = q.eq('school_id', currentSchoolId);
-            
+            if (currentSchoolId) q = q.eq('school_id', currentSchoolId);
+
             const { data, error } = await q;
             if (error) {
                 console.error(error);
                 return;
             }
-            
+
             const termSel = document.getElementById('termName');
             termSel.innerHTML = '<option value="">- Select Examination -</option>';
-            if(data) {
+            if (data) {
                 data.forEach(ex => {
                     const o = document.createElement('option');
                     // Store the name so it corresponds to term_name in report_cards table
@@ -417,8 +503,8 @@
 
         async function loadClassesAndStudents() {
             let q = db.from('admissions').select('id, full_name, roll_number, applying_for_class, father_name, photo_url').eq('status', 'Active');
-            if(currentSchoolId) q = q.eq('school_id', currentSchoolId);
-            
+            if (currentSchoolId) q = q.eq('school_id', currentSchoolId);
+
             const { data, error } = await q;
             if (error) {
                 console.error(error);
@@ -439,24 +525,24 @@
             const classVal = document.getElementById('classSelect').value;
             const stuSel = document.getElementById('studentSelect');
             stuSel.innerHTML = '<option value="">- Select Student -</option>';
-            
+
             const filtered = allStudents.filter(s => s.applying_for_class === classVal);
-            filtered.sort((a,b) => a.roll_number - b.roll_number);
+            filtered.sort((a, b) => a.roll_number - b.roll_number);
 
             filtered.forEach(s => {
                 const o = document.createElement('option');
                 o.value = s.id; o.textContent = `[Roll: ${s.roll_number}] ${s.full_name}`;
                 stuSel.appendChild(o);
             });
-            
+
             document.getElementById('builderArea').style.display = 'none';
         }
 
         async function loadReportCard() {
             const studentId = document.getElementById('studentSelect').value;
             const termName = document.getElementById('termName').value.trim();
-            
-            if(!studentId || !termName) {
+
+            if (!studentId || !termName) {
                 document.getElementById('builderArea').style.display = 'none';
                 return;
             }
@@ -479,7 +565,7 @@
                     const cached = allStudents.find(x => x.id === studentId);
                     if (cached) cached.photo_url = livePhotoUrl;
                 }
-            } catch(e) { console.warn('Could not fetch fresh photo_url', e); }
+            } catch (e) { console.warn('Could not fetch fresh photo_url', e); }
 
             let photoEl = document.getElementById('builderPhotoBox');
             if (photoEl) {
@@ -489,9 +575,9 @@
             }
 
             let q = db.from('report_cards').select('*')
-                      .eq('student_id', studentId)
-                      .eq('term_name', termName);
-            if(currentSchoolId) q = q.eq('school_id', currentSchoolId);
+                .eq('student_id', studentId)
+                .eq('term_name', termName);
+            if (currentSchoolId) q = q.eq('school_id', currentSchoolId);
 
             const { data, error } = await q.single();
 
@@ -509,8 +595,8 @@
                         .select('data')
                         .eq('term_name', termName)
                         .eq('class_name', classVal);
-                    if(currentSchoolId) tmpQ = tmpQ.eq('school_id', currentSchoolId);
-                        
+                    if (currentSchoolId) tmpQ = tmpQ.eq('school_id', currentSchoolId);
+
                     const tmpRes = await tmpQ.single();
                     if (tmpRes.data && tmpRes.data.data) {
                         // Deep clone the array, marks will already be 0 from template save logic
@@ -521,17 +607,17 @@
                     }
                 }
 
-               // If no template in class, provide 1 blank empty subject
-               if (reportData.length === 0) {
-                   reportData = [{
-                       id: Date.now(),
-                       name: 'Example Subject',
-                       maxMarks: 100,
-                       topics: [
-                           { id: Date.now()+1, name: 'Topic 1', marks: 0 }
-                       ]
-                   }];
-               }
+                // If no template in class, provide 1 blank empty subject
+                if (reportData.length === 0) {
+                    reportData = [{
+                        id: Date.now(),
+                        name: 'Example Subject',
+                        maxMarks: 100,
+                        topics: [
+                            { id: Date.now() + 1, name: 'Topic 1', marks: 0 }
+                        ]
+                    }];
+                }
             }
 
             renderBuilder();
@@ -553,7 +639,7 @@
 
         function addTopic(subId) {
             const sub = reportData.find(s => s.id === subId);
-            if(sub) {
+            if (sub) {
                 sub.topics.push({ id: generateId(), name: 'New Topic', marks: 0 });
                 renderBuilder();
             }
@@ -566,7 +652,7 @@
 
         function deleteTopic(subId, topicId) {
             const sub = reportData.find(s => s.id === subId);
-            if(sub) {
+            if (sub) {
                 sub.topics = sub.topics.filter(t => t.id !== topicId);
                 renderBuilder();
             }
@@ -574,7 +660,7 @@
 
         function insertTopicAfter(subId, topicId) {
             const sub = reportData.find(s => s.id === subId);
-            if(sub) {
+            if (sub) {
                 const index = sub.topics.findIndex(t => t.id === topicId);
                 if (index !== -1) {
                     sub.topics.splice(index + 1, 0, { id: generateId(), name: 'New Topic', marks: 0 });
@@ -585,7 +671,7 @@
 
         function moveTopic(subId, topicId, direction) {
             const sub = reportData.find(s => s.id === subId);
-            if(sub) {
+            if (sub) {
                 const index = sub.topics.findIndex(t => t.id === topicId);
                 if (index === -1) return;
                 const newIndex = index + direction;
@@ -606,10 +692,10 @@
             const field = tg.dataset.field;
 
             const sub = reportData.find(s => s.id === subId);
-            if(!sub) return;
+            if (!sub) return;
 
             if (field === 'subName') sub.name = tg.value;
-            if (field === 'subMax')  sub.maxMarks = parseFloat(tg.value) || 0;
+            if (field === 'subMax') sub.maxMarks = parseFloat(tg.value) || 0;
 
             if (topicId) {
                 const top = sub.topics.find(t => t.id === topicId);
@@ -621,9 +707,9 @@
 
             if (field === 'topMarks') {
                 // Update specific summary without full re-render to keep cursor focus
-                const totalObtained = sub.topics.reduce((sum, t) => sum + (parseFloat(t.marks)||0), 0);
+                const totalObtained = sub.topics.reduce((sum, t) => sum + (parseFloat(t.marks) || 0), 0);
                 const sumEl = document.getElementById(`sum-${subId}`);
-                if(sumEl) sumEl.textContent = totalObtained;
+                if (sumEl) sumEl.textContent = totalObtained;
             }
         });
 
@@ -632,7 +718,7 @@
             list.innerHTML = '';
 
             reportData.forEach(sub => {
-                const totalObtained = sub.topics.reduce((sum, t) => sum + (parseFloat(t.marks)||0), 0);
+                const totalObtained = sub.topics.reduce((sum, t) => sum + (parseFloat(t.marks) || 0), 0);
 
                 let topicsHtml = sub.topics.map(t => `
                     <div class="topic-row">
@@ -675,14 +761,14 @@
             const termName = document.getElementById('termName').value.trim();
             const remarks = document.getElementById('overallRemarks').value.trim();
 
-            if(!studentId || !termName) return alert("Select student and term name.");
+            if (!studentId || !termName) return alert("Select student and term name.");
 
             let grandTotal = 0;
             let maxTotal = 0;
 
             reportData.forEach(sub => {
                 maxTotal += parseFloat(sub.maxMarks) || 0;
-                grandTotal += sub.topics.reduce((sum, t) => sum + (parseFloat(t.marks)||0), 0);
+                grandTotal += sub.topics.reduce((sum, t) => sum + (parseFloat(t.marks) || 0), 0);
             });
 
             const percentage = maxTotal > 0 ? ((grandTotal / maxTotal) * 100).toFixed(2) : 0;
@@ -707,10 +793,10 @@
                 res = await db.from('report_cards').insert([payload]).select();
             }
 
-            if(res.error) {
+            if (res.error) {
                 alert("Failed to save: " + res.error.message);
             } else {
-                if(res.data && res.data.length > 0) currentReportId = res.data[0].id;
+                if (res.data && res.data.length > 0) currentReportId = res.data[0].id;
                 alert("Saved successfully!");
             }
         }
@@ -719,7 +805,7 @@
             const classVal = document.getElementById('classSelect').value;
             const termName = document.getElementById('termName').value.trim();
 
-            if(!classVal || !termName) return alert("Select Class and Examination Term first.");
+            if (!classVal || !termName) return alert("Select Class and Examination Term first.");
 
             // Clone structure, strip marks down to 0
             const templateData = JSON.parse(JSON.stringify(reportData));
@@ -739,7 +825,7 @@
             // Upsert based on unique constraint
             const { error } = await db.from('report_card_templates').upsert(payload, { onConflict: 'school_id, class_name, term_name' });
 
-            if(error) {
+            if (error) {
                 alert("Failed to save class template: " + error.message);
             } else {
                 alert("Class form template saved successfully! \nThis exact structure will now apply automatically whenever you load a new student in this class.");
@@ -748,8 +834,8 @@
 
         function printReportCard() {
             const studentId = document.getElementById('studentSelect').value;
-            if(!studentId) return alert("Select student and generate report first.");
-            
+            if (!studentId) return alert("Select student and generate report first.");
+
             const studentInfo = allStudents.find(s => s.id === studentId);
             const termName = document.getElementById('termName').value.trim();
             const remarks = document.getElementById('overallRemarks').value.trim();
@@ -757,7 +843,7 @@
             const photoHtml = photoUrl
                 ? `<img src="${photoUrl}" alt="Student Photo" style="width:110px; height:110px; object-fit:cover; border:2px solid #000; border-radius:4px;">`
                 : ``;
-            
+
             let html = `
             <div class="a4-page">
                 <div class="school-header">
@@ -791,7 +877,7 @@
             let overallMax = 0;
 
             reportData.forEach(sub => {
-                const subObtained = sub.topics.reduce((sum, t) => sum + (parseFloat(t.marks)||0), 0);
+                const subObtained = sub.topics.reduce((sum, t) => sum + (parseFloat(t.marks) || 0), 0);
                 overallObtained += subObtained;
                 overallMax += parseFloat(sub.maxMarks) || 0;
 
@@ -799,10 +885,10 @@
                 // Topics split into 2 columns. 
                 // Rows = Math.ceil(topics.length / 2)
                 const rowsCount = Math.max(1, Math.ceil(sub.topics.length / 2));
-                
-                for(let i=0; i<rowsCount; i++) {
+
+                for (let i = 0; i < rowsCount; i++) {
                     html += `<tr>`;
-                    
+
                     if (i === 0) {
                         html += `<td rowspan="${rowsCount}" style="font-weight:bold; font-size: 16px;">${sub.name}</td>`;
                         html += `<td rowspan="${rowsCount}">Total Marks<br><b>${sub.maxMarks}</b></td>`;
@@ -834,7 +920,7 @@
 
             // Summary Footer
             const pct = overallMax > 0 ? ((overallObtained / overallMax) * 100).toFixed(2) : 0;
-            
+
             html += `
                 </table>
                 <div style="display:flex; justify-content:flex-end; font-size:16px; margin-top:20px;">
@@ -863,10 +949,10 @@
         // ─── Copy Form Feature ─────────────────────────────────────────────────────
         function openCopyModal() {
             const modal = document.getElementById('copyModal');
-            const termSelect   = document.getElementById('termName');
-            const copyTerm     = document.getElementById('copyTerm');
-            const copyFrom     = document.getElementById('copyFromClass');
-            const copyTo       = document.getElementById('copyToClass');
+            const termSelect = document.getElementById('termName');
+            const copyTerm = document.getElementById('copyTerm');
+            const copyFrom = document.getElementById('copyFromClass');
+            const copyTo = document.getElementById('copyToClass');
 
             // Populate terms from the main term selector
             copyTerm.innerHTML = '';
@@ -907,20 +993,20 @@
         }
 
         // Close modal when clicking outside the box
-        document.getElementById('copyModal').addEventListener('click', function(e) {
+        document.getElementById('copyModal').addEventListener('click', function (e) {
             if (e.target === this) closeCopyModal();
         });
 
         async function executeCopyForm() {
-            const term     = document.getElementById('copyTerm').value;
+            const term = document.getElementById('copyTerm').value;
             const fromClass = document.getElementById('copyFromClass').value;
-            const toClass   = document.getElementById('copyToClass').value;
-            const statusEl  = document.getElementById('copyStatus');
-            const btn       = document.getElementById('copyConfirmBtn');
+            const toClass = document.getElementById('copyToClass').value;
+            const statusEl = document.getElementById('copyStatus');
+            const btn = document.getElementById('copyConfirmBtn');
 
-            if (!term)      return statusEl.textContent = '⚠️ Please select an examination term.';
+            if (!term) return statusEl.textContent = '⚠️ Please select an examination term.';
             if (!fromClass) return statusEl.textContent = '⚠️ Please select a source class.';
-            if (!toClass)   return statusEl.textContent = '⚠️ Please select a target class.';
+            if (!toClass) return statusEl.textContent = '⚠️ Please select a target class.';
             if (fromClass === toClass) return statusEl.textContent = '⚠️ Source and target class must be different.';
 
             btn.disabled = true;
@@ -980,4 +1066,5 @@
 
     </script>
 </body>
+
 </html>

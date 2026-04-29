@@ -11,7 +11,12 @@ function getTenantScopePatch() {
     return patch;
 }
 
-const SUBJECTS = ["English", "Math", "Science", "Sindhi", "Urdu"];
+// ─── Dynamic Categories ─────────────────────────────────────────
+let currentCategories = []; // Loaded dynamically for the selected class
+let activeCategory = ''; 
+const categoryTabsContainer = document.getElementById('categoryTabsContainer');
+
+
 
 // DOM
 const classSelect        = document.getElementById('classSelect');
@@ -21,6 +26,7 @@ const clearAllBtn        = document.getElementById('clearAllBtn');
 const refreshStudents    = document.getElementById('refreshStudents');
 const studentCountEl     = document.getElementById('studentCount');
 const recentContainer    = document.getElementById('recentContainer');
+const recentTitleEl      = document.getElementById('recentTitle');
 const toastContainer     = document.getElementById('toastContainer');
 
 function getToday() {
@@ -64,6 +70,32 @@ async function loadStudentsForClass(cls) {
     studentsContainer.innerHTML = '<div class="empty-state">⏳ Loading students...</div>';
 
     try {
+        // Fetch configs for this class
+        const { data: configs, error: configErr } = await applySchoolScope(db
+            .from('publisher_config')
+            .select('*')
+            .eq('class_name', cls)
+            .order('created_at', { ascending: true }));
+        
+        if (configErr) throw configErr;
+        
+        currentCategories = configs || [];
+        
+        if (currentCategories.length === 0) {
+            studentsContainer.innerHTML = '<div class="empty-state">No categories configured for this class. Use Publisher Config to add some.</div>';
+            studentCountEl.textContent = '0 students';
+            categoryTabsContainer.innerHTML = '';
+            activeCategory = '';
+            return;
+        }
+
+        // Set active category if not set or not in current categories
+        if (!activeCategory || !currentCategories.find(c => c.category === activeCategory)) {
+            activeCategory = currentCategories[0].category;
+        }
+
+        renderCategoryTabs(cls);
+
         // Fetch students
         const { data: students, error: stuErr } = await applySchoolScope(db
             .from('admissions')
@@ -80,14 +112,14 @@ async function loadStudentsForClass(cls) {
         }
         studentCountEl.textContent = `${students.length} student(s)`;
 
-        // Fetch existing homework complaints for today
+        // Fetch existing complaints for today under the active category
         const today = getToday();
         const { data: existing, error: hwErr } = await applySchoolScope(db
             .from('complaints')
             .select('roll, subjects')
             .eq('class_name', cls)
             .eq('date', today)
-            .eq('category', 'Homework'));
+            .eq('category', activeCategory));
 
         const existingMap = {};
         if (!hwErr && existing) {
@@ -98,13 +130,16 @@ async function loadStudentsForClass(cls) {
         }
 
         // Render
+        const activeMode = currentCategories.find(c => c.category === activeCategory);
+        const modeItems = activeMode ? (activeMode.items || []) : [];
+        
         studentsContainer.innerHTML = students.map(s => {
             const roll = String(s.roll_number || '').trim();
             const name = s.full_name || '';
             const activeSubjects = existingMap[roll] || [];
 
-            const buttonsHtml = SUBJECTS.map(sub =>
-                `<button type="button" class="subject-btn ${activeSubjects.includes(sub) ? 'active' : ''}" data-subject="${sub}">${sub}</button>`
+            const buttonsHtml = modeItems.map(sub =>
+                `<button type="button" class="subject-btn ${activeSubjects.includes(sub) ? 'active' : ''}" data-subject="${escapeHtml(sub)}">${escapeHtml(sub)}</button>`
             ).join('');
 
             return `<div class="student-row" data-roll="${escapeHtml(roll)}" data-name="${escapeHtml(name)}" data-class="${escapeHtml(cls)}">
@@ -144,7 +179,7 @@ async function upsertHomework(student, subjectsArray) {
     if (!cleanRoll) { showToast('Missing roll', 'error'); return; }
     const today = getToday();
 
-    // If no subjects selected → delete any existing homework entry for today
+    // If no subjects selected → delete any existing entry for today under this category
     if (!subjectsArray || subjectsArray.length === 0) {
         try {
             const { data, error } = await applySchoolScope(db
@@ -152,13 +187,13 @@ async function upsertHomework(student, subjectsArray) {
                 .select('id')
                 .eq('roll', cleanRoll)
                 .eq('date', today)
-                .eq('category', 'Homework'));
+                .eq('category', activeCategory));
             if (!error && data) {
                 for (const row of data) {
                     await applySchoolScope(db.from('complaints').delete().eq('id', row.id));
                 }
             }
-            showToast(`Cleared homework for Roll ${cleanRoll}`, 'info');
+            showToast(`Cleared for Roll ${cleanRoll}`, 'info');
             loadRecentHomework();
         } catch (e) {
             console.error('delete failed', e);
@@ -169,17 +204,19 @@ async function upsertHomework(student, subjectsArray) {
 
     try {
         const finalSubjects = [...new Set(subjectsArray)];
+        const activeMode = currentCategories.find(c => c.category === activeCategory);
+        const prefix = activeMode ? activeMode.complaint_prefix : 'Complaint:';
         const complaintText = finalSubjects.length === 1
-            ? `Undone Homework of ${finalSubjects[0]}.`
-            : `Undone Homework of ${finalSubjects.slice(0, -1).join(', ')} and ${finalSubjects.slice(-1)}.`;
+            ? `${prefix} ${finalSubjects[0]}.`
+            : `${prefix} ${finalSubjects.slice(0, -1).join(', ')} and ${finalSubjects.slice(-1)}.`;
 
-        // Check if record exists for this roll + today + Homework
+        // Check if record exists for this roll + today + activeCategory
         const { data: existing } = await applySchoolScope(db
             .from('complaints')
             .select('id')
             .eq('roll', cleanRoll)
             .eq('date', today)
-            .eq('category', 'Homework')
+            .eq('category', activeCategory)
             .limit(1));
 
         if (existing && existing.length > 0) {
@@ -199,7 +236,7 @@ async function upsertHomework(student, subjectsArray) {
                 class_name: className || '',
                 date: today,
                 complaint: complaintText,
-                category: 'Homework',
+                category: activeCategory,
                 status: 'Pending',
                 contact_status: '',
                 subjects: finalSubjects,
@@ -215,28 +252,32 @@ async function upsertHomework(student, subjectsArray) {
     }
 }
 
-// ─── Load Recent Homework ─────────────────────────────────────
+// ─── Load Recent Entries (filtered by activeCategory) ─────────
 async function loadRecentHomework() {
     try {
         const today = getToday();
         const { data, error } = await applySchoolScope(db
             .from('complaints')
             .select('*')
-            .eq('category', 'Homework')
+            .eq('category', activeCategory)
             .eq('date', today)
             .order('updated_at', { ascending: false })
             .limit(50));
         if (error) throw error;
 
+        if (recentTitleEl) {
+            recentTitleEl.textContent = `📋 Recent ${escapeHtml(activeCategory)} Complaints (Today)`;
+        }
+
         if (!data || data.length === 0) {
-            recentContainer.innerHTML = '<div class="empty-state">No homework entries for today yet.</div>';
+            recentContainer.innerHTML = '<div class="empty-state">No entries for today yet.</div>';
             return;
         }
 
         recentContainer.innerHTML = `
             <table class="recent-table">
                 <thead><tr>
-                    <th>Roll</th><th>Name</th><th>Class</th><th>Subjects</th><th>Complaint</th>
+                    <th>Roll</th><th>Name</th><th>Class</th><th>Items</th><th>Complaint</th>
                 </tr></thead>
                 <tbody>
                     ${data.map(r => `<tr>
@@ -256,6 +297,26 @@ async function loadRecentHomework() {
 // ─── Helpers ──────────────────────────────────────────────────
 function escapeHtml(s) {
     return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ─── Dynamic Category Rendering ─────────────────────────────────
+function renderCategoryTabs(cls) {
+    categoryTabsContainer.innerHTML = '';
+    currentCategories.forEach(conf => {
+        const btn = document.createElement('button');
+        btn.className = `cat-tab ${conf.category === activeCategory ? 'active' : ''}`;
+        btn.dataset.cat = conf.category;
+        btn.textContent = conf.category;
+        
+        btn.addEventListener('click', () => {
+            activeCategory = conf.category;
+            renderCategoryTabs(cls); // re-render to update active class
+            loadStudentsForClass(cls);
+            loadRecentHomework();
+        });
+        
+        categoryTabsContainer.appendChild(btn);
+    });
 }
 
 // ─── Event Wiring ─────────────────────────────────────────────

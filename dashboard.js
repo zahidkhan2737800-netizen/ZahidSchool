@@ -11,6 +11,7 @@ var NAV_CATEGORIES = [
       { href: 'family.html', label: 'Family Management', icon: 'fas fa-home', key: 'family' },
       { href: 'monitoring.html', label: 'Monitoring', icon: 'fas fa-chart-pie', key: 'monitoring' },
       { href: 'homework.html', label: 'Homework Publisher', icon: 'fas fa-book', key: 'homework' },
+      { href: 'publisher_config.html', label: 'Publisher Config', icon: 'fas fa-cog', key: 'homework' },
       { href: 'complaint_diary.html', label: 'Complaint Diary', icon: 'fas fa-envelope-open-text', key: 'complaints' },
 
       { href: 'pending_withdrawn.html', label: 'Pending / Withdrawn', icon: 'fas fa-user-alt-slash', key: 'pending_withdrawn' },

@@ -16,12 +16,17 @@
         <div class="header">
             <div>
                 <h1 style="margin:0; color:#0f172a; font-size:2rem; font-weight:800;">📝 Homework Publisher</h1>
-                <p style="margin:0.5rem 0 0 0; color:#64748b;">Select a class, then click subject buttons next to each student to mark undone homework.</p>
+                <p style="margin:0.5rem 0 0 0; color:#64748b;">Select a category, then a class, and click the item buttons next to each student to lodge a complaint.</p>
             </div>
             <div class="header-nav">
                 <a href="complaint_diary.html">📋 Complaint Diary</a>
                 <a href="dashboard.html">📊 Dashboard</a>
             </div>
+        </div>
+
+        <!-- Category Tabs -->
+        <div class="category-tabs" id="categoryTabsContainer">
+            <!-- Dynamically populated by JS based on publisher_config -->
         </div>
 
         <!-- Controls -->
@@ -42,11 +47,11 @@
             <div class="empty-state">Select a class above to load students.</div>
         </div>
 
-        <!-- Recent Homework Entries -->
+        <!-- Recent Entries -->
         <div class="recent-section">
-            <h3>📋 Recent Homework Entries (Today)</h3>
+            <h3 id="recentTitle">📋 Recent Homework Entries (Today)</h3>
             <div id="recentContainer">
-                <div class="empty-state">No homework entries for today yet.</div>
+                <div class="empty-state">No entries for today yet.</div>
             </div>
         </div>
     </div>
