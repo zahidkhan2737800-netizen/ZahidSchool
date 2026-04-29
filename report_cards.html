@@ -582,8 +582,8 @@
             let photoEl = document.getElementById('builderPhotoBox');
             if (photoEl) {
                 photoEl.innerHTML = livePhotoUrl
-                    ? `<img src="${livePhotoUrl}" alt="Student Photo" style="width:90px; height:90px; object-fit:fill; border-radius:8px; border:2px solid var(--primary);">`
-                    : `<div style="width:90px; height:90px; border-radius:8px; border:2px dashed #cbd5e1; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-size:11px;">No Photo</div>`;
+                    ? `<img src="${livePhotoUrl}" alt="Student Photo" style="width:90px; height:115px; object-fit:cover; object-position:top center; border-radius:8px; border:2px solid var(--primary);">`
+                    : `<div style="width:90px; height:115px; border-radius:8px; border:2px dashed #cbd5e1; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-size:11px;">No Photo</div>`;
             }
 
             let q = db.from('report_cards').select('*')
@@ -853,7 +853,7 @@
             const remarks = document.getElementById('overallRemarks').value.trim();
             const photoUrl = studentInfo && studentInfo.photo_url ? studentInfo.photo_url : null;
             const photoHtml = photoUrl
-                ? `<img src="${photoUrl}" alt="Student Photo" style="width:110px; height:110px; object-fit:fill; border:2px solid #000; border-radius:4px;">`
+                ? `<img src="${photoUrl}" alt="Student Photo" style="width:100px; height:125px; object-fit:cover; object-position:top center; border:2px solid #000; border-radius:4px;">`
                 : ``;
 
             const overrideClass = document.getElementById('printClassSelect').value;
