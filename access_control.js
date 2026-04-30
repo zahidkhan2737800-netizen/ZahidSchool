@@ -32,7 +32,12 @@ const PAGE_LABELS = {
 
     // Administration
     classes:            { icon: '🏫', label: 'Manage Classes' },
-    access_control:     { icon: '🔐', label: 'Access Control' }
+    access_control:     { icon: '🔐', label: 'Access Control' },
+
+    // Inventory
+    books_dashboard:    { icon: '📊', label: 'Books Dashboard' },
+    books_inventory:    { icon: '📦', label: 'Books Inventory' },
+    book_sales_report:  { icon: '📈', label: 'Book Sales Report' }
 };
 
 const PAGE_KEYS = Object.keys(PAGE_LABELS);

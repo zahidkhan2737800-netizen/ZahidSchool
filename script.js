@@ -194,8 +194,59 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     // Photo Preview + Compression
-    const photoInput = document.getElementById('studentPhoto');
-    const photoPreview = document.getElementById('studentPhotoPreview');
+    const photoInput       = document.getElementById('studentPhoto');
+    const photoPreviewImg  = document.getElementById('studentPhotoPreviewImg');
+    const photoPlaceholder = document.getElementById('photoPlaceholder');
+    const photoPreviewBox  = document.getElementById('photoPreviewBox');
+    const photoEditOverlay = document.getElementById('photoEditOverlay');
+
+    // Stores the last cropped dataUrl so "Edit / Recrop" can re-open it
+    let currentCroppedDataUrl = null;
+
+    function showPhotoPreview(dataUrl) {
+        currentCroppedDataUrl = dataUrl;
+        if (photoPreviewImg) {
+            photoPreviewImg.src = dataUrl;
+            photoPreviewImg.style.display = 'block';
+        }
+        if (photoPlaceholder) photoPlaceholder.style.display = 'none';
+        if (photoEditOverlay) photoEditOverlay.style.display = 'block';
+        if (photoPreviewBox)  photoPreviewBox.classList.add('has-photo');
+    }
+
+    function resetPhotoPreview() {
+        currentCroppedDataUrl = null;
+        if (photoPreviewImg) {
+            photoPreviewImg.src = '';
+            photoPreviewImg.style.display = 'none';
+        }
+        if (photoPlaceholder) photoPlaceholder.style.display = 'flex';
+        if (photoEditOverlay) photoEditOverlay.style.display = 'none';
+        if (photoPreviewBox)  photoPreviewBox.classList.remove('has-photo');
+    }
+
+    // Box click: open file picker only when no photo is set
+    if (photoPreviewBox) {
+        photoPreviewBox.addEventListener('click', (e) => {
+            // If the overlay was clicked, don't also trigger file input
+            if (e.target.closest('#photoEditOverlay')) return;
+            if (!photoPreviewBox.classList.contains('has-photo')) {
+                photoInput.click();
+            }
+        });
+    }
+
+    // Overlay "Edit / Recrop" click: re-open crop modal with current cropped image
+    if (photoEditOverlay) {
+        photoEditOverlay.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (currentCroppedDataUrl) {
+                openCropModal(currentCroppedDataUrl, true); // true = re-cropping existing photo
+            } else {
+                photoInput.click();
+            }
+        });
+    }
 
     // Compress image to ≤ targetKB using Canvas (iterative quality reduction)
     function compressImageToMaxKB(file, targetKB = 30) {
@@ -205,7 +256,6 @@ document.addEventListener('DOMContentLoaded', () => {
             reader.onload = (e) => {
                 img.onload = () => {
                     const canvas = document.createElement('canvas');
-                    // Scale down if image is very large
                     let W = img.width, H = img.height;
                     const maxDim = 400;
                     if (W > maxDim || H > maxDim) {
@@ -216,16 +266,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     canvas.width = W;
                     canvas.height = H;
                     canvas.getContext('2d').drawImage(img, 0, 0, W, H);
-
-                    // Iteratively reduce quality until ≤ targetKB
                     let quality = 0.9;
                     let dataUrl;
                     do {
                         dataUrl = canvas.toDataURL('image/jpeg', quality);
                         quality -= 0.07;
                     } while (dataUrl.length * 0.75 > targetKB * 1024 && quality > 0.1);
-
-                    // Convert dataUrl to Blob
                     const byteStr = atob(dataUrl.split(',')[1]);
                     const arr = new Uint8Array(byteStr.length);
                     for (let i = 0; i < byteStr.length; i++) arr[i] = byteStr.charCodeAt(i);
@@ -238,21 +284,174 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Compress a dataUrl string (used after cropping)
+    function compressDataUrlToMaxKB(srcDataUrl, targetKB = 50) {
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let W = img.width, H = img.height;
+                const maxDim = 600;
+                if (W > maxDim || H > maxDim) {
+                    const ratio = Math.min(maxDim / W, maxDim / H);
+                    W = Math.round(W * ratio);
+                    H = Math.round(H * ratio);
+                }
+                canvas.width = W;
+                canvas.height = H;
+                canvas.getContext('2d').drawImage(img, 0, 0, W, H);
+                let quality = 0.92;
+                let out;
+                do {
+                    out = canvas.toDataURL('image/jpeg', quality);
+                    quality -= 0.07;
+                } while (out.length * 0.75 > targetKB * 1024 && quality > 0.1);
+                const byteStr = atob(out.split(',')[1]);
+                const arr = new Uint8Array(byteStr.length);
+                for (let i = 0; i < byteStr.length; i++) arr[i] = byteStr.charCodeAt(i);
+                const blob = new Blob([arr], { type: 'image/jpeg' });
+                resolve({ blob, dataUrl: out });
+            };
+            img.src = srcDataUrl;
+        });
+    }
+
     let compressedPhotoBlob = null;
 
+    // ── Crop Modal logic ─────────────────────────────────────────────
+    const cropModal        = document.getElementById('cropModal');
+    const cropperImage     = document.getElementById('cropperImage');
+    const applyCropBtn     = document.getElementById('applyCropBtn');
+    const cancelCropBtn    = document.getElementById('cancelCropBtn');
+    const cancelCropBtn2   = document.getElementById('cancelCropBtn2');
+    const cropAspectToggle = document.getElementById('cropAspectToggle');
+    const cropAspectLabel  = document.getElementById('cropAspectLabel');
+
+    let cropperInstance = null;
+    const aspectCycles  = [
+        { label: 'Free',  ratio: NaN,     text: 'Aspect: Free — drag corners to resize crop box' },
+        { label: '1 : 1', ratio: 1,       text: 'Aspect: 1:1 (Square)' },
+        { label: '3 : 4', ratio: 3/4,     text: 'Aspect: 3:4 (Portrait passport)' },
+    ];
+    let aspectIdx = 0;
+
+    let isReCropping = false; // true when crop modal opened from overlay (existing photo)
+
+    function openCropModal(imageSrc, reCrop = false) {
+        isReCropping = reCrop;
+        cropperImage.src = imageSrc;
+        cropModal.classList.add('open');
+        // Wait for image to load then init cropper
+        cropperImage.onload = () => {
+            if (cropperInstance) { cropperInstance.destroy(); cropperInstance = null; }
+            cropperInstance = new Cropper(cropperImage, {
+                viewMode: 1,
+                dragMode: 'move',
+                aspectRatio: NaN,
+                autoCropArea: 0.85,
+                restore: false,
+                guides: true,
+                center: true,
+                highlight: false,
+                cropBoxMovable: true,
+                cropBoxResizable: true,
+                toggleDragModeOnDblclick: false,
+                background: true,
+            });
+        };
+        // reset aspect
+        aspectIdx = 0;
+        cropAspectToggle.textContent = '📐 ' + aspectCycles[0].label;
+        if (cropAspectLabel) cropAspectLabel.textContent = aspectCycles[0].text;
+    }
+
+    function closeCropModal(applyResult) {
+        cropModal.classList.remove('open');
+        if (cropperInstance) { cropperInstance.destroy(); cropperInstance = null; }
+        if (!applyResult && !isReCropping) {
+            // Fresh file was picked but user cancelled → clear everything
+            if (photoInput) photoInput.value = '';
+            resetPhotoPreview();
+            compressedPhotoBlob = null;
+        }
+        // If re-cropping and cancelled → existing photo stays unchanged (no action needed)
+        isReCropping = false;
+    }
+
+    if (cancelCropBtn)  cancelCropBtn.addEventListener('click',  () => closeCropModal(false));
+    if (cancelCropBtn2) cancelCropBtn2.addEventListener('click', () => closeCropModal(false));
+
+    // Keyboard: Escape closes
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && cropModal && cropModal.classList.contains('open')) {
+            closeCropModal(false);
+        }
+    });
+
+    // Apply crop → compress → show in preview box
+    if (applyCropBtn) {
+        applyCropBtn.addEventListener('click', async () => {
+            if (!cropperInstance) return;
+            applyCropBtn.textContent = '⏳ Processing...';
+            applyCropBtn.disabled = true;
+            try {
+                const croppedDataUrl = cropperInstance.getCroppedCanvas({
+                    maxWidth: 800,
+                    maxHeight: 800,
+                    imageSmoothingQuality: 'high',
+                }).toDataURL('image/jpeg', 0.95);
+
+                const { blob, dataUrl } = await compressDataUrlToMaxKB(croppedDataUrl, 50);
+                compressedPhotoBlob = blob;
+                showPhotoPreview(dataUrl);
+                closeCropModal(true);
+            } catch (err) {
+                console.error('Crop error:', err);
+            } finally {
+                applyCropBtn.textContent = '✅ Apply Crop';
+                applyCropBtn.disabled = false;
+            }
+        });
+    }
+
+    // Crop control buttons
+    document.getElementById('cropZoomIn')   ?.addEventListener('click', () => cropperInstance?.zoom(0.1));
+    document.getElementById('cropZoomOut')  ?.addEventListener('click', () => cropperInstance?.zoom(-0.1));
+    document.getElementById('cropRotateL')  ?.addEventListener('click', () => cropperInstance?.rotate(-90));
+    document.getElementById('cropRotateR')  ?.addEventListener('click', () => cropperInstance?.rotate(90));
+    document.getElementById('cropReset')    ?.addEventListener('click', () => cropperInstance?.reset());
+    document.getElementById('cropFlipH')    ?.addEventListener('click', () => {
+        if (!cropperInstance) return;
+        const d = cropperInstance.getData();
+        cropperInstance.scaleX(d.scaleX === -1 ? 1 : -1);
+    });
+    document.getElementById('cropFlipV')    ?.addEventListener('click', () => {
+        if (!cropperInstance) return;
+        const d = cropperInstance.getData();
+        cropperInstance.scaleY(d.scaleY === -1 ? 1 : -1);
+    });
+
+    if (cropAspectToggle) {
+        cropAspectToggle.addEventListener('click', () => {
+            aspectIdx = (aspectIdx + 1) % aspectCycles.length;
+            const { label, ratio, text } = aspectCycles[aspectIdx];
+            cropperInstance?.setAspectRatio(ratio);
+            cropAspectToggle.textContent = '📐 ' + label;
+            if (cropAspectLabel) cropAspectLabel.textContent = text;
+        });
+    }
+
+    // When a file is chosen — open crop modal instead of compressing directly
     if(photoInput) {
-        photoInput.addEventListener('change', async function() {
+        photoInput.addEventListener('change', function() {
             const file = this.files[0];
             if(file) {
-                photoPreview.innerHTML = '<span style="color:#64748b;">⏳ Compressing...</span>';
-                const { blob, dataUrl } = await compressImageToMaxKB(file, 30);
-                compressedPhotoBlob = blob;
-                const sizeKB = (blob.size / 1024).toFixed(1);
-                photoPreview.innerHTML = `<img src="${dataUrl}" alt="Student Photo" style="width:100px; height:auto; border-radius:8px; border:2px solid var(--primary); margin-top:10px;">
-                    <div style="font-size:0.75rem; color:#64748b; margin-top:4px;">Compressed: ${sizeKB} KB</div>`;
+                const reader = new FileReader();
+                reader.onload = (e) => openCropModal(e.target.result);
+                reader.readAsDataURL(file);
             } else {
                 compressedPhotoBlob = null;
-                photoPreview.innerHTML = 'No image selected';
+                resetPhotoPreview();
             }
         });
     }
@@ -507,9 +706,8 @@ document.addEventListener('DOMContentLoaded', () => {
         setVal('siblingInSchool', student.sibling_in_school);
 
         // Show saved photo if exists
-        if (student.photo_url && photoPreview) {
-            photoPreview.innerHTML = `<img src="${student.photo_url}" alt="Student Photo" style="width:100px; height:auto; border-radius:8px; border:2px solid var(--primary); margin-top:10px;">
-                <div style="font-size:0.75rem; color:#64748b; margin-top:4px;">Saved photo</div>`;
+        if (student.photo_url) {
+            showPhotoPreview(student.photo_url);
             compressedPhotoBlob = null; // no new upload unless user picks a new file
         }
         
@@ -700,7 +898,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Regenerate a fresh unique ID for the next student
                 generateUniqueStudentId().then(id => { studentIdInput.value = id; });
                 fetchLastAdmittedRoll();
-                if(photoPreview) photoPreview.innerHTML = 'No image selected';
+                resetPhotoPreview();
                 compressedPhotoBlob = null;
                 ageInput.value = '';
                 

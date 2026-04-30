@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Book Inventory & Sales</title>
+  <style>
+    body { font-family: Arial, sans-serif; background:#f4f6f9; margin:20px; color:#222; }
+    .wrap { max-width:1200px; margin:0 auto; }
+    h1 { text-align:center }
+    .card { background:#fff; padding:16px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.08); margin-bottom:16px;}
+    .grid { display:grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap:10px; }
+    label { font-weight:600; font-size:13px; display:block; margin-bottom:4px; }
+    input[type="text"], input[type="date"], input[type="number"], select { width:100%; padding:8px; border:1px solid #ddd; border-radius:6px; }
+    button { padding:8px 12px; border-radius:6px; border:none; cursor:pointer; background:#007bff; color:#fff; }
+    button.secondary { background:#6c757d; }
+    table { width:100%; border-collapse:collapse; margin-top:8px; font-size:14px; }
+    th, td { padding:10px; border-bottom:1px solid #eee; text-align:left; vertical-align:middle; }
+    th { background:#007bff; color:#fff; font-weight:600; position:sticky; top:0; z-index:1; }
+    .actions { display:flex; gap:8px; }
+    .btn-danger { background:#dc3545; }
+    .small { font-size:13px; padding:6px 8px; }
+    .muted { color:#666; font-size:13px; }
+    .flex { display:flex; gap:8px; align-items:center; }
+    .right { margin-left:auto; }
+    /* Modal */
+    .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.45); display:none; align-items:center; justify-content:center; z-index:1000; }
+    .modal { width:760px; max-width:95%; background:#fff; padding:14px; border-radius:10px; box-shadow:0 8px 30px rgba(0,0,0,0.25); }
+    .modal h3 { margin-top:0; }
+    .books-list { max-height:300px; overflow:auto; border:1px solid #eee; padding:8px; border-radius:6px; }
+    .book-row { display:flex; gap:8px; align-items:center; padding:6px; border-bottom:1px dashed #f0f0f0; }
+    .book-row:last-child { border-bottom:0; }
+    .book-name { flex:1; font-weight:600; }
+    .book-meta { width:140px; text-align:right; font-size:13px; color:#444; }
+    .qty-input { width:84px; }
+    .checkbox { width:22px; height:22px; }
+    .sell-summary { display:flex; gap:12px; align-items:center; justify-content:space-between; margin-top:8px; }
+    .controls { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .pill { background:#eef3ff; padding:6px 10px; border-radius:999px; font-size:13px; }
+    .small-muted { font-size:12px; color:#666; }
+    .table-scroll { max-height:420px; overflow:auto; border:1px solid #eee; border-radius:6px; }
+    .book-number { font-weight:700; color:#1f2937; margin-right:8px; }
+
+    /* Additional styles for top bar */
+    .header-nav { display:flex; justify-content:flex-end; gap:15px; margin-bottom:15px; }
+    .header-nav a { text-decoration:none; color:#007bff; font-weight:600; }
+    .header-nav a:hover { text-decoration:underline; }
+  </style>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <div class="wrap">
+    <div class="header-nav">
+      <a href="dashboard.html">← Back to Dashboard</a>
+    </div>
+    <h1>Book Inventory & Sales</h1>
+
+    <!-- Add book -->
+    <div class="card">
+      <h3>Add Book (batch)</h3>
+      <form id="bookForm">
+        <div class="grid">
+          <div>
+            <label>Book Number (optional)</label>
+            <input type="text" id="bookNumber" placeholder="e.g. 23" />
+          </div>
+          <div>
+            <label>Book Name</label>
+            <input type="text" id="bookName" required />
+          </div>
+          <div>
+            <label>Class</label>
+            <!-- Dropdown populated live from your 'classes' collection; choose Other to type manually -->
+            <select id="bookClassSelect" required></select>
+            <input id="bookClassManual" placeholder="Type class name" style="margin-top:8px; display:none;" />
+          </div>
+          <div>
+            <label>Date (defaults to today)</label>
+            <input type="date" id="bookDate" />
+          </div>
+          <div>
+            <label>Cost Price</label>
+            <input type="number" id="costPrice" step="0.01" min="0" />
+          </div>
+          <div>
+            <label>Selling Price</label>
+            <input type="number" id="sellPrice" step="0.01" min="0" />
+          </div>
+          <div>
+            <label>Quantity</label>
+            <input type="number" id="quantity" value="1" min="1" />
+          </div>
+        </div>
+        <div style="margin-top:10px;">
+          <button type="submit">Add Book Batch</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Inventory -->
+    <div class="card">
+      <div style="display:flex; gap:10px; align-items:center;">
+        <h3 style="margin:0; flex:1">Inventory</h3>
+        <input id="searchInventory" placeholder="Search by book #, name or class" style="padding:8px; border:1px solid #ddd; border-radius:6px; width:320px;" />
+      </div>
+
+      <div class="table-scroll" style="margin-top:8px;">
+        <table id="inventoryTable" aria-live="polite">
+          <thead>
+            <tr>
+              <th>Book (# • Name)</th>
+              <th>Class</th>
+              <th>Cost</th>
+              <th>Sell Price</th>
+              <th>Total Qty</th>
+              <th>Batches</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Daily Sold Books Report -->
+    <div class="card" style="margin-top: 16px;">
+      <div style="display:flex; gap:12px; align-items:center; margin-bottom:8px;">
+        <h3 style="margin:0; flex:1">Sold Books Report</h3>
+
+        <div class="controls">
+          <label class="small-muted">Date:</label>
+          <input id="reportDateFilter" type="date" style="width:160px;" />
+          <button id="refreshReportBtn" class="secondary" style="margin-left: 8px;">Refresh</button>
+        </div>
+      </div>
+
+      <div class="table-scroll">
+        <table id="dailySalesTable">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Student Name</th>
+              <th>Father's Name</th>
+              <th>Class</th>
+              <th>Total Books</th>
+              <th>Items (Book#, Name, Price)</th>
+              <th>Total Amount (Rs)</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      
+      <!-- Pagination Controls -->
+      <div id="paginationControls" style="display:flex; justify-content:space-between; align-items:center; margin-top:12px; font-size:13px;">
+        <div class="muted">Showing <span id="pageInfo">0</span> of <span id="totalSalesCount">0</span> sales</div>
+        <div style="display:flex; gap:8px;">
+          <button id="prevPageBtn" class="secondary small" disabled>Previous</button>
+          <button id="nextPageBtn" class="secondary small" disabled>Next</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sell modal (multi-book) -->
+  <div id="modalBackdrop" class="modal-backdrop" role="dialog" aria-modal="true">
+    <div class="modal">
+      <h3>Sell to Student (multiple books)</h3>
+
+      <div style="display:grid; grid-template-columns:1fr 260px; gap:12px;">
+        <div>
+          <label>Buyer Roll (type to autofill)</label>
+          <input type="text" id="buyerRoll" placeholder="Roll number" />
+
+          <div style="display:flex; gap:8px; margin-top:8px;">
+            <div style="flex:1;">
+              <label>Student Name</label>
+              <input type="text" id="buyerName" placeholder="Name (autofill if found)" />
+            </div>
+            <div style="flex:1;">
+              <label>Father's Name</label>
+              <input type="text" id="buyerFather" placeholder="Father's name" />
+            </div>
+          </div>
+
+          <div style="margin-top:8px;">
+            <label>Class (autofill from admission)</label>
+            <select id="buyerClass" style="padding:8px; border:1px solid #ddd; border-radius:6px; width:100%;"></select>
+          </div>
+
+          <div style="margin-top:8px;">
+            <label>Sale Date</label>
+            <input type="date" id="saleDate" />
+          </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column;">
+          <div class="sell-summary">
+            <div class="muted">Total Amount</div>
+            <div><strong>Rs <span id="saleTotal">0</span></strong></div>
+          </div>
+
+          <div style="margin-top:auto;">
+            <div style="display:flex; gap:8px; justify-content:flex-end;">
+              <button id="cancelSaleBtn" type="button" class="secondary">Cancel</button>
+              <button id="confirmSaleBtn" type="button">Confirm Sale</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:12px;">
+        <label>Books for this class (check to sell, set quantity)</label>
+        <div id="classBooksList" class="books-list">
+          <div class="muted">Type roll to autofill student and populate class books</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="auth.js"></script>
+  <script src="books_inventory.js"></script>
+</body>
+</html>

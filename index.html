@@ -9,6 +9,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
+    <!-- Cropper.js -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css">
 
     <!-- Supabase JS Library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -76,6 +78,278 @@
             color: #64748b;
             font-size: 1rem;
         }
+        /* Student Photo Upload in Basic Info section */
+        .basic-info-layout {
+            display: flex;
+            gap: 1.5rem;
+            align-items: flex-start;
+        }
+
+        .basic-info-fields {
+            flex: 1;
+        }
+
+        .student-photo-upload {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+            flex-shrink: 0;
+        }
+
+        .student-photo-upload label.upload-label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #374151;
+            text-align: center;
+            margin-bottom: 0.3rem;
+        }
+
+        .photo-preview-box {
+            width: 150px;
+            height: 185px;
+            border: 2.5px dashed #93c5fd;
+            border-radius: 10px;
+            background: #eff6ff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            cursor: pointer;
+            position: relative;
+            transition: border-color 0.2s, background 0.2s;
+        }
+
+        .photo-preview-box:hover {
+            border-color: #2563eb;
+            background: #dbeafe;
+        }
+
+        .photo-preview-box img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .photo-preview-box .photo-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.4rem;
+            color: #60a5fa;
+            font-size: 0.78rem;
+            text-align: center;
+            padding: 0.5rem;
+            pointer-events: none;
+        }
+
+        .photo-preview-box .photo-placeholder span.icon {
+            font-size: 2.5rem;
+            line-height: 1;
+        }
+
+        .photo-preview-box .photo-placeholder span.text {
+            color: #6b7280;
+            font-size: 0.72rem;
+        }
+
+        .photo-file-input {
+            display: none;
+        }
+
+        .photo-change-btn {
+            font-size: 0.75rem;
+            color: #2563eb;
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 6px;
+            padding: 4px 12px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+
+        .photo-change-btn:hover {
+            background: #dbeafe;
+        }
+
+        @media (max-width: 640px) {
+            .basic-info-layout {
+                flex-direction: column-reverse;
+            }
+            .student-photo-upload {
+                align-self: center;
+            }
+        }
+
+        /* ── Crop Modal ─────────────────────────────────────────── */
+        #cropModal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: rgba(0,0,0,0.75);
+            backdrop-filter: blur(4px);
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.2s ease;
+        }
+        #cropModal.open { display: flex; }
+        @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+
+        .crop-modal-box {
+            background: #1e293b;
+            border-radius: 16px;
+            padding: 1.25rem;
+            width: min(96vw, 700px);
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.6);
+        }
+
+        .crop-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .crop-modal-header h3 {
+            color: #f1f5f9;
+            font-size: 1rem;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .crop-modal-header button.close-crop {
+            background: none;
+            border: none;
+            color: #94a3b8;
+            font-size: 1.5rem;
+            cursor: pointer;
+            line-height: 1;
+            padding: 0 4px;
+            transition: color 0.15s;
+        }
+        .crop-modal-header button.close-crop:hover { color: #f87171; }
+
+        .crop-canvas-wrap {
+            width: 100%;
+            height: 380px;
+            background: #0f172a;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .crop-canvas-wrap img {
+            display: block;
+            max-width: 100%;
+        }
+
+        .crop-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            justify-content: center;
+        }
+
+        .crop-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.45rem 0.9rem;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            background: #1e293b;
+            color: #cbd5e1;
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s, color 0.15s;
+        }
+        .crop-btn:hover {
+            background: #334155;
+            color: #f1f5f9;
+            border-color: #475569;
+        }
+        .crop-btn.active {
+            background: #2563eb;
+            border-color: #3b82f6;
+            color: #fff;
+        }
+
+        .crop-modal-footer {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: flex-end;
+        }
+
+        #applyCropBtn {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 0.6rem 1.4rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.15s;
+        }
+        #applyCropBtn:hover { opacity: 0.88; }
+
+        #cancelCropBtn {
+            background: #334155;
+            color: #cbd5e1;
+            border: none;
+            border-radius: 8px;
+            padding: 0.6rem 1.2rem;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        #cancelCropBtn:hover { background: #475569; }
+
+        .crop-aspect-badge {
+            font-size: 0.7rem;
+            color: #64748b;
+            text-align: center;
+            margin-top: -0.25rem;
+        }
+
+        /* Overlay recrop button inside photo box */
+        .photo-edit-overlay {
+            display: none;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(transparent, rgba(0,0,0,0.65));
+            border-radius: 0 0 8px 8px;
+            padding: 6px 0 5px;
+            text-align: center;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .photo-edit-overlay span {
+            font-size: 0.7rem;
+            color: #fff;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+        }
+        .photo-preview-box:hover .photo-edit-overlay {
+            opacity: 1;
+        }
+        /* When photo exists, clicking the box does nothing (overlay handles it) */
+        .photo-preview-box.has-photo {
+            cursor: default;
+        }
+        .photo-preview-box.has-photo:hover {
+            border-color: #2563eb;
+            background: transparent;
+        }
     </style>
 </head>
 
@@ -134,31 +408,53 @@
             <!-- 1. Student Basic Information -->
             <section class="form-section">
                 <h2>📌 Student Basic Information</h2>
-                <div class="input-grid">
-                    <div class="input-group full-width">
-                        <label for="fullName">Full Name (as per B-Form) <span style="color:red">*</span></label>
-                        <input type="text" id="fullName" name="fullName" required placeholder="Enter full name">
+                <div class="basic-info-layout">
+                    <!-- Form Fields -->
+                    <div class="basic-info-fields">
+                        <div class="input-grid">
+                            <div class="input-group full-width">
+                                <label for="fullName">Full Name (as per B-Form) <span style="color:red">*</span></label>
+                                <input type="text" id="fullName" name="fullName" required placeholder="Enter full name">
+                            </div>
+                            <div class="input-group">
+                                <label for="dob">Date of Birth</label>
+                                <input type="date" id="dob" name="dob">
+                            </div>
+                            <div class="input-group">
+                                <label for="age">Age (Auto-calculated)</label>
+                                <input type="text" id="age" name="age" readonly class="readonly-input" placeholder="0 years">
+                            </div>
+                            <div class="input-group">
+                                <label for="gender">Gender</label>
+                                <select id="gender" name="gender">
+                                    <option value="" disabled selected>Select gender</option>
+                                    <option value="male">Male</option>
+                                    <option value="female">Female</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                            <div class="input-group">
+                                <label for="placeOfBirth">Place of Birth</label>
+                                <input type="text" id="placeOfBirth" name="placeOfBirth" placeholder="City/Country">
+                            </div>
+                        </div>
                     </div>
-                    <div class="input-group">
-                        <label for="dob">Date of Birth</label>
-                        <input type="date" id="dob" name="dob">
-                    </div>
-                    <div class="input-group">
-                        <label for="age">Age (Auto-calculated)</label>
-                        <input type="text" id="age" name="age" readonly class="readonly-input" placeholder="0 years">
-                    </div>
-                    <div class="input-group">
-                        <label for="gender">Gender</label>
-                        <select id="gender" name="gender">
-                            <option value="" disabled selected>Select gender</option>
-                            <option value="male">Male</option>
-                            <option value="female">Female</option>
-                            <option value="other">Other</option>
-                        </select>
-                    </div>
-                    <div class="input-group">
-                        <label for="placeOfBirth">Place of Birth</label>
-                        <input type="text" id="placeOfBirth" name="placeOfBirth" placeholder="City/Country">
+
+                    <!-- Student Photo -->
+                    <div class="student-photo-upload">
+                        <label class="upload-label">Student Photo</label>
+                        <div class="photo-preview-box" id="photoPreviewBox" title="Click to upload photo">
+                            <img id="studentPhotoPreviewImg" src="" alt="Student Photo">
+                            <div class="photo-placeholder" id="photoPlaceholder">
+                                <span class="icon">📷</span>
+                                <span class="text">Click to upload<br>passport-size photo</span>
+                            </div>
+                            <!-- Overlay: shown when photo is set -->
+                            <div class="photo-edit-overlay" id="photoEditOverlay">
+                                <span>✏️ Edit / Recrop</span>
+                            </div>
+                        </div>
+                        <input type="file" id="studentPhoto" name="studentPhoto" accept="image/*" class="photo-file-input">
                     </div>
                 </div>
             </section>
@@ -322,18 +618,7 @@
                 </div>
             </section>
 
-            <!-- 9. Attachments / Documents -->
-            <section class="form-section">
-                <h2>📸 Student Photograph</h2>
-                <p class="section-desc">Upload a clear photo of the student. Preview will appear below.</p>
-                <div class="input-grid">
-                    <div class="input-group">
-                        <label for="studentPhoto">Student Photograph</label>
-                        <input type="file" id="studentPhoto" name="studentPhoto" accept="image/*" class="file-input">
-                        <div class="preview-box" id="studentPhotoPreview">No image selected</div>
-                    </div>
-                </div>
-            </section>
+
 
 
             <!-- 10. Fee Information -->
@@ -387,6 +672,42 @@
             </div>
         </form>
     </div>
+
+    <!-- ── Crop Modal ───────────────────────────────────────────── -->
+    <div id="cropModal" role="dialog" aria-modal="true" aria-label="Crop Student Photo">
+        <div class="crop-modal-box">
+            <div class="crop-modal-header">
+                <h3>✂️ Adjust & Crop Photo</h3>
+                <button type="button" class="close-crop" id="cancelCropBtn2" title="Cancel">✕</button>
+            </div>
+
+            <!-- Cropper target -->
+            <div class="crop-canvas-wrap">
+                <img id="cropperImage" src="" alt="Crop preview">
+            </div>
+
+            <!-- Tool controls -->
+            <div class="crop-controls">
+                <button type="button" class="crop-btn" id="cropZoomIn"   title="Zoom In">🔍+</button>
+                <button type="button" class="crop-btn" id="cropZoomOut"  title="Zoom Out">🔍−</button>
+                <button type="button" class="crop-btn" id="cropRotateL" title="Rotate Left">↺ Rotate L</button>
+                <button type="button" class="crop-btn" id="cropRotateR" title="Rotate Right">↻ Rotate R</button>
+                <button type="button" class="crop-btn" id="cropFlipH"   title="Flip Horizontal">⇄ Flip H</button>
+                <button type="button" class="crop-btn" id="cropFlipV"   title="Flip Vertical">⇅ Flip V</button>
+                <button type="button" class="crop-btn" id="cropReset"   title="Reset">⟲ Reset</button>
+                <button type="button" class="crop-btn" id="cropAspectToggle" title="Toggle aspect ratio">📐 Free</button>
+            </div>
+            <p class="crop-aspect-badge" id="cropAspectLabel">Aspect: Free — drag corners to resize crop box</p>
+
+            <div class="crop-modal-footer">
+                <button type="button" id="cancelCropBtn">Cancel</button>
+                <button type="button" id="applyCropBtn">✅ Apply Crop</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cropper.js -->
+    <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
     <script src="auth.js"></script>
     <script src="script.js"></script>
 </body>

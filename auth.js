@@ -43,6 +43,9 @@ const PAGE_KEY_MAP = {
     'slip.html':                'examination',
     'curriculum_and_session.html': 'classes',
     'class_subjects_assignment.html': 'classes',
+    'books_dashboard.html':     'books_dashboard',
+    'books_inventory.html':     'books_inventory',
+    'book_sales_report.html':   'book_sales_report',
     'staff_hiring.html':        'staff_hiring',
     'staff_attendance.html':    'staff_attendance',
     'staff_payroll.html':       'staff_payroll',
@@ -140,7 +143,7 @@ window.campusFeatureReady = false;
 
         // Auto-grant new module permissions to admin if missing from DB
         if (userRoleName === 'admin' || userRoleName === 'super_admin') {
-            ['dashboard', 'admissions', 'classes', 'access_control', 'fee_heads', 'challans', 'students', 'collect_fee', 'monitoring', 'attendance', 'pending_withdrawn', 'fee_contacts', 'family', 'collect_family_fee', 'homework', 'complaints', 'reports', 'finance', 'examination', 'staff_hiring', 'staff_attendance', 'staff_payroll', 'staff_payments'].forEach(key => {
+            ['dashboard', 'admissions', 'classes', 'access_control', 'fee_heads', 'challans', 'students', 'collect_fee', 'monitoring', 'attendance', 'pending_withdrawn', 'fee_contacts', 'family', 'collect_family_fee', 'homework', 'complaints', 'reports', 'finance', 'examination', 'staff_hiring', 'staff_attendance', 'staff_payroll', 'staff_payments', 'books_dashboard', 'books_inventory', 'book_sales_report'].forEach(key => {
                 if (!userPermissions[key]) {
                     userPermissions[key] = { can_view: true, can_create: true, can_edit: true, can_delete: true };
                 }
@@ -273,6 +276,9 @@ function filterSidebarNav() {
         'complaint_diary.html':     'complaints',
         'reports.html':             'reports',
         'finance.html':             'finance',
+        'books_dashboard.html':     'books_dashboard',
+        'books_inventory.html':     'books_inventory',
+        'book_sales_report.html':   'book_sales_report',
         'staff_hiring.html':        'staff_hiring',
         'staff_attendance.html':    'staff_attendance',
         'staff_payroll.html':       'staff_payroll',
@@ -311,10 +317,22 @@ function filterSidebarNav() {
 
 // ─── Setup Sidebar Accordions ────────────────────────────────────────────────
 function setupSidebarAccordions() {
-    // Inject CSS for accordions securely overriding existing
     const style = document.createElement('style');
     style.innerHTML = `
-        .sidebar { overflow-y: auto; }
+        .sidebar { 
+            overflow-y: auto !important; 
+            max-height: 100% !important;
+            height: 100% !important;
+            padding-bottom: 40px !important;
+            padding-top: 10px !important;
+        }
+        /* Custom scrollbar just in case */
+        .sidebar::-webkit-scrollbar { width: 4px; }
+        .sidebar::-webkit-scrollbar-track { background: transparent; }
+        .sidebar::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
+
+        /* Compress items to avoid scrolling */
+        .nav-group { margin-bottom: 4px !important; }
         .nav-group-title {
             cursor: pointer;
             display: flex;
@@ -322,9 +340,16 @@ function setupSidebarAccordions() {
             align-items: center;
             user-select: none;
             transition: color 0.2s;
-            padding-right: 0.5rem;
+            padding: 8px 12px !important;
+            font-size: 0.85rem !important;
             position: relative;
         }
+        .nav-link {
+            padding: 6px 12px 6px 34px !important;
+            font-size: 0.8rem !important;
+            margin-bottom: 2px !important;
+        }
+        .nav-group-title i, .nav-link i { font-size: 0.9rem !important; margin-right: 8px !important; }
         .nav-group-title:hover { color: #2563eb !important; }
         .nav-group-title::after {
             content: '▼';
@@ -361,11 +386,26 @@ function setupSidebarAccordions() {
 
         // Click toggle
         title.addEventListener('click', () => {
-            const isCollapsed = group.classList.toggle('collapsed');
-            if (isCollapsed) {
+            const isCollapsing = !group.classList.contains('collapsed');
+            
+            // Auto-collapse all other groups
+            document.querySelectorAll('.nav-group').forEach(otherGroup => {
+                if (otherGroup !== group) {
+                    otherGroup.classList.add('collapsed');
+                    const otherList = otherGroup.querySelector('.nav-links-list');
+                    if (otherList) {
+                        otherList.style.maxHeight = '0px';
+                        otherList.style.opacity = '0';
+                    }
+                }
+            });
+
+            if (isCollapsing) {
+                group.classList.add('collapsed');
                 list.style.maxHeight = '0px';
                 list.style.opacity = '0';
             } else {
+                group.classList.remove('collapsed');
                 list.style.maxHeight = list.scrollHeight + "px";
                 list.style.opacity = '1';
             }

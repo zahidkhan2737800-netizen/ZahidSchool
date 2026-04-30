@@ -75,6 +75,14 @@ var NAV_CATEGORIES = [
             { href: 'report_cards.html', label: 'Report Card', icon: 'fas fa-id-card-alt', key: 'examination' }
         ]
     },
+    {
+        id: 'inventory', label: 'Inventory', icon: 'fas fa-boxes',
+        items: [
+            { href: 'books_dashboard.html', label: 'Books Dashboard', icon: 'fas fa-chart-pie', key: 'books_dashboard' },
+            { href: 'books_inventory.html', label: 'Books Inventory', icon: 'fas fa-book-open', key: 'books_inventory' },
+            { href: 'book_sales_report.html', label: 'Book Sales Report', icon: 'fas fa-file-invoice-dollar', key: 'book_sales_report' }
+        ]
+    },
   {
     id: 'admin', label: 'Administration', icon: 'fas fa-user-shield',
     items: [
