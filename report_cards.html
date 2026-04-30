@@ -387,10 +387,14 @@
                 </select>
             </div>
 
-            <div class="control-group" style="margin-left: auto;">
-                <button class="btn btn-warning" onclick="openCopyModal()"><i class="fas fa-copy"></i> Copy Form</button>
+            <div class="control-group">
                 <button class="btn" style="background:#475569; color:white;" onclick="saveClassTemplate()"><i
                         class="fas fa-layer-group"></i> Save as Class Form</button>
+                <button class="btn btn-warning" onclick="newFromClassForm()"><i class="fas fa-sync-alt"></i> New
+                    From</button>
+            </div>
+            <div class="control-group" style="margin-left: auto;">
+                <button class="btn btn-warning" onclick="openCopyModal()"><i class="fas fa-copy"></i> Copy Form</button>
                 <button class="btn btn-primary" onclick="saveReportCard()"><i class="fas fa-save"></i> Save Student
                     Data</button>
                 <button class="btn btn-success" onclick="printReportCard()"><i class="fas fa-print"></i> Print
@@ -635,6 +639,42 @@
             renderBuilder();
         }
 
+        // Load a new form based on the student's class template, resetting any existing data
+        async function newFromClassForm() {
+            const studentId = document.getElementById('studentSelect').value;
+            const termName = document.getElementById('termName').value.trim();
+            if (!studentId || !termName) return alert('Select student and term first.');
+
+            const studentInfo = allStudents.find(s => s.id === studentId);
+            const classVal = studentInfo ? studentInfo.applying_for_class : null;
+            if (!classVal) return alert('Student class not determined.');
+
+            try {
+                let q = db.from('report_card_templates')
+                    .select('data')
+                    .eq('class_name', classVal)
+                    .eq('term_name', termName);
+                if (currentSchoolId) q = q.eq('school_id', currentSchoolId);
+
+                const { data: tmplData, error } = await q.limit(1);
+                if (error) throw error;
+                if (!tmplData || tmplData.length === 0) {
+                    return alert('No class template found for this class/term. Save one first using "Save as Class Form".');
+                }
+
+                const cloned = JSON.parse(JSON.stringify(tmplData[0].data));
+                cloned.forEach(sub => sub.topics.forEach(t => t.marks = 0));
+
+                reportData = cloned;
+                currentReportId = null;
+                document.getElementById('builderArea').style.display = 'block';
+                renderBuilder();
+            } catch (e) {
+                console.error('Failed to load class form', e);
+                alert('Error loading class form: ' + (e.message || e));
+            }
+        }
+
         function generateId() { return Math.floor(Math.random() * 1000000); }
 
         function addSubject() {
@@ -798,18 +838,13 @@
 
             if (currentSchoolId) payload.school_id = currentSchoolId;
 
-            let res;
-            if (currentReportId) {
-                res = await db.from('report_cards').update(payload).eq('id', currentReportId);
+            // Use upsert to handle existing report cards for the same student and term
+            const { data, error } = await db.from('report_cards').upsert(payload, { onConflict: 'student_id, term_name' });
+            if (error) {
+                alert('Failed to save: ' + error.message);
             } else {
-                res = await db.from('report_cards').insert([payload]).select();
-            }
-
-            if (res.error) {
-                alert("Failed to save: " + res.error.message);
-            } else {
-                if (res.data && res.data.length > 0) currentReportId = res.data[0].id;
-                alert("Saved successfully!");
+                if (data && data.length > 0) currentReportId = data[0].id;
+                alert('Saved successfully!');
             }
         }
 
