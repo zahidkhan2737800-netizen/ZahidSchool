@@ -276,25 +276,33 @@ document.addEventListener('DOMContentLoaded', async () => {
         generateBtn.innerHTML = '⏳ Checking Duplicates...';
         generateBtn.disabled = true;
 
-        let existingStudentIds = new Set();
-        try {
-            // Get all target student IDs
-            const studentIds = targetStudents.map(t => t.student.id);
+        // Only block duplicates for MONTHLY fee types.
+        // Non-monthly fees (Books, Stationery, etc.) are allowed to be created
+        // multiple times for the same student — no duplicate check applied.
+        const isMonthlyFeeType = cache.feeHeads.some(f => f.fee_type === feeType && f.is_monthly);
 
-            // Fetch existing challans for these students for the exact same fee
-            const { data: existingData, error: existingErr } = await supabaseClient
-                .from('challans')
-                .select('student_id')
-                .in('student_id', studentIds)
-                .eq('fee_type', feeType)
-                .eq('fee_month', feeMonth);
-            
-            if (!existingErr && existingData) {
-                existingData.forEach(row => existingStudentIds.add(row.student_id));
+        let existingStudentIds = new Set();
+
+        if (isMonthlyFeeType) {
+            try {
+                const studentIds = targetStudents.map(t => t.student.id);
+
+                // Fetch existing challans for same student + fee type + month
+                const { data: existingData, error: existingErr } = await supabaseClient
+                    .from('challans')
+                    .select('student_id')
+                    .in('student_id', studentIds)
+                    .eq('fee_type', feeType)
+                    .eq('fee_month', feeMonth);
+
+                if (!existingErr && existingData) {
+                    existingData.forEach(row => existingStudentIds.add(row.student_id));
+                }
+            } catch(err) {
+                console.error('Duplicate check failed', err);
             }
-        } catch(err) {
-            console.error('Duplicate check failed', err);
         }
+        // For non-monthly fees: existingStudentIds stays empty → no duplicates blocked
 
         let payload = [];
         let duplicateCount = 0;
@@ -312,7 +320,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     fee_type: feeType,
                     amount: t.amount,
                     paid_amount: 0,
-                    fee_month: feeMonth,
+                    fee_month: isMonthlyFeeType ? feeMonth : null,
                     due_date: dueDate,
                     status: 'Unpaid'
                 });
@@ -320,8 +328,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         if (payload.length === 0) {
-            const msg = duplicateCount > 0 
-                ? `❌ All selected students already have a '${feeType}' challan ${feeMonth !== 'N/A' ? 'for ' + feeMonth : ''}!`
+            const msg = duplicateCount > 0
+                ? `❌ All selected students already have a '${feeType}' challan for ${feeMonth}!`
                 : 'No valid students found to generate challans.';
             generateBtn.innerHTML = 'Generate Challan(s)';
             generateBtn.disabled = false;
