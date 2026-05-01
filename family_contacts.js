@@ -526,7 +526,7 @@ window.applySelectedWaTemplate = function() {
 
     // Hardcoded fallback if nothing in DB
     if (!templateText) {
-        templateText = "Zahid School System\nDear Family of {{FATHER_NAME}},\n\n{{BILL_DETAILS}}\nTotal: Rs {{GRAND_TOTAL}}";
+        templateText = "Zahid School System\nDear {{FATHER_NAME}},\n\n{{BILL_DETAILS}}\nTotal: Rs {{GRAND_TOTAL}}";
     }
 
     const todayDate = new Date().toLocaleDateString('en-GB', {day: 'numeric', month: 'short', year: 'numeric'});

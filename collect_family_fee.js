@@ -270,7 +270,7 @@ function renderFamilyList() {
         card.innerHTML = `
             <div class="stu-avatar">${fam.primaryName.charAt(0).toUpperCase()}</div>
             <div class="stu-info">
-                <strong>Family of ${fam.primaryName} ${fam.familyNo ? `(#${fam.familyNo})` : ''}</strong>
+                <strong>${fam.primaryName} ${fam.familyNo ? `(#${fam.familyNo})` : ''}</strong>
                 <span>Mobile: ${fam.mobile} &nbsp;|&nbsp; ${fam.members.length} Student(s)</span>
             </div>
             <button class="open-btn ${isActive ? 'active-open' : ''}" data-mobile="${fam.mobile}">
@@ -290,7 +290,7 @@ async function openFamily(fam) {
 
     // Update profile strip
     wsAvatar.textContent = fam.primaryName.charAt(0).toUpperCase();
-    wsName.textContent   = `Family of ${fam.primaryName}`;
+    wsName.textContent   = `${fam.primaryName}`;
     const wsFamilyNo = document.getElementById('wsFamilyNo');
     if(wsFamilyNo) wsFamilyNo.textContent = fam.familyNo || 'N/A';
     wsContact.textContent= fam.mobile;
@@ -403,7 +403,7 @@ function reprintFromHistory(receipt) {
     applyThermalSettings('collect_family_fee');
     document.getElementById('rctNo').textContent        = receipt.receipt_number;
     document.getElementById('rctDate').textContent      = new Date(receipt.created_at).toLocaleString();
-    document.getElementById('rctName').textContent      = `Family of ${activeFamily.primaryName}`;
+    document.getElementById('rctName').textContent      = `${activeFamily.primaryName}`;
     const rctFamNode = document.getElementById('rctFamilyNo');
     if(rctFamNode) rctFamNode.textContent = activeFamily.familyNo || 'N/A';
     document.getElementById('rctTotal').textContent     = Number(receipt.total_paid).toLocaleString();
@@ -770,7 +770,7 @@ function printReceipt(receiptId, txRecords, totalPaid, remaining) {
     applyThermalSettings('collect_family_fee');
     document.getElementById('rctNo').textContent       = receiptId;
     document.getElementById('rctDate').textContent     = new Date().toLocaleString();
-    document.getElementById('rctName').textContent     = `Family of ${activeFamily.primaryName}`;
+    document.getElementById('rctName').textContent     = `${activeFamily.primaryName}`;
     
     const rctFamNode = document.getElementById('rctFamilyNo');
     if(rctFamNode) rctFamNode.textContent = activeFamily.familyNo || 'N/A';
@@ -823,7 +823,7 @@ function printBill() {
     applyThermalSettings('collect_family_fee');
     document.getElementById('rctNo').textContent       = 'BILL-' + Date.now().toString().slice(-4);
     document.getElementById('rctDate').textContent     = new Date().toLocaleString();
-    document.getElementById('rctName').textContent     = `Family of ${activeFamily.primaryName}`;
+    document.getElementById('rctName').textContent     = `${activeFamily.primaryName}`;
     
     const rctFamNode = document.getElementById('rctFamilyNo');
     if(rctFamNode) rctFamNode.textContent = activeFamily.familyNo || 'N/A';

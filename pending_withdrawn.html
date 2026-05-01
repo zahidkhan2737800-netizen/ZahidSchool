@@ -107,6 +107,7 @@
         }
         .badge.pending { background: #FDE68A; color: #92400E; }
         .badge.withdrawn { background: #FECACA; color: #991B1B; }
+        .badge.passed-out { background: #D1FAE5; color: #065F46; }
     </style>
 </head>
 <body>
@@ -131,9 +132,10 @@
                 <div class="filter-group">
                     <label for="statusFilter">Filter by Status</label>
                     <select id="statusFilter">
-                        <option value="All" selected>Show All (Pending & Withdrawn)</option>
+                        <option value="All" selected>Show All (Pending, Withdrawn & Passed Out)</option>
                         <option value="Pending">Pending Only</option>
                         <option value="Withdrawn">Withdrawn Only</option>
+                        <option value="Passed Out">Passed Out Only</option>
                     </select>
                 </div>
             </div>

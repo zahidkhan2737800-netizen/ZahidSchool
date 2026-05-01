@@ -566,7 +566,7 @@
             document.getElementById('builderArea').style.display = 'block';
             reportData = [];
             currentReportId = null;
-            document.getElementById('overallRemarks').value = '';
+            if (document.getElementById('overallRemarks')) document.getElementById('overallRemarks').value = '';
 
             // Fetch fresh photo_url from DB (in case it was saved after page loaded)
             let livePhotoUrl = null;
@@ -600,7 +600,7 @@
             if (data && data.length > 0 && data[0].data) {
                 currentReportId = data[0].id;
                 reportData = data[0].data || [];
-                document.getElementById('overallRemarks').value = data[0].remarks || '';
+                if (document.getElementById('overallRemarks')) document.getElementById('overallRemarks').value = data[0].remarks || '';
             } else {
                 // Look for an explicitly saved Class Template
                 const sInfo = allStudents.find(x => x.id === studentId);
@@ -811,7 +811,8 @@
         async function saveReportCard() {
             const studentId = document.getElementById('studentSelect').value;
             const termName = document.getElementById('termName').value.trim();
-            const remarks = document.getElementById('overallRemarks').value.trim();
+            const remarksEl = document.getElementById('overallRemarks');
+            const remarks = remarksEl ? remarksEl.value.trim() : '';
 
             if (!studentId || !termName) return alert("Select student and term name.");
 
@@ -885,10 +886,11 @@
 
             const studentInfo = allStudents.find(s => s.id === studentId);
             const termName = document.getElementById('termName').value.trim();
-            const remarks = document.getElementById('overallRemarks').value.trim();
+            const remarksEl = document.getElementById('overallRemarks');
+            const remarks = remarksEl ? remarksEl.value.trim() : '';
             const photoUrl = studentInfo && studentInfo.photo_url ? studentInfo.photo_url : null;
             const photoHtml = photoUrl
-                ? `<img src="${photoUrl}" alt="Student Photo" style="width:150px; height:185px; object-fit:cover; object-position:top center; border:2px solid #000; border-radius:4px;">`
+                ? `<img src="${photoUrl}" alt="Student Photo" style="width:110px; height:135px; object-fit:cover; object-position:top center; border:2px solid #000; border-radius:4px;">`
                 : ``;
 
             const overrideClass = document.getElementById('printClassSelect').value;
@@ -896,28 +898,29 @@
 
             let html = `
             <div class="a4-page">
-                <div class="school-header">
-                    <h1>Zahid School</h1>
-                    <p style="margin: 5px 0 0; font-size: 16px;">Contact: 03337502737</p>
-                    <p style="margin: 5px 0 0; font-size: 16px;">Academic Report Card - ${termName}</p>
-                </div>
-
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px;">
-                    <table style="font-size:14px; border-collapse:collapse; flex:1;">
-                        <tr>
-                            <td style="padding:4px 6px 4px 0; white-space:nowrap; width:1%;"><strong>Student Name:</strong></td>
-                            <td style="padding:4px 24px 4px 4px;">${studentInfo.full_name}</td>
-                            <td style="padding:4px 6px 4px 0; white-space:nowrap; width:1%;"><strong>Roll No:</strong></td>
-                            <td style="padding:4px 0 4px 4px;">${studentInfo.roll_number}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding:4px 6px 4px 0; white-space:nowrap; width:1%;"><strong>Father's Name:</strong></td>
-                            <td style="padding:4px 24px 4px 4px;">${studentInfo.father_name || 'N/A'}</td>
-                            <td style="padding:4px 6px 4px 0; white-space:nowrap; width:1%;"><strong>Class:</strong></td>
-                            <td style="padding:4px 0 4px 4px;">${printClass}</td>
-                        </tr>
-                    </table>
-                    <div>${photoHtml}</div>
+                    <div style="flex:1;">
+                        <div style="text-align: left; margin-bottom: 10px; border-bottom: 2px solid #000; padding-bottom: 5px;">
+                            <h1 style="margin: 0; font-size: 28px;">Zahid School</h1>
+                            <p style="margin: 5px 0 0; font-size: 16px;">Contact: 03337502737</p>
+                            <p style="margin: 5px 0 0; font-size: 16px;">Academic Report Card - ${termName}</p>
+                        </div>
+                        <table style="font-size:14px; border-collapse:collapse; width:100%;">
+                            <tr>
+                                <td style="padding:4px 6px 4px 0; white-space:nowrap; width:1%;"><strong>Student Name:</strong></td>
+                                <td style="padding:4px 24px 4px 4px;">${studentInfo.full_name}</td>
+                                <td style="padding:4px 6px 4px 0; white-space:nowrap; width:1%;"><strong>Roll No:</strong></td>
+                                <td style="padding:4px 0 4px 4px;">${studentInfo.roll_number}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:4px 6px 4px 0; white-space:nowrap; width:1%;"><strong>Father's Name:</strong></td>
+                                <td style="padding:4px 24px 4px 4px;">${studentInfo.father_name || 'N/A'}</td>
+                                <td style="padding:4px 6px 4px 0; white-space:nowrap; width:1%;"><strong>Class:</strong></td>
+                                <td style="padding:4px 0 4px 4px;">${printClass}</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div style="margin-left: 20px;">${photoHtml}</div>
                 </div>
 
                 <table class="rc-table">
@@ -933,7 +936,6 @@
 
                 // Math to calculate layout exactly like the prompt
                 // Topics split into 2 columns. 
-                // Rows = Math.ceil(topics.length / 2)
                 const rowsCount = Math.max(1, Math.ceil(sub.topics.length / 2));
 
                 for (let i = 0; i < rowsCount; i++) {
@@ -973,17 +975,14 @@
 
             html += `
                 </table>
-                <div style="display:flex; justify-content:flex-end; font-size:16px; margin-top:20px;">
-                    <div style="border: 2px solid #000; padding:10px 20px;">
-                        <b>Grand Total:</b> ${overallObtained} / ${overallMax} <br><br>
-                        <b>Percentage:</b> ${pct}%
+                <div style="display:flex; justify-content:flex-end; font-size:16px; margin-top:10px;">
+                    <div style="border: 2px solid #000; padding:8px 16px; display:flex; gap:30px;">
+                        <div><b>Grand Total:</b> ${overallObtained} / ${overallMax}</div>
+                        <div><b>Percentage:</b> ${pct}%</div>
                     </div>
                 </div>
 
-                <div class="remarks-box">
-                    <strong>Remarks / Comments:</strong><br>
-                    ${remarks.replace(/\n/g, '<br>')}
-                </div>
+
                 
                 <div style="margin-top: 50px; display:flex; justify-content:space-between; font-weight:bold;">
                     <div>Class Teacher's Signature</div>

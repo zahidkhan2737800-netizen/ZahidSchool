@@ -133,7 +133,14 @@ async function loadStudentsForClass(cls) {
         if (!hwErr && existing) {
             existing.forEach(row => {
                 const r = String(row.roll || '').trim();
-                if (r) existingMap[r] = Array.isArray(row.subjects) ? row.subjects : [];
+                if (!r) return;
+                const subs = Array.isArray(row.subjects) ? row.subjects : [];
+                if (!existingMap[r]) {
+                    existingMap[r] = [...subs];
+                } else {
+                    // Merge subjects from duplicate rows
+                    subs.forEach(s => { if (!existingMap[r].includes(s)) existingMap[r].push(s); });
+                }
             });
         }
 

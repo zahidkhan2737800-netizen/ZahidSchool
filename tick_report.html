@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tick Report Cards - Zahid School System</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --primary: #8b5cf6;
+            --primary-hover: #7c3aed;
+            --success: #10b981;
+            --danger: #ef4444;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text-main);
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        .page-header {
+            margin-bottom: 20px;
+        }
+
+        .page-header h1 {
+            margin: 0;
+            font-size: 24px;
+            color: var(--primary);
+        }
+
+        .control-panel {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            margin-bottom: 20px;
+            border: 1px solid var(--border);
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .control-group label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .control-input {
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 14px;
+            min-width: 180px;
+        }
+
+        .btn {
+            padding: 10px 16px;
+            border-radius: 6px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-family: inherit;
+            font-size: 14px;
+        }
+
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: var(--primary-hover); }
+        .btn-success { background: var(--success); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-warning { background: #f59e0b; color: white; }
+        .btn-warning:hover { background: #d97706; }
+
+        .builder-section {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--border);
+            margin-bottom: 40px;
+        }
+
+        .subject-card {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            background: #fdfdfd;
+        }
+
+        .subject-header {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .topic-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            background: var(--bg);
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+            margin-bottom: 8px;
+        }
+
+        .topic-row input {
+            padding: 6px;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+        }
+
+        #printArea { display: none; }
+
+        @media print {
+            body * { visibility: hidden; }
+            body { background: white; padding: 0; }
+            #printArea, #printArea * { visibility: visible; }
+            #printArea {
+                display: block;
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+            }
+
+            .a4-page {
+                width: 210mm;
+                min-height: 297mm;
+                padding: 15mm;
+                margin: 0 auto;
+                box-sizing: border-box;
+                page-break-after: always;
+            }
+
+            .school-header {
+                text-align: center;
+                margin-bottom: 15px;
+                border-bottom: 2px solid #000;
+                padding-bottom: 10px;
+            }
+
+            .school-header h1 { margin: 0; font-size: 26px; }
+            .school-header p { margin: 5px 0 0; font-size: 14px; }
+
+            .student-info-container {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+                margin-bottom: 20px;
+                border-bottom: 1px solid #000;
+                padding-bottom: 10px;
+            }
+
+            .student-info-table {
+                font-size: 14px;
+                line-height: 1.6;
+            }
+
+            .student-photo-print {
+                width: 100px;
+                height: 120px;
+                object-fit: cover;
+                border: 2px solid #000;
+                border-radius: 4px;
+            }
+
+            .subject-print-title {
+                font-size: 16px;
+                font-weight: bold;
+                background: #eee;
+                padding: 5px 10px;
+                margin-top: 15px;
+                margin-bottom: 5px;
+                border: 1px solid #000;
+                -webkit-print-color-adjust: exact;
+            }
+
+            .tick-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 10px;
+                font-family: Arial, sans-serif;
+                font-size: 13px;
+            }
+
+            .tick-table td {
+                border: 1px solid #000;
+                padding: 6px 10px;
+            }
+
+            .topic-name { font-weight: bold; }
+            .topic-status { text-align: center; font-size: 16px; width: 40px; }
+            
+            .tick-icon { color: green; font-weight: bold; -webkit-print-color-adjust: exact; }
+            .cross-icon { color: red; font-weight: bold; -webkit-print-color-adjust: exact; }
+
+            .remarks-box {
+                border: 1px solid #000;
+                padding: 10px;
+                min-height: 60px;
+                margin-top: 20px;
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container" id="noPrint">
+        <div class="page-header">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <h1><i class="fas fa-check-circle"></i> Topic Mastery Report</h1>
+                    <p style="color: var(--text-muted);">Generate Tick/Cross reports based on topic criteria.</p>
+                </div>
+                <a href="dashboard.html" style="text-decoration:none; color:var(--primary); font-weight:600;">📊 Dashboard</a>
+            </div>
+        </div>
+
+        <div class="control-panel">
+            <div class="control-group">
+                <label>Class</label>
+                <select id="classSelect" class="control-input" onchange="loadStudents()">
+                    <option value="">- Select Class -</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label>Student</label>
+                <select id="studentSelect" class="control-input" onchange="loadReportCard()">
+                    <option value="">- Select Student -</option>
+                </select>
+            </div>
+
+
+
+            <div class="control-group" style="margin-left: auto;">
+                <button class="btn" style="background:#475569; color:#fff;" onclick="openRenameModal()"><i class="fas fa-edit"></i> Rename Topics (All Class)</button>
+                <button class="btn btn-warning" onclick="printClassDefaulters()"><i class="fas fa-users"></i> Print Class Uncovered Topics</button>
+                <button class="btn btn-success" onclick="printReportCard()"><i class="fas fa-print"></i> Print A4</button>
+            </div>
+        </div>
+
+        <div class="builder-section" id="builderArea" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="margin: 0;">Subjects & Topics</h3>
+                <div id="builderPhotoBox" style="margin-left: 16px; margin-right: auto;"></div>
+                <button class="btn" style="background:#e2e8f0; color:#0f172a;" onclick="addSubject()">+ Add Subject</button>
+            </div>
+
+            <div id="subjectsList"></div>
+
+            <div class="control-group" style="margin-top: 30px;">
+                <label>Overall Remarks / Comments</label>
+                <textarea id="overallRemarks" class="control-input" style="width: 100%; min-height: 80px; resize: vertical;"></textarea>
+            </div>
+        </div>
+    </div>
+
+    <!-- Print Canvas -->
+    <div id="printArea"></div>
+
+    <!-- Rename Modal -->
+    <div id="renameModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+        <div style="background:#fff; padding:20px; border-radius:12px; width:500px; max-height:85vh; overflow-y:auto; position:relative;">
+            <h2 style="margin-top:0; font-size:18px; color:var(--primary);">Rename Topics for Tick Report</h2>
+            <p style="color:var(--text-muted); font-size:13px;">Changes here only affect the printed Tick Reports for all students in this class, not the main Monitoring data.</p>
+            <div id="renameList" style="margin-top:15px;"></div>
+            <div style="margin-top:20px; display:flex; justify-content:flex-end; gap:10px; position:sticky; bottom:-20px; background:#fff; padding:10px 0;">
+                <button class="btn" style="background:#e2e8f0; color:#0f172a;" onclick="closeRenameModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveRenames()">Save Names</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="auth.js"></script>
+    <script>
+        const db = window.supabaseClient;
+        let allStudents = [];
+        let currentSchoolId = null;
+        let currentReportId = null;
+
+        // Data structure: [{ id, name, topics: [{id, name, criteria, obtained}] }]
+        let reportData = [];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await waitForAuthContext();
+            await loadClassesAndStudents();
+        });
+
+        async function waitForAuthContext(timeoutMs = 10000) {
+            const start = Date.now();
+            while (Date.now() - start < timeoutMs) {
+                if (window.authReady === true && window.supabaseClient) {
+                    currentSchoolId = window.currentSchoolId || null;
+                    return;
+                }
+                await new Promise(r => setTimeout(r, 80));
+            }
+        }
+
+
+
+        async function loadClassesAndStudents() {
+            let q = db.from('admissions').select('id, full_name, roll_number, applying_for_class, father_name, photo_url').eq('status', 'Active');
+            if (currentSchoolId) q = q.eq('school_id', currentSchoolId);
+            const { data } = await q;
+            allStudents = data || [];
+
+            const classes = [...new Set(allStudents.map(s => s.applying_for_class).filter(Boolean))].sort();
+            const classSel = document.getElementById('classSelect');
+            classes.forEach(c => classSel.insertAdjacentHTML('beforeend', `<option value="${c}">${c}</option>`));
+        }
+
+        function loadStudents() {
+            const classVal = document.getElementById('classSelect').value;
+            const stuSel = document.getElementById('studentSelect');
+            stuSel.innerHTML = '<option value="">- Select Student -</option>';
+
+            const filtered = allStudents.filter(s => s.applying_for_class === classVal);
+            filtered.sort((a, b) => a.roll_number - b.roll_number);
+
+            filtered.forEach(s => stuSel.insertAdjacentHTML('beforeend', `<option value="${s.id}">[Roll: ${s.roll_number}] ${s.full_name}</option>`));
+            document.getElementById('builderArea').style.display = 'none';
+        }
+
+        function generateId() { return Math.floor(Math.random() * 1000000); }
+
+        async function loadReportCard() {
+            const studentId = document.getElementById('studentSelect').value;
+
+            if (!studentId) {
+                document.getElementById('builderArea').style.display = 'none';
+                return;
+            }
+
+            document.getElementById('builderArea').style.display = 'block';
+            reportData = [];
+            document.getElementById('overallRemarks').value = '';
+
+            const stu = allStudents.find(s => s.id === studentId);
+            const classVal = stu ? stu.applying_for_class : '';
+
+            const photoEl = document.getElementById('builderPhotoBox');
+            if (photoEl) {
+                photoEl.innerHTML = stu && stu.photo_url
+                    ? `<img src="${stu.photo_url}" style="width:100px; height:120px; object-fit:cover; border-radius:8px; border:2px solid var(--primary);">`
+                    : `<div style="width:100px; height:120px; border-radius:8px; border:2px dashed #cbd5e1; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-size:11px;">No Photo</div>`;
+            }
+
+            if (!classVal) {
+                alert("Student has no class assigned.");
+                return;
+            }
+
+            // Fetch subjects from monitoring_subjects
+            let subQ = db.from('monitoring_subjects').select('id, subject_name').eq('applying_for_class', classVal).order('created_at', { ascending: true });
+            if (currentSchoolId) subQ = subQ.eq('school_id', currentSchoolId);
+            const { data: subjects } = await subQ;
+
+            if (!subjects || subjects.length === 0) {
+                alert("No subjects found in Student Progress & Monitoring for this class.");
+                renderBuilder();
+                return;
+            }
+
+            const subjectIds = subjects.map(s => s.id);
+            
+            // Fetch topics
+            let topQ = db.from('monitoring_topics').select('*').in('subject_id', subjectIds).order('created_at', { ascending: true });
+            if (currentSchoolId) topQ = topQ.eq('school_id', currentSchoolId);
+            const { data: topicsData } = await topQ;
+            
+            // Fetch scores
+            let scoQ = db.from('monitoring_scores').select('*').eq('student_id', studentId).in('subject_id', subjectIds);
+            if (currentSchoolId) scoQ = scoQ.eq('school_id', currentSchoolId);
+            const { data: scoresData } = await scoQ;
+
+            const scoresMap = {};
+            if (scoresData) {
+                scoresData.forEach(s => {
+                    scoresMap[s.topic_id] = s;
+                });
+            }
+
+            const customNames = JSON.parse(localStorage.getItem('tick_custom_topic_names') || '{}');
+
+            // Build reportData
+            reportData = subjects.map(sub => {
+                const subTopics = (topicsData || []).filter(t => t.subject_id === sub.id);
+                
+                const formattedTopics = subTopics.map(t => {
+                    const criteria = parseFloat(t.criteria) || 0;
+                    const mapData = scoresMap[t.id] || {};
+                    let obtainedRaw = mapData.score;
+                    let obtained = parseFloat(obtainedRaw);
+                    if (isNaN(obtained)) obtained = 0;
+                    
+                    let dateStr = '';
+                    if (mapData.covered_date) {
+                        const parts = mapData.covered_date.split('-');
+                        if (parts.length === 3) {
+                            const mNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+                            const mIdx = parseInt(parts[1], 10) - 1;
+                            const mName = mNames[mIdx] || parts[1];
+                            dateStr = `${mName} (${parts[2]}-${parts[1]}-${parts[0]})`;
+                        } else {
+                            dateStr = mapData.covered_date;
+                        }
+                    }
+                    
+                    return {
+                        id: t.id,
+                        name: customNames[t.id] || t.topic_name,
+                        criteria: criteria,
+                        obtained: obtained,
+                        coveredDate: dateStr
+                    };
+                });
+
+                return {
+                    id: sub.id,
+                    name: sub.subject_name,
+                    topics: formattedTopics
+                };
+            });
+
+            // Keep subjects even if empty, just so user sees them, but filter out subjects without topics if preferred
+            // We'll keep them so the UI reflects the monitoring setup exactly.
+            
+            if (reportData.every(s => s.topics.length === 0)) {
+                alert("Subjects found, but no topics configured in Student Progress & Monitoring.");
+            }
+
+            renderBuilder();
+        }
+
+        function addSubject() {
+            reportData.push({ id: generateId(), name: 'New Subject', topics: [{ id: generateId(), name: 'Topic 1', criteria: 10, obtained: 0 }] });
+            renderBuilder();
+        }
+
+        function deleteSubject(subId) {
+            reportData = reportData.filter(s => s.id !== subId);
+            renderBuilder();
+        }
+
+        function addTopic(subId) {
+            const sub = reportData.find(s => s.id === subId);
+            if (sub) { sub.topics.push({ id: generateId(), name: 'New Topic', criteria: 10, obtained: 0 }); renderBuilder(); }
+        }
+
+        function deleteTopic(subId, topicId) {
+            const sub = reportData.find(s => s.id === subId);
+            if (sub) { sub.topics = sub.topics.filter(t => t.id !== topicId); renderBuilder(); }
+        }
+
+        document.getElementById('subjectsList').addEventListener('input', (e) => {
+            const tg = e.target;
+            const subId = parseInt(tg.dataset.subid);
+            const topicId = parseInt(tg.dataset.topicid);
+            const field = tg.dataset.field;
+
+            const sub = reportData.find(s => s.id === subId);
+            if (!sub) return;
+
+            if (field === 'subName') sub.name = tg.value;
+
+            if (topicId) {
+                const top = sub.topics.find(t => t.id === topicId);
+                if (top) {
+                    if (field === 'topName') top.name = tg.value;
+                    if (field === 'topCrit') top.criteria = parseFloat(tg.value) || 0;
+                    if (field === 'topObt') top.obtained = parseFloat(tg.value) || 0;
+                    
+                    // Update visual tick/cross immediately
+                    const statusIcon = document.getElementById(`status-${top.id}`);
+                    if(statusIcon) {
+                        if(top.obtained >= top.criteria) {
+                            statusIcon.innerHTML = '✔️';
+                            statusIcon.style.color = 'var(--success)';
+                        } else {
+                            statusIcon.innerHTML = '✖️';
+                            statusIcon.style.color = 'var(--danger)';
+                        }
+                    }
+                }
+            }
+        });
+
+        function renderBuilder() {
+            const list = document.getElementById('subjectsList');
+            list.innerHTML = reportData.map(sub => `
+                <div class="subject-card">
+                    <div class="subject-header">
+                        <input type="text" class="control-input" value="${sub.name}" data-subid="${sub.id}" data-field="subName" style="font-weight: 700; font-size: 16px; width:250px;">
+                        <button class="btn btn-danger" style="margin-left:auto;" onclick="deleteSubject(${sub.id})"><i class="fas fa-trash"></i></button>
+                    </div>
+                    <div>
+                        <div style="display:flex; gap:8px; margin-bottom:5px; font-size:12px; font-weight:bold; color:var(--text-muted); padding-left:35px;">
+                            <div style="flex:2;">Topic Name</div>
+                            <div style="width:100px;">Criteria (Min)</div>
+                            <div style="width:100px;">Obtained</div>
+                            <div style="width:50px; text-align:center;">Status</div>
+                        </div>
+                        ${sub.topics.map(t => {
+                            const isPass = t.obtained >= t.criteria;
+                            return `
+                            <div class="topic-row">
+                                <button class="btn btn-danger" style="padding:6px 10px;" onclick="deleteTopic(${sub.id}, ${t.id})"><i class="fas fa-times"></i></button>
+                                <input type="text" value="${t.name}" data-subid="${sub.id}" data-topicid="${t.id}" data-field="topName" style="flex:2;">
+                                <input type="number" value="${t.criteria}" data-subid="${sub.id}" data-topicid="${t.id}" data-field="topCrit" style="width:100px;">
+                                <input type="number" value="${t.obtained}" data-subid="${sub.id}" data-topicid="${t.id}" data-field="topObt" style="width:100px;">
+                                <div id="status-${t.id}" style="width:50px; text-align:center; font-size:18px; color:${isPass ? 'var(--success)' : 'var(--danger)'}">${isPass ? '✔️' : '✖️'}</div>
+                            </div>
+                        `}).join('')}
+                        <button class="btn" style="background:#e2e8f0; margin-top:10px; font-size:13px;" onclick="addTopic(${sub.id})">+ Add Topic</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function printReportCard() {
+            const studentId = document.getElementById('studentSelect').value;
+            if (!studentId) return alert('Please load a report card first.');
+
+            const stu = allStudents.find(s => s.id === studentId);
+
+            let printHtml = `
+                <div class="a4-page">
+                    <div class="school-header">
+                        <h1>Zahid School System</h1>
+                        <p>Topic Mastery Report</p>
+                    </div>
+                    
+                    <div class="student-info-container">
+                        <table class="student-info-table">
+                            <tr><td><strong>Roll No:</strong></td><td style="padding-left:10px;">${stu.roll_number}</td></tr>
+                            <tr><td><strong>Student Name:</strong></td><td style="padding-left:10px;">${stu.full_name}</td></tr>
+                            <tr><td><strong>Father Name:</strong></td><td style="padding-left:10px;">${stu.father_name}</td></tr>
+                            <tr><td><strong>Class:</strong></td><td style="padding-left:10px;">${stu.applying_for_class}</td></tr>
+                        </table>
+                        ${stu.photo_url ? `<img src="${stu.photo_url}" class="student-photo-print">` : ''}
+                    </div>
+            `;
+
+            reportData.forEach(sub => {
+                printHtml += `<div class="subject-print-title">${sub.name}</div>`;
+                printHtml += `<table class="tick-table"><tbody>`;
+                
+                // Group topics into pairs to show 2 topics per row
+                for (let i = 0; i < sub.topics.length; i += 2) {
+                    const t1 = sub.topics[i];
+                    const t2 = sub.topics[i+1];
+                    
+                    const isPass1 = t1.obtained >= t1.criteria;
+                    const mark1 = isPass1 ? `<span class="tick-icon">✔️</span>` : `<span class="cross-icon">✖️</span>`;
+                    const dateHtml1 = t1.coveredDate ? ` <span style="font-size:10px; color:#555; white-space:nowrap; margin-left:4px;">${t1.coveredDate}</span>` : '';
+                    
+                    printHtml += `<tr>`;
+                    printHtml += `<td class="topic-name" style="width:40%;">${t1.name}${dateHtml1}</td>`;
+                    printHtml += `<td class="topic-status" style="width:10%; text-align:center;">${mark1}</td>`;
+                    
+                    if(t2) {
+                        const isPass2 = t2.obtained >= t2.criteria;
+                        const mark2 = isPass2 ? `<span class="tick-icon">✔️</span>` : `<span class="cross-icon">✖️</span>`;
+                        const dateHtml2 = t2.coveredDate ? ` <span style="font-size:10px; color:#555; white-space:nowrap; margin-left:4px;">${t2.coveredDate}</span>` : '';
+                        printHtml += `<td class="topic-name" style="width:40%; border-left:2px solid #000;">${t2.name}${dateHtml2}</td>`;
+                        printHtml += `<td class="topic-status" style="width:10%; text-align:center;">${mark2}</td>`;
+                    } else {
+                        printHtml += `<td style="border-left:2px solid #000;" colspan="2"></td>`;
+                    }
+                    printHtml += `</tr>`;
+                }
+                
+                printHtml += `</tbody></table>`;
+            });
+
+            const remarks = document.getElementById('overallRemarks').value.trim();
+            if (remarks) {
+                printHtml += `
+                    <div style="margin-top:20px; font-weight:bold;">Teacher Remarks:</div>
+                    <div class="remarks-box">${remarks}</div>
+                `;
+            }
+
+            printHtml += `</div>`;
+
+            document.getElementById('printArea').innerHTML = printHtml;
+            window.print();
+        }
+
+        async function printClassDefaulters() {
+            const classVal = document.getElementById('classSelect').value;
+            if (!classVal) return alert('Please select a Class first.');
+
+            // Students in this class
+            const classStudents = allStudents.filter(s => s.applying_for_class === classVal);
+            classStudents.sort((a, b) => a.roll_number - b.roll_number);
+
+            if (classStudents.length === 0) return alert('No students found in this class.');
+
+            // Fetch subjects
+            let subQ = db.from('monitoring_subjects').select('id, subject_name').eq('applying_for_class', classVal);
+            if (currentSchoolId) subQ = subQ.eq('school_id', currentSchoolId);
+            const { data: subjects } = await subQ.order('created_at', { ascending: true });
+
+            if (!subjects || subjects.length === 0) {
+                return alert("No subjects configured for this class in Student Progress & Monitoring.");
+            }
+
+            const subjectIds = subjects.map(s => s.id);
+
+            // Fetch topics
+            let topQ = db.from('monitoring_topics').select('*').in('subject_id', subjectIds);
+            if (currentSchoolId) topQ = topQ.eq('school_id', currentSchoolId);
+            const { data: topicsData } = await topQ.order('created_at', { ascending: true });
+
+            // Fetch scores
+            let scoQ = db.from('monitoring_scores').select('*').in('subject_id', subjectIds);
+            if (currentSchoolId) scoQ = scoQ.eq('school_id', currentSchoolId);
+            const { data: scoresData } = await scoQ;
+
+            // Map scores
+            const scoresMap = {};
+            if (scoresData) {
+                scoresData.forEach(s => {
+                    scoresMap[`${s.student_id}_${s.topic_id}`] = s.score;
+                });
+            }
+
+            const customNames = JSON.parse(localStorage.getItem('tick_custom_topic_names') || '{}');
+
+            const defaulters = [];
+
+            classStudents.forEach(stu => {
+                const missedSubjects = [];
+
+                subjects.forEach(sub => {
+                    const subTopics = (topicsData || []).filter(t => t.subject_id === sub.id);
+                    const missedTopics = [];
+
+                    subTopics.forEach(t => {
+                        const criteria = parseFloat(t.criteria) || 0;
+                        let obtainedRaw = scoresMap[`${stu.id}_${t.id}`];
+                        let obtained = parseFloat(obtainedRaw);
+                        if (isNaN(obtained)) obtained = 0;
+
+                        if (obtained < criteria) {
+                            missedTopics.push(customNames[t.id] || t.topic_name);
+                        }
+                    });
+
+                    if (missedTopics.length > 0) {
+                        missedSubjects.push(`<b>${sub.subject_name}:</b> ${missedTopics.join(', ')}`);
+                    }
+                });
+
+                if (missedSubjects.length > 0) {
+                    defaulters.push({
+                        roll: stu.roll_number,
+                        name: stu.full_name,
+                        missed: missedSubjects.join(' <br> ')
+                    });
+                }
+            });
+
+            if (defaulters.length === 0) {
+                return alert('Great! All students have successfully covered all topics.');
+            }
+
+            let printHtml = `
+                <div class="a4-page">
+                    <div class="school-header">
+                        <h1>Zahid School System</h1>
+                        <p>Class Uncovered Topics Report • ${classVal}</p>
+                    </div>
+                    <table style="width:100%; border-collapse: collapse; margin-top: 15px; font-family: Arial, sans-serif; font-size: 13px;" border="1">
+                        <thead>
+                            <tr style="background:#eee; -webkit-print-color-adjust: exact;">
+                                <th style="padding:8px; width:10%;">Roll No</th>
+                                <th style="padding:8px; width:25%; text-align:left;">Student Name</th>
+                                <th style="padding:8px; width:65%; text-align:left;">Uncovered Topics (Crosses)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            defaulters.forEach(d => {
+                printHtml += `
+                    <tr>
+                        <td style="padding:8px; text-align:center;">${d.roll || '-'}</td>
+                        <td style="padding:8px; font-weight:bold;">${d.name}</td>
+                        <td style="padding:8px; line-height:1.5;">${d.missed}</td>
+                    </tr>
+                `;
+            });
+
+            printHtml += `
+                        </tbody>
+                    </table>
+                    <div style="margin-top:20px; font-weight:bold; font-size:14px;">Total Students with Uncovered Topics: ${defaulters.length}</div>
+                </div>
+            `;
+
+            document.getElementById('printArea').innerHTML = printHtml;
+            window.print();
+        }
+
+        async function openRenameModal() {
+            const classVal = document.getElementById('classSelect').value;
+            if (!classVal) return alert('Please select a Class first.');
+
+            let subQ = db.from('monitoring_subjects').select('id, subject_name').eq('applying_for_class', classVal).order('created_at', { ascending: true });
+            if (currentSchoolId) subQ = subQ.eq('school_id', currentSchoolId);
+            const { data: subjects } = await subQ;
+
+            if (!subjects || subjects.length === 0) return alert('No subjects found for this class.');
+
+            const subjectIds = subjects.map(s => s.id);
+            let topQ = db.from('monitoring_topics').select('*').in('subject_id', subjectIds).order('created_at', { ascending: true });
+            if (currentSchoolId) topQ = topQ.eq('school_id', currentSchoolId);
+            const { data: topics } = await topQ;
+
+            if (!topics || topics.length === 0) return alert('No topics found for this class.');
+
+            const customNames = JSON.parse(localStorage.getItem('tick_custom_topic_names') || '{}');
+
+            let html = '';
+            subjects.forEach(sub => {
+                const subTopics = topics.filter(t => t.subject_id === sub.id);
+                if(subTopics.length > 0) {
+                    html += `<div style="font-weight:bold; margin-top:15px; margin-bottom:5px; border-bottom:1px solid #eee; padding-bottom:5px;">${sub.subject_name}</div>`;
+                    subTopics.forEach(t => {
+                        const currentName = customNames[t.id] || t.topic_name;
+                        html += `
+                            <div style="display:flex; align-items:center; margin-bottom:6px;">
+                                <div style="width:130px; font-size:12px; color:#555; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="Original: ${t.topic_name}">${t.topic_name}</div>
+                                <input type="text" class="control-input rename-input" data-topicid="${t.id}" value="${currentName}" style="flex:1; padding:6px; font-size:13px; min-width:0;">
+                                ${customNames[t.id] ? `<button class="btn btn-danger" style="padding:5px 10px; margin-left:6px; font-size:12px;" onclick="resetTopicName(this, '${t.topic_name.replace(/'/g, "\\'")}')" title="Reset to Original"><i class="fas fa-undo"></i></button>` : ''}
+                            </div>
+                        `;
+                    });
+                }
+            });
+
+            document.getElementById('renameList').innerHTML = html;
+            document.getElementById('renameModal').style.display = 'flex';
+        }
+
+        window.resetTopicName = function(btn, origName) {
+            const inp = btn.parentElement.querySelector('.rename-input');
+            if (inp) inp.value = origName;
+        };
+
+        function closeRenameModal() {
+            document.getElementById('renameModal').style.display = 'none';
+        }
+
+        function saveRenames() {
+            const customNames = JSON.parse(localStorage.getItem('tick_custom_topic_names') || '{}');
+            const inputs = document.querySelectorAll('.rename-input');
+            inputs.forEach(inp => {
+                const topicId = inp.dataset.topicid;
+                const newName = inp.value.trim();
+                if (newName) {
+                    customNames[topicId] = newName;
+                } else {
+                    delete customNames[topicId];
+                }
+            });
+            localStorage.setItem('tick_custom_topic_names', JSON.stringify(customNames));
+            closeRenameModal();
+            
+            // Reload report card if student is selected
+            if (document.getElementById('studentSelect').value) {
+                loadReportCard();
+            }
+        }
+    </script>
+</body>
+</html>

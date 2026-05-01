@@ -299,7 +299,7 @@ async function loadColumnsAndScores(subjectId) {
     if (scErr) { console.error('Scores error:', scErr); return; }
     scoresMap = {};
     (scData || []).forEach(row => {
-        scoresMap[`${row.student_id}_${row.topic_id}`] = row.score;
+        scoresMap[`${row.student_id}_${row.topic_id}`] = row;
     });
 
     renderDropdownMenu();
@@ -439,29 +439,77 @@ function renderTable() {
 
         visibleColumns.forEach(col => {
             const td = document.createElement('td');
+            td.style.minWidth = '80px';
+            
             const scoreInput = document.createElement('input');
             scoreInput.type = 'text';
             scoreInput.className = 'score-input';
             scoreInput.placeholder = '-';
+            scoreInput.style.width = '100%';
+            scoreInput.style.marginBottom = '2px';
+
+            const dateInput = document.createElement('input');
+            dateInput.type = 'text';
+            dateInput.placeholder = 'dd-mm';
+            dateInput.style.width = '100%';
+            dateInput.style.fontSize = '11px';
+            dateInput.style.textAlign = 'center';
+            dateInput.style.border = '1px solid #cbd5e1';
+            dateInput.style.borderRadius = '4px';
+            dateInput.style.padding = '2px';
 
             const mapKey = `${student.id}_${col.id}`;
-            scoreInput.value = scoresMap[mapKey] || '';
+            const existingData = scoresMap[mapKey] || {};
+            
+            scoreInput.value = existingData.score !== undefined ? existingData.score : '';
+            if (existingData.covered_date) {
+                const parts = existingData.covered_date.split('-');
+                if (parts.length === 3) dateInput.value = `${parts[2]}-${parts[1]}`;
+                else dateInput.value = existingData.covered_date;
+            }
 
-            scoreInput.addEventListener('change', async () => {
-                scoresMap[mapKey] = scoreInput.value;
+            const saveScoreAndDate = async () => {
+                let dbDate = null;
+                
+                if (scoreInput.value && !dateInput.value) {
+                    const today = new Date();
+                    const d = String(today.getDate()).padStart(2, '0');
+                    const m = String(today.getMonth() + 1).padStart(2, '0');
+                    dateInput.value = `${d}-${m}`;
+                }
+
+                if (dateInput.value) {
+                    const parts = dateInput.value.split('-');
+                    if (parts.length === 2) {
+                        const yr = new Date().getFullYear();
+                        dbDate = `${yr}-${parts[1]}-${parts[0]}`;
+                    } else if (parts.length === 3) {
+                        dbDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+                    } else {
+                        dbDate = dateInput.value;
+                    }
+                }
+
+                scoresMap[mapKey] = { score: scoreInput.value, covered_date: dbDate };
+                
                 const payload = {
                     student_id: student.id,
                     topic_id: col.id,
                     subject_id: selectedSubject.id,
-                    score: scoreInput.value
+                    score: scoreInput.value,
+                    covered_date: dbDate
                 };
                 if (window.currentSchoolId) payload.school_id = window.currentSchoolId;
 
                 const { error } = await supabaseClient.from('monitoring_scores').upsert(payload, { onConflict: 'student_id, topic_id' });
-                if (error) alert('Failed to save score: ' + error.message);
-            });
+                if (error) alert('Failed to save score/date: ' + error.message);
+            };
+
+            scoreInput.addEventListener('change', saveScoreAndDate);
+            dateInput.addEventListener('change', saveScoreAndDate);
 
             td.appendChild(scoreInput);
+            td.appendChild(dateInput);
             tr.appendChild(td);
         });
 
@@ -504,14 +552,14 @@ function printDefaulters(targetCol) {
 
     const defaulters = [];
     students.forEach(student => {
-        const scoreStr = scoresMap[`${student.id}_${targetCol.id}`];
-        const scoreVal = parseFloat(scoreStr);
+        const data = scoresMap[`${student.id}_${targetCol.id}`] || {};
+        const scoreVal = parseFloat(data.score);
         if (isNaN(scoreVal) || scoreVal < minScore) {
             defaulters.push({
                 roll: student.roll_number,
                 name: student.full_name,
                 absentFive: getStudentLastFiveAbsenceText(student),
-                score: scoreStr || 'N/A'
+                score: data.score !== undefined ? data.score : 'N/A'
             });
         }
     });

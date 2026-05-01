@@ -14,6 +14,7 @@ const studentsArea = document.getElementById('studentsArea');
 const selectAllBtn = document.getElementById('selectAllBtn');
 const deselectAllBtn = document.getElementById('deselectAllBtn');
 const promoteBtn = document.getElementById('promoteBtn');
+const passedOutBtn = document.getElementById('passedOutBtn');
 
 let currentStudents = [];
 
@@ -147,6 +148,41 @@ async function promoteStudents() {
     }
 }
 
+async function passedOutStudents() {
+    const checkboxes = document.querySelectorAll('.student-chk:checked');
+    const selectedIds = Array.from(checkboxes).map(cb => cb.value);
+
+    if (selectedIds.length === 0) {
+        showAlert('Please select at least one student to mark as Passed Out.', true);
+        return;
+    }
+
+    if (!confirm(`Are you sure you want to mark ${selectedIds.length} student(s) as Passed Out? They will be moved out of the active class.`)) {
+        return;
+    }
+
+    passedOutBtn.textContent = 'Processing...';
+    passedOutBtn.disabled = true;
+
+    try {
+        const { error } = await db
+            .from('admissions')
+            .update({ status: 'Passed Out', updated_at: new Date().toISOString() })
+            .in('id', selectedIds);
+
+        if (error) throw error;
+
+        showAlert(`✅ ${selectedIds.length} student(s) marked as Passed Out! They now appear in the Passed Out directory.`);
+        loadStudents();
+    } catch (e) {
+        console.error(e);
+        showAlert(`Error: ${e.message}`, true);
+    } finally {
+        passedOutBtn.textContent = 'Passed Out 🎓';
+        passedOutBtn.disabled = false;
+    }
+}
+
 // Event Listeners
 loadStudentsBtn.addEventListener('click', loadStudents);
 
@@ -159,5 +195,6 @@ deselectAllBtn.addEventListener('click', () => {
 });
 
 promoteBtn.addEventListener('click', promoteStudents);
+passedOutBtn.addEventListener('click', passedOutStudents);
 
 document.addEventListener('DOMContentLoaded', loadClasses);

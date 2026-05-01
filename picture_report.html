@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Picture Report - Zahid School System</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .page-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        .filters {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+        .filters select {
+            padding: 0.8rem;
+            border-radius: 8px;
+            border: 1px solid #cbd5e1;
+            font-family: inherit;
+        }
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        }
+        .data-table th, .data-table td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .data-table th {
+            background: #f8fafc;
+            font-weight: 600;
+            color: #475569;
+        }
+        .student-photo {
+            width: 50px;
+            height: 50px;
+            border-radius: 8px;
+            object-fit: cover;
+            background: #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #94a3b8;
+            font-size: 0.8rem;
+            text-align: center;
+        }
+        .no-photo {
+            background: #fef2f2;
+            color: #ef4444;
+            border: 1px dashed #f87171;
+        }
+        @media print {
+            body { background: white; }
+            .filters, .page-header a { display: none; }
+            .page-container { padding: 0; box-shadow: none; max-width: 100%; }
+            .data-table { box-shadow: none; border: 1px solid #000; }
+            .data-table th, .data-table td { border-bottom: 1px solid #000; }
+            .data-table th { background: #eee !important; -webkit-print-color-adjust: exact; }
+        }
+    </style>
+</head>
+<body>
+    <div class="page-container">
+        <div class="page-header" style="margin-bottom:2rem; display:flex; justify-content:space-between; align-items:center;">
+            <div>
+                <h1 style="margin:0;">📸 Picture Report</h1>
+                <p style="margin:0; color:#64748b;">View and manage student photos</p>
+            </div>
+            <a href="dashboard.html" style="text-decoration:none; color:var(--primary); font-weight:600;">📊 Dashboard</a>
+        </div>
+
+        <div class="filters">
+            <select id="classFilter">
+                <option value="">Loading Classes...</option>
+            </select>
+            <select id="photoFilter">
+                <option value="all">All Students</option>
+                <option value="no_pic">No Picture Only</option>
+                <option value="has_pic">Has Picture Only</option>
+            </select>
+            <div style="font-weight:bold; color:var(--primary); margin-left:1rem;">
+                Total: <span id="studentCount">0</span>
+            </div>
+            <button id="printBtn" style="background:var(--primary); color:white; padding:0.8rem 1.2rem; border:none; border-radius:8px; cursor:pointer; font-weight:bold; margin-left:auto;">
+                <i class="fas fa-print"></i> Print Report
+            </button>
+        </div>
+
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Roll #</th>
+                    <th>Student Name</th>
+                    <th>Father Name</th>
+                    <th>Picture</th>
+                </tr>
+            </thead>
+            <tbody id="reportTableBody">
+                <tr><td colspan="4" style="text-align:center;">Select a class to view report</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script src="auth.js"></script>
+    <script src="picture_report.js"></script>
+</body>
+</html>

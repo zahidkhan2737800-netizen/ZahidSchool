@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Finance & Cash Flow - Zahid School System</title>
+    <title>Expense Management - Zahid School System</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -60,7 +60,7 @@
 
         .header-icon {
             font-size: 2rem;
-            background: #e0f2fe;
+            background: #fee2e2;
             padding: 0.5rem;
             border-radius: 8px;
         }
@@ -122,7 +122,6 @@
 
         .profit-info h3 { margin: 0 0 0.5rem 0; font-size: 1rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
         .profit-val { font-size: 2.5rem; font-weight: 800; margin: 0; }
-        .profit-positive { color: var(--success); }
         .profit-negative { color: var(--danger); }
 
         .filter-widget {
@@ -155,21 +154,13 @@
         }
         button.btn-primary:hover { background: var(--primary-hover); }
 
-        /* Main Grid */
-        .finance-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1.5rem;
-            margin-bottom: 2rem;
-        }
-        @media(max-width: 1024px) { .finance-grid { grid-template-columns: 1fr; } }
-
         .panel {
             background: white;
             border: 1px solid #e2e8f0;
             border-radius: 12px;
             padding: 1.5rem;
             box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
         }
         
         .panel-header {
@@ -188,7 +179,6 @@
         .data-table th { font-weight: 600; color: #64748b; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.05em; }
         .data-table tr:hover td { background: #f8fafc; }
         .amount-col { text-align: right !important; font-weight: 600; }
-        .revenue-amt { color: var(--success); }
         .expense-amt { color: var(--danger); }
 
         /* Chart Row */
@@ -246,30 +236,28 @@
         <!-- Header -->
         <header>
             <div class="header-title">
-                <div class="header-icon">📈</div>
+                <div class="header-icon">📉</div>
                 <div>
-                    <h1 style="margin: 0; font-size: 1.4rem; color: #0f172a; font-weight: 700;">Finance & Cash Flow</h1>
-                    <p style="margin: 0.2rem 0 0; font-size: 0.9rem; color: #64748b;">Manage expenses, monitor revenue, and track overall profit</p>
+                    <h1 style="margin: 0; font-size: 1.4rem; color: #0f172a; font-weight: 700;">Expense Management</h1>
+                    <p style="margin: 0.2rem 0 0; font-size: 0.9rem; color: #64748b;">Monitor and track school expenses</p>
                 </div>
             </div>
             <div class="nav-links">
                 <a href="dashboard.html">📊 Dashboard</a>
-                <a href="collect_fee.html">💰 Collect Fee</a>
-                <a href="create_challan.html">🧾 Challans</a>
-                <a href="fee_heads.html">⚙️ Configuration</a>
+                <a href="revenue.html">📈 Revenue</a>
             </div>
         </header>
 
         <!-- Top Bar -->
         <div class="top-bar">
-            <!-- Total Profit Indicator -->
+            <!-- Total Indicator -->
             <div class="profit-widget">
                 <div class="profit-info">
-                    <h3>Net Profit / Cash Flow</h3>
-                    <p class="profit-val" id="totalProfitVal">Rs 0</p>
-                    <small style="color: #64748b;" id="profitSubtitle">Fetching data...</small>
+                    <h3>Total Expenses</h3>
+                    <p class="profit-val profit-negative" id="totalExpenseVal">Rs 0</p>
+                    <small style="color: #64748b;" id="expenseSubtitle">Fetching data...</small>
                 </div>
-                <div id="profitIcon" style="font-size: 3rem; opacity: 0.8;">💸</div>
+                <div style="font-size: 3rem; opacity: 0.8;">💸</div>
             </div>
             
             <!-- Filters & Actions -->
@@ -282,123 +270,47 @@
                     <label>End Date</label>
                     <input type="date" id="filterEnd" class="filter-input">
                 </div>
-                <button class="btn-primary" onclick="loadFinancialData()" style="padding: 0.8rem 1.5rem; margin-top: 1.2rem;">
+                <button class="btn-primary" onclick="loadExpenseData()" style="padding: 0.8rem 1.5rem; margin-top: 1.2rem;">
                     <i class="fas fa-sync-alt"></i> Filter
                 </button>
-                <button class="btn-secondary" onclick="exportData()" style="padding: 0.8rem 1.5rem; margin-top: 1.2rem;">
-                    <i class="fas fa-file-export"></i> Export
-                </button>
             </div>
         </div>
 
-        <!-- Two Columns Breakdown -->
-        <div class="finance-grid">
-            <!-- Revenue Column -->
-            <div class="panel">
-                <div class="panel-header">
-                    <h2><i class="fas fa-arrow-down" style="color: var(--success);"></i> Revenue Breakdown</h2>
-                    <button class="btn-primary" onclick="openModal('revenueModal')"><i class="fas fa-plus"></i> Add Revenue</button>
-                </div>
-                <div style="overflow-y: auto; max-height: 400px;">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Category</th>
-                                <th>Date</th>
-                                <th>Description</th>
-                                <th class="amount-col">Amount</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="revenueTableBody">
-                            <tr><td colspan="5" style="text-align: center; color: #94a3b8;">Loading...</td></tr>
-                        </tbody>
-                        <tfoot>
-                            <tr style="background: #f8fafc; font-weight: 700;">
-                                <td colspan="3" style="text-align: right;">Total Revenue:</td>
-                                <td class="amount-col revenue-amt" id="totalRevenueAmt">Rs 0</td>
-                                <td></td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
+        <div class="panel">
+            <div class="panel-header">
+                <h2><i class="fas fa-arrow-up" style="color: var(--danger);"></i> Expense Breakdown</h2>
+                <button class="btn-primary" onclick="openModal('expenseModal')" style="background: var(--danger);"><i class="fas fa-plus"></i> Add Expense</button>
             </div>
-
-            <!-- Expense Column -->
-            <div class="panel">
-                <div class="panel-header">
-                    <h2><i class="fas fa-arrow-up" style="color: var(--danger);"></i> Expense Breakdown</h2>
-                    <button class="btn-primary" onclick="openModal('expenseModal')" style="background: var(--danger);"><i class="fas fa-plus"></i> Add Expense</button>
-                </div>
-                <div style="overflow-y: auto; max-height: 400px;">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Category</th>
-                                <th>Date</th>
-                                <th>Description</th>
-                                <th class="amount-col">Amount</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="expenseTableBody">
-                            <tr><td colspan="5" style="text-align: center; color: #94a3b8;">Loading...</td></tr>
-                        </tbody>
-                        <tfoot>
-                            <tr style="background: #f8fafc; font-weight: 700;">
-                                <td colspan="3" style="text-align: right;">Total Expense:</td>
-                                <td class="amount-col expense-amt" id="totalExpenseAmt">Rs 0</td>
-                                <td></td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
+            <div style="overflow-y: auto; max-height: 400px;">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Category</th>
+                            <th>Date</th>
+                            <th>Description</th>
+                            <th class="amount-col">Amount</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="expenseTableBody">
+                        <tr><td colspan="5" style="text-align: center; color: #94a3b8;">Loading...</td></tr>
+                    </tbody>
+                    <tfoot>
+                        <tr style="background: #f8fafc; font-weight: 700;">
+                            <td colspan="3" style="text-align: right;">Total Expense:</td>
+                            <td class="amount-col expense-amt" id="totalExpenseAmt">Rs 0</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
             </div>
         </div>
 
-        <!-- Bottom Row: Chart -->
         <div class="chart-panel">
-            <h2 style="margin: 0 0 1rem 0; font-size: 1.25rem; color: #0f172a;"><i class="fas fa-chart-area"></i> Cash Flow Trend</h2>
+            <h2 style="margin: 0 0 1rem 0; font-size: 1.25rem; color: #0f172a;"><i class="fas fa-chart-area"></i> Expense Trend</h2>
             <div style="height: 320px; width: 100%;">
-                <canvas id="cashFlowChart"></canvas>
+                <canvas id="expenseChart"></canvas>
             </div>
-        </div>
-    </div>
-
-    <!-- Add Revenue Modal -->
-    <div class="modal-overlay" id="revenueModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Add Other Revenue</h3>
-                <button class="close-btn" onclick="closeModal('revenueModal')"><i class="fas fa-times"></i></button>
-            </div>
-            <form id="revenueForm">
-                <div class="form-group">
-                    <label>Category</label>
-                    <select id="revCategory" required>
-                        <option value="Shop">Shop Sales</option>
-                        <option value="Transport">Transport Fees</option>
-                        <option value="Donations">Donations</option>
-                        <option value="Other">Other</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Amount (Rs)</label>
-                    <input type="number" id="revAmount" min="1" step="0.01" required>
-                </div>
-                <div class="form-group">
-                    <label>Date</label>
-                    <input type="date" id="revDate" required>
-                </div>
-                <div class="form-group">
-                    <label>Description (Optional)</label>
-                    <input type="text" id="revDesc" placeholder="Brief note...">
-                </div>
-                <div class="form-actions">
-                    <button type="button" class="btn-secondary" onclick="closeModal('revenueModal')">Cancel</button>
-                    <button type="submit" class="btn-primary" id="btnSaveRev">Save Revenue</button>
-                </div>
-            </form>
         </div>
     </div>
 
@@ -443,6 +355,6 @@
     <div class="alert-toast" id="alertToast"></div>
 
     <script src="auth.js"></script>
-    <script src="finance.js"></script>
+    <script src="expenses.js"></script>
 </body>
 </html>

@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monthly Profit Report - Zahid School System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg-color: #f0f4f8;
+            --success: #16a34a;
+            --danger: #dc2626;
+        }
+
+        body { 
+            margin: 0; 
+            background: var(--bg-color); 
+            font-family: 'Inter', sans-serif;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        body.auth-ready { opacity: 1; }
+
+        .container {
+            width: 100%;
+            padding: 1.5rem;
+            max-width: 1600px;
+            margin: 0 auto;
+            box-sizing: border-box;
+        }
+
+        /* Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: white;
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 1.5rem;
+            border: 1px solid #e2e8f0;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .header-icon {
+            font-size: 2rem;
+            background: #e0f2fe;
+            padding: 0.5rem;
+            border-radius: 8px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin: 0;
+            align-items: center;
+        }
+
+        .nav-links a {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            background: #eff6ff; 
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+            padding: 0.6rem 1.2rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+            border: 1px solid #bfdbfe;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+        }
+
+        .nav-links a:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(37, 99, 235, 0.2);
+        }
+
+        /* Main Grid */
+        .panel {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            margin-bottom: 1.5rem;
+        }
+        
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .panel-header h2 { margin: 0; font-size: 1.25rem; color: #0f172a; display: flex; align-items: center; gap: 0.5rem; }
+
+        /* Table Styles */
+        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table th, .data-table td { text-align: left; padding: 1rem; border-bottom: 1px solid #f1f5f9; font-size: 0.95rem; }
+        .data-table th { font-weight: 600; color: #64748b; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.05em; }
+        .data-table tr:hover td { background: #f8fafc; }
+        .amount-col { text-align: right !important; font-weight: 600; }
+        .revenue-amt { color: var(--success); }
+        .expense-amt { color: var(--danger); }
+        .profit-amt { font-weight: bold; }
+
+        button.btn-primary {
+            background: var(--primary); color: white; padding: 0.6rem 1.2rem;
+            border: none; border-radius: 8px; font-weight: 600; cursor: pointer;
+            transition: background 0.2s; display: inline-flex; align-items: center; gap: 0.5rem;
+        }
+        button.btn-primary:hover { background: var(--primary-hover); }
+
+        .filter-widget {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            margin-bottom: 1.5rem;
+        }
+
+        .filter-group { display: flex; flex-direction: column; gap: 0.3rem; }
+        .filter-group label { font-size: 0.8rem; font-weight: 600; color: #64748b; text-transform: uppercase; }
+        .filter-input {
+            padding: 0.6rem 1rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.95rem;
+            outline: none;
+        }
+        .filter-input:focus { border-color: var(--primary); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <div class="header-title">
+                <div class="header-icon">📊</div>
+                <div>
+                    <h1 style="margin: 0; font-size: 1.4rem; color: #0f172a; font-weight: 700;">Monthly Profit Report</h1>
+                    <p style="margin: 0.2rem 0 0; font-size: 0.9rem; color: #64748b;">View monthly revenue, expenses, and profit/loss</p>
+                </div>
+            </div>
+            <div class="nav-links">
+                <a href="dashboard.html">🏠 Dashboard</a>
+                <a href="finance.html">💸 Finance</a>
+            </div>
+        </header>
+
+        <div class="filter-widget">
+            <div class="filter-group">
+                <label>Year</label>
+                <select id="filterYear" class="filter-input">
+                    <!-- Populated by JS -->
+                </select>
+            </div>
+            <button class="btn-primary" onclick="loadMonthlyProfit()" style="padding: 0.8rem 1.5rem; margin-top: 1.2rem;">
+                <i class="fas fa-sync-alt"></i> Filter
+            </button>
+            <button class="btn-primary" onclick="window.print()" style="padding: 0.8rem 1.5rem; margin-top: 1.2rem; background: #64748b;">
+                <i class="fas fa-print"></i> Print
+            </button>
+        </div>
+
+        <div class="panel">
+            <div class="panel-header">
+                <h2><i class="fas fa-calendar-alt"></i> Monthly Breakdown</h2>
+            </div>
+            <div style="overflow-x: auto;">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Month</th>
+                            <th class="amount-col">Revenue</th>
+                            <th class="amount-col">Expense</th>
+                            <th class="amount-col">Profit / Loss</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reportTableBody">
+                        <tr><td colspan="4" style="text-align: center; color: #94a3b8;">Loading...</td></tr>
+                    </tbody>
+                    <tfoot>
+                        <tr style="background: #f8fafc; font-weight: 700;">
+                            <td style="text-align: right;">Total for Year:</td>
+                            <td class="amount-col revenue-amt" id="totalYearlyRevenue">Rs 0</td>
+                            <td class="amount-col expense-amt" id="totalYearlyExpense">Rs 0</td>
+                            <td class="amount-col profit-amt" id="totalYearlyProfit">Rs 0</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-header">
+                <h2><i class="fas fa-chart-bar"></i> Profit / Loss Chart</h2>
+            </div>
+            <div style="height: 400px; width: 100%;">
+                <canvas id="profitChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script src="auth.js"></script>
+    <script src="monthly_profit.js"></script>
+</body>
+</html>

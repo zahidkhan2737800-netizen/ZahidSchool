@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Surveys & Campaigns - Zahid School System</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #f0f4f8; margin: 0; padding: 20px; opacity: 0; transition: opacity 0.3s; }
+        body.auth-ready { opacity: 1; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #e2e8f0; padding-bottom: 15px; }
+        .header h1 { margin: 0; font-size: 24px; color: #0f172a; }
+        .controls { display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+        .control-input { padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; outline: none; transition: border-color 0.2s; }
+        .control-input:focus { border-color: #3b82f6; }
+        .table-responsive { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #e2e8f0; padding: 12px; text-align: left; font-size: 14px; }
+        th { background: #f8fafc; font-weight: 600; color: #475569; text-transform: uppercase; letter-spacing: 0.02em; font-size: 13px; }
+        .wa-btn { background: #25D366; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; transition: background 0.2s; }
+        .wa-btn:hover { background: #1ebc5a; }
+        
+        .date-picker-wrapper { position: relative; display: inline-block; }
+        .date-input { width: 120px; cursor: pointer; text-align: center; }
+        .hidden-date { position: absolute; opacity: 0; top: 0; left: 0; width: 100%; height: 100%; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📋 Student Surveys & Campaigns</h1>
+            <a href="dashboard.html" style="color: #3b82f6; text-decoration: none; font-weight: 600;"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
+        </div>
+        
+        <div style="background: #eff6ff; padding: 15px; border-radius: 8px; border: 1px dashed #bfdbfe; margin-bottom: 20px; font-size: 14px; color: #1e3a8a;">
+            <strong>Bulk Settings:</strong> Fill these out to auto-fill the rows below. When selecting a date, it will automatically format as <strong>DD-MM-YYYY</strong>.
+        </div>
+
+        <div class="controls">
+            <select id="classFilter" class="control-input" onchange="loadStudents()">
+                <option value="">- Select Class -</option>
+            </select>
+            
+            <input type="text" id="globalSurveyName" class="control-input" list="surveyNamesList" placeholder="Survey Name" value="Book Survey" onchange="updateAllSurveyNames()">
+            <datalist id="surveyNamesList">
+                <option value="Book Survey">
+                <option value="Uniform Survey">
+                <option value="General Survey">
+            </datalist>
+
+            <select id="globalStatus" class="control-input" onchange="updateAllStatuses()">
+                <option value="Pending">Pending</option>
+                <option value="Sent">WA Sent</option>
+                <option value="Confirmed">Confirmed</option>
+                <option value="Declined">Declined</option>
+            </select>
+            
+            <div class="date-picker-wrapper" style="display:flex; align-items:center; gap:5px;">
+                <div style="position:relative;">
+                    <input type="text" id="globalDateText" class="control-input date-input" placeholder="DD-MM-YYYY" readonly>
+                    <input type="date" id="globalDateRaw" class="hidden-date" onchange="updateAllDates(this.value)">
+                </div>
+                <button type="button" class="btn" onclick="setGlobalToday()" title="Set to Today" style="padding:4px 8px; font-weight:bold; font-size:12px; border:1px solid #cbd5e1; border-radius:6px; background:#f8fafc; cursor:pointer; color:#3b82f6;">T</button>
+            </div>
+            
+            <button class="btn" onclick="clearFilters()" style="background: #e2e8f0; color: #475569; padding: 10px 14px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">Reset</button>
+        </div>
+
+        <div class="table-responsive">
+            <table id="surveyTable">
+                <thead>
+                    <tr>
+                        <th style="width: 80px;">Roll No</th>
+                        <th>Student Name</th>
+                        <th>Father's Name</th>
+                        <th style="width: 160px;">Survey Name</th>
+                        <th style="width: 140px;">Date</th>
+                        <th style="width: 140px;">Status</th>
+                        <th style="width: 120px; text-align: center;">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="studentsBody">
+                    <tr><td colspan="6" style="text-align:center; padding: 30px; color: #64748b;">Select a class to load students</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- WhatsApp Modal -->
+    <div id="waModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:3000; align-items:center; justify-content:center;">
+        <div style="background:white; border-radius:12px; padding:25px; width:90%; max-width:500px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 style="margin: 0; color: #0f172a;"><i class="fab fa-whatsapp" style="color:#25D366; margin-right: 8px;"></i> Send WhatsApp</h3>
+                <button onclick="closeWaModal()" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #64748b;">&times;</button>
+            </div>
+            
+            <p style="font-size: 13px; color: #64748b; margin-top: 0;">Use placeholders: <code>{{STUDENT_NAME}}</code>, <code>{{FATHER_NAME}}</code>, <code>{{SURVEY_NAME}}</code>, <code>{{SURVEY_DATE}}</code></p>
+            
+            <select id="waTemplateDropdown" class="control-input" style="width:100%; margin-bottom:15px; background: #f8fafc;" onchange="applyTemplate()">
+                <option value="">- Select Saved Template -</option>
+            </select>
+            
+            <textarea id="waMessageText" class="control-input" style="width:100%; height:180px; margin-bottom:20px; resize: vertical; line-height: 1.5;"></textarea>
+            
+            <div style="display:flex; justify-content:flex-end; gap:10px;">
+                <button onclick="closeWaModal()" style="padding: 10px 16px; border-radius: 8px; border: none; background: #e2e8f0; color: #475569; font-weight: 600; cursor: pointer;">Cancel</button>
+                <button onclick="sendWaMessage()" class="wa-btn" style="padding: 10px 20px;">Send Message <i class="fas fa-paper-plane"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <script src="auth.js"></script>
+    <script src="surveys.js"></script>
+</body>
+</html>

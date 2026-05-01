@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,16 +8,19 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="complaint_diary.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
+
 <body>
     <div class="page-container" style="max-width: 1400px; margin: 0 auto;">
         <!-- Header -->
         <div class="header">
             <div>
                 <h1 style="margin:0; color:#0f172a; font-size:2rem; font-weight:800;">📋 Complaint Diary</h1>
-                <p style="margin:0.5rem 0 0 0; color:#64748b;">Manage student complaints, track status, and generate reports.</p>
+                <p style="margin:0.5rem 0 0 0; color:#64748b;">Manage student complaints, track status, and generate
+                    reports.</p>
             </div>
             <div class="header-nav">
                 <a href="homework.html">📝 Homework</a>
@@ -89,7 +93,8 @@
                 <input type="hidden" id="editId">
                 <div class="form-actions">
                     <button type="submit" class="btn btn-primary" id="submitBtn">Add Complaint</button>
-                    <button type="button" class="btn btn-secondary" id="cancelEdit" style="display:none;">Cancel Edit</button>
+                    <button type="button" class="btn btn-secondary" id="cancelEdit" style="display:none;">Cancel
+                        Edit</button>
                 </div>
             </form>
         </div>
@@ -110,21 +115,28 @@
                     <label>Category</label>
                     <select id="searchCategory">
                         <option value="">All</option>
-                        <option>Homework</option><option>Fee</option><option>Fair Copy</option>
-                        <option>Book(s)</option><option>Copies</option><option>Late Coming</option>
-                        <option>Dressing Code</option><option>Attendance</option><option>No Response</option><option>Other</option>
+                        <option>Homework</option>
+                        <option>Fee</option>
+                        <option>Fair Copy</option>
+                        <option>Book(s)</option>
+                        <option>Copies</option>
+                        <option>Late Coming</option>
+                        <option>Dressing Code</option>
+                        <option>Attendance</option>
+                        <option>No Response</option>
+                        <option>Other</option>
                     </select>
                 </div>
                 <div class="form-group">
                     <label>Status</label>
                     <select id="searchStatus">
                         <option value="">All</option>
-                        <option>Pending</option><option>Resolved</option>
+                        <option>Pending</option>
+                        <option>Resolved</option>
                     </select>
                 </div>
                 <div class="form-group" style="display:flex; gap:0.5rem; align-items:end;">
                     <button class="btn btn-secondary btn-sm" id="refreshBtn">🔄 Refresh</button>
-                    <button class="btn btn-success btn-sm" id="exportCSV">📥 CSV</button>
                 </div>
             </div>
         </div>
@@ -164,22 +176,46 @@
             </div>
         </div>
 
-        <!-- Backup / Restore -->
-        <div class="section-card">
-            <h3>💾 Backup & Restore</h3>
-            <div style="display:flex; gap:1rem; align-items:center; flex-wrap:wrap;">
-                <button class="btn btn-warning btn-sm" id="backupDataBtn">📦 Backup JSON</button>
-                <label class="btn btn-outline btn-sm" style="cursor:pointer;">
-                    📂 Restore JSON
-                    <input type="file" id="restoreFile" accept=".json" style="display:none;">
-                </label>
-            </div>
-        </div>
     </div>
 
     <div class="toast-box" id="toastContainer"></div>
 
+    <!-- WhatsApp Modal -->
+    <div id="waModal"
+        style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:3000; align-items:center; justify-content:center;">
+        <div
+            style="background:white; border-radius:12px; padding:25px; width:90%; max-width:500px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 style="margin: 0; color: #0f172a;"><i class="fab fa-whatsapp"
+                        style="color:#25D366; margin-right: 8px;"></i> Send WhatsApp</h3>
+                <button onclick="closeWaModal()"
+                    style="background: none; border: none; font-size: 20px; cursor: pointer; color: #64748b;">&times;</button>
+            </div>
+
+            <p style="font-size: 13px; color: #64748b; margin-top: 0;">Use placeholders: <code>{{STUDENT_NAME}}</code>,
+                <code>{{FATHER_NAME}}</code>, <code>{{COMPLAINT}}</code>, <code>{{CATEGORY}}</code></p>
+
+            <select id="waTemplateDropdown" class="form-control"
+                style="width:100%; margin-bottom:15px; padding: 10px; border-radius: 8px; border: 1px solid #cbd5e1; background: #f8fafc;"
+                onchange="applyTemplate()">
+                <option value="">- Select Saved Template -</option>
+            </select>
+
+            <textarea id="waMessageText" class="form-control"
+                style="width:100%; box-sizing:border-box; height:180px; margin-bottom:20px; padding: 10px; border-radius: 8px; border: 1px solid #cbd5e1; resize: vertical; line-height: 1.5;"></textarea>
+
+            <div style="display:flex; justify-content:flex-end; gap:10px;">
+                <button onclick="closeWaModal()"
+                    style="padding: 10px 16px; border-radius: 8px; border: none; background: #e2e8f0; color: #475569; font-weight: 600; cursor: pointer;">Cancel</button>
+                <button onclick="sendWaMessage()" class="btn btn-success"
+                    style="padding: 10px 20px; display:inline-flex; align-items:center; gap:8px;">Send Message <i
+                        class="fas fa-paper-plane"></i></button>
+            </div>
+        </div>
+    </div>
+
     <script src="auth.js"></script>
     <script src="complaint_diary.js"></script>
 </body>
+
 </html>

@@ -101,7 +101,8 @@
     function isActiveStudent(status) {
       const s = String(status || "").trim().toLowerCase();
       if (!s) return true;
-      return s !== "withdrawn" && s !== "inactive";
+      // Only show Active students — exclude Withdrawn, Passed Out, Pending, Inactive
+      return s === "active";
     }
 
     function getVisibleCols() {
@@ -174,10 +175,15 @@
         return false;
       }
 
+      summary.textContent = "Loading students...";
+
+      // ── Step 1: Fetch admissions first to get active student IDs ──────────
       let admissionsQ = db
         .from("admissions")
         .select("id, roll_number, full_name, father_name, applying_for_class, status")
-        .order("roll_number", { ascending: true });
+        .eq("status", "Active")
+        .order("roll_number", { ascending: true })
+        .limit(3000);
       admissionsQ = applySchoolScope(admissionsQ);
 
       const { data: admissions, error: admissionsErr } = await admissionsQ;
@@ -187,7 +193,7 @@
         return false;
       }
 
-      cachedAdmissions = (admissions || []).filter(a => isActiveStudent(a.status));
+      cachedAdmissions = admissions || [];
       const ids = cachedAdmissions.map(a => a.id);
 
       if (ids.length === 0) {
@@ -196,10 +202,14 @@
         return true;
       }
 
+      // ── Step 2: Fetch absent_days in parallel with no extra wait ──────────
+      summary.textContent = `Loading attendance for ${ids.length} students...`;
+
       let absentQ = db
         .from("absent_days")
         .select("student_id, roll, name, class_name, months")
-        .in("student_id", ids);
+        .in("student_id", ids)
+        .limit(5000);
       absentQ = applySchoolScope(absentQ);
 
       const { data: absentRows, error: absentErr } = await absentQ;
@@ -360,7 +370,7 @@
           pagesHtml += `<td style="border:1px solid #333; padding:6px; font-weight:700;">${String(s.total || 0)}</td>`;
           pagesHtml += '</tr></tbody></table>';
 
-          pagesHtml += '<div style="margin-top:6px; font-size:13px;"><strong>Comments</strong> __________________________________________________________________</div>';
+          pagesHtml += '<div style="margin-top:8px; font-size:13px;"><strong>Comments:</strong> <span style="display:inline-block; width:82%; border-bottom: 1px dotted #333;">&nbsp;</span></div>';
           pagesHtml += '<div style="border-top:1px dashed #000; margin-top:8px;"></div>';
           pagesHtml += '</div>';
         });
@@ -427,7 +437,9 @@
     yearTo.addEventListener("change", () => loadData(false));
     monthFrom.addEventListener("change", () => loadData(false));
     monthTo.addEventListener("change", () => loadData(false));
-    studentFilter.addEventListener("input", () => loadData(false));
+    studentFilter.addEventListener("input", () => {
+      if (cacheLoaded) loadData(false);
+    });
     clearBtn.addEventListener("click", () => {
       classSelect.value = "";
       studentFilter.value = "";
@@ -440,7 +452,8 @@
     (async function boot() {
       initControls();
       await waitForAuthContext();
-      await loadData(true);
+      // Don't auto-load — wait for user to click "Load Data"
+      summary.innerHTML = '<span class="text-muted">Select filters and click <strong>Load Data</strong> to generate the report.</span>';
     })();
   </script>
 </body>

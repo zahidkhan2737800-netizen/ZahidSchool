@@ -20,7 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 .select('id, roll_number, full_name, father_name, applying_for_class, status, updated_at, admission_date')
                 
             if(filterValue === 'All') {
-                query = query.in('status', ['Pending', 'Withdrawn']);
+                query = query.in('status', ['Pending', 'Withdrawn', 'Passed Out']);
             } else {
                 query = query.eq('status', filterValue);
             }
@@ -51,7 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     updateDateText = new Date(student.admission_date).toLocaleDateString() + ' (App)';
                 }
                 
-                const badgeClass = student.status === 'Pending' ? 'pending' : 'withdrawn';
+                const badgeClass = student.status === 'Pending' ? 'pending' : student.status === 'Passed Out' ? 'passed-out' : 'withdrawn';
                 
                 tr.innerHTML = `
                     <td><strong>${student.roll_number || 'N/A'}</strong></td>
@@ -65,6 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <option value="Active">Make Active</option>
                             <option value="Pending" ${student.status === 'Pending' ? 'selected' : ''}>Pending</option>
                             <option value="Withdrawn" ${student.status === 'Withdrawn' ? 'selected' : ''}>Withdrawn</option>
+                            <option value="Passed Out" ${student.status === 'Passed Out' ? 'selected' : ''}>Passed Out</option>
                         </select>
                     </td>
                 `;

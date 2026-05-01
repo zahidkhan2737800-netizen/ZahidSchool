@@ -26,6 +26,9 @@ const contactOptions  = ["Whatsapp","Call Received","Call Not Received","Number 
 let complaintsCache = [];
 let studentsMap     = {};
 
+let waTemplates = [];
+let currentComplaintId = null;
+
 function getTenantScopePatch() {
     const patch = { school_id: currentSchoolId };
     if (window.campusFeatureReady && window.currentCampusId) patch.campus_id = window.currentCampusId;
@@ -51,19 +54,46 @@ function setDefaults() {
     document.getElementById('searchDate').value = today;
 }
 
+// ─── Load WA Templates ─────────────────────────────────────────
+async function loadWaTemplates() {
+    try {
+        const { data, error } = await db.from('wa_templates').select('*').order('created_at', { ascending: false });
+        if (error) throw error;
+        waTemplates = data || [];
+        
+        const sel = document.getElementById('waTemplateDropdown');
+        if (sel) {
+            sel.innerHTML = '<option value="">- Select Saved Template -</option>';
+            waTemplates.forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t.id; 
+                opt.textContent = t.title + (t.is_default ? ' (Default)' : '');
+                sel.appendChild(opt);
+            });
+        }
+    } catch (err) {
+        console.error("Failed to load WA templates", err);
+    }
+}
+
 // ─── Load Students Map (for autofill) ─────────────────────────
 async function loadStudents() {
     try {
         const { data, error } = await applySchoolScope(db
             .from('admissions')
-            .select('roll_number, full_name, applying_for_class')
+            .select('roll_number, full_name, applying_for_class, father_name, father_mobile, father_whatsapp')
             .eq('status', 'Active')
             .order('roll_number'));
         if (error) throw error;
         studentsMap = {};
         (data || []).forEach(s => {
             const roll = String(s.roll_number || '').trim();
-            if (roll) studentsMap[roll] = { name: s.full_name || '', className: s.applying_for_class || '' };
+            if (roll) studentsMap[roll] = { 
+                name: s.full_name || '', 
+                className: s.applying_for_class || '',
+                fatherName: s.father_name || '',
+                mobile: s.father_whatsapp || s.father_mobile || ''
+            };
         });
     } catch (e) {
         console.warn('loadStudents failed', e);
@@ -120,7 +150,7 @@ function renderComplaints() {
     let html = `<table class="complaints-table">
         <thead><tr>
             <th>Name</th><th>Roll</th><th>Class</th><th>Date</th>
-            <th>Complaint</th><th>Category</th><th>Status</th><th>Contact</th><th>Actions</th>
+            <th>Complaint</th><th>Category</th><th>Status</th><th>Contact</th><th>W</th><th>Actions</th>
         </tr></thead><tbody>`;
 
     filtered.forEach(r => {
@@ -133,6 +163,11 @@ function renderComplaints() {
             <td><button class="toggle-btn toggle-category" data-id="${r.id}">${esc(r.category)}</button></td>
             <td><button class="toggle-btn toggle-status" data-id="${r.id}">${esc(r.status)}</button></td>
             <td><button class="toggle-btn toggle-contact" data-id="${r.id}">${esc(r.contact_status)}</button></td>
+            <td style="text-align: center;">
+                <button class="btn btn-success btn-sm" onclick="openWaModal('${r.id}')" title="Send WhatsApp">
+                    <i class="fab fa-whatsapp" style="font-size: 1.2rem;"></i>
+                </button>
+            </td>
             <td style="white-space:nowrap;">
                 <button class="btn btn-primary btn-sm edit-btn" data-id="${r.id}">✏️</button>
                 <button class="btn btn-danger btn-sm del-btn" data-id="${r.id}">🗑</button>
@@ -214,6 +249,19 @@ document.getElementById('complaintForm').addEventListener('submit', async (e) =>
             submitBtn.textContent = 'Add Complaint';
             cancelEditBtn.style.display = 'none';
         } else {
+            // ─── Duplicate check ────────────────────────────────
+            const duplicate = complaintsCache.find(c =>
+                String(c.roll).trim() === String(obj.roll).trim() &&
+                c.date === obj.date &&
+                (c.category || '').toLowerCase() === (obj.category || '').toLowerCase()
+            );
+            if (duplicate) {
+                const proceed = confirm(
+                    `⚠️ Duplicate Warning!\n\nA "${obj.category}" complaint for Roll ${obj.roll} on ${obj.date} already exists:\n\n"${duplicate.complaint}"\n\nDo you still want to add this as a new complaint?`
+                );
+                if (!proceed) return;
+            }
+            // ────────────────────────────────────────────────────
             const { error } = await db.from('complaints').insert(obj);
             if (error) throw error;
             showToast('Complaint added', 'success');
@@ -287,53 +335,6 @@ function generateAnalytics() {
     });
 }
 
-// ─── CSV Export ────────────────────────────────────────────────
-document.getElementById('exportCSV').addEventListener('click', () => {
-    if (complaintsCache.length === 0) { showToast('No data', 'info'); return; }
-    const headers = ['name','roll','class_name','date','complaint','category','status','contact_status'];
-    const csv = [headers.join(',')]
-        .concat(complaintsCache.map(r => headers.map(h => `"${String(r[h] || '').replace(/"/g, '""')}"`).join(',')))
-        .join('\n');
-    downloadBlob(csv, 'complaints.csv', 'text/csv');
-});
-
-// ─── Backup / Restore ─────────────────────────────────────────
-document.getElementById('backupDataBtn').addEventListener('click', () => {
-    if (complaintsCache.length === 0) { showToast('No data', 'info'); return; }
-    downloadBlob(JSON.stringify(complaintsCache, null, 2), 'complaints_backup.json', 'application/json');
-});
-
-document.getElementById('restoreFile').addEventListener('change', async (e) => {
-    const f = e.target.files[0];
-    if (!f) return;
-    const t = await f.text();
-    let arr;
-    try { arr = JSON.parse(t); } catch { showToast('Invalid JSON', 'danger'); return; }
-    if (!Array.isArray(arr)) { showToast('JSON must be an array', 'danger'); return; }
-    if (!confirm(`This will add ${arr.length} complaints. Continue?`)) return;
-    try {
-        // Clean out internal fields before inserting
-        const clean = arr.map(obj => ({
-            name: obj.name || '',
-            roll: obj.roll || '',
-            class_name: obj.class_name || obj.className || '',
-            date: obj.date || new Date().toISOString().split('T')[0],
-            complaint: obj.complaint || '',
-            category: obj.category || 'Other',
-            status: obj.status || 'Pending',
-            contact_status: obj.contact_status || obj.contactStatus || '',
-            subjects: obj.subjects || [],
-            ...getTenantScopePatch()
-        }));
-        const { error } = await db.from('complaints').insert(clean);
-        if (error) throw error;
-        showToast('Restore complete', 'success');
-        await loadComplaints();
-    } catch (err) {
-        console.error(err);
-        showToast('Restore failed', 'danger');
-    }
-});
 
 // ─── Student Report ───────────────────────────────────────────
 document.getElementById('genStudentReport').addEventListener('click', () => {
@@ -374,6 +375,101 @@ document.getElementById('refreshBtn').addEventListener('click', loadComplaints);
 // ─── Dark Mode ────────────────────────────────────────────────
 document.getElementById('toggleDarkMode').addEventListener('click', () => document.body.classList.toggle('dark-mode'));
 
+// ─── WA Modal Logic ───────────────────────────────────────────
+window.openWaModal = function(id) {
+    currentComplaintId = id;
+    document.getElementById('waMessageText').value = '';
+    document.getElementById('waTemplateDropdown').value = '';
+    
+    if (waTemplates.length > 0) {
+        const savedId = localStorage.getItem('lastSelectedWaTemplateId');
+        if (savedId && waTemplates.find(x => x.id === savedId)) {
+            document.getElementById('waTemplateDropdown').value = savedId;
+        } else {
+            const def = waTemplates.find(x => x.is_default);
+            document.getElementById('waTemplateDropdown').value = def ? def.id : waTemplates[0].id;
+        }
+        window.applyTemplate();
+    }
+    
+    document.getElementById('waModal').style.display = 'flex';
+};
+
+window.closeWaModal = function() {
+    document.getElementById('waModal').style.display = 'none';
+    currentComplaintId = null;
+};
+
+window.applyTemplate = function() {
+    if (!currentComplaintId) return;
+    
+    const tId = document.getElementById('waTemplateDropdown').value;
+    if (!tId) {
+        document.getElementById('waMessageText').value = '';
+        return;
+    }
+    
+    // Save to localStorage
+    localStorage.setItem('lastSelectedWaTemplateId', tId);
+    
+    const tmpl = waTemplates.find(x => x.id === tId);
+    if (!tmpl) return;
+    
+    const complaint = complaintsCache.find(x => x.id === currentComplaintId);
+    if (!complaint) return;
+    
+    const student = studentsMap[complaint.roll] || {};
+    
+    let text = tmpl.message_text;
+    
+    // Extract subjects using regex (e.g., from "Undone Homework of Math, English." extracts "Math, English")
+    let subjects = '';
+    const match = (complaint.complaint || '').match(/of\s+(.*?)(?:\.|$)/i);
+    if (match && match[1]) {
+        subjects = match[1].trim();
+    } else {
+        subjects = complaint.complaint || ''; // fallback
+    }
+
+    text = text.replace(/{{STUDENT_NAME}}/g, complaint.name || '');
+    text = text.replace(/{{FATHER_NAME}}/g, student.fatherName || 'Dear Parent');
+    text = text.replace(/{{TODAY_DATE}}/g, new Date().toLocaleDateString());
+    text = text.replace(/{{COMPLAINT}}/g, complaint.complaint || '');
+    text = text.replace(/{{CATEGORY}}/g, complaint.category || '');
+    text = text.replace(/{{SUBJECTS}}/g, subjects);
+
+    document.getElementById('waMessageText').value = text;
+};
+
+window.sendWaMessage = function() {
+    if (!currentComplaintId) return;
+    const complaint = complaintsCache.find(x => x.id === currentComplaintId);
+    if (!complaint) return;
+    
+    const student = studentsMap[complaint.roll] || {};
+    let mobile = student.mobile;
+    
+    if (!mobile) {
+        alert("This student doesn't have a Mobile or WhatsApp number saved in the system. Roll number: " + complaint.roll);
+        return;
+    }
+    
+    mobile = mobile.replace(/[^0-9]/g, '');
+    if (mobile.startsWith('0')) mobile = '92' + mobile.substring(1);
+    
+    const msg = document.getElementById('waMessageText').value;
+    if (!msg.trim()) {
+        alert("Message cannot be empty.");
+        return;
+    }
+    
+    const encoded = encodeURIComponent(msg);
+    const url = `https://wa.me/${mobile}?text=${encoded}`;
+    
+    window.open(url, '_blank');
+    window.closeWaModal();
+};
+
 // ─── Helpers ──────────────────────────────────────────────────
 function esc(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 function downloadBlob(content, filename, type) {
@@ -387,6 +483,7 @@ function downloadBlob(content, filename, type) {
 // ─── Init ─────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
     setDefaults();
+    await loadWaTemplates();
     await loadStudents();
     await loadComplaints();
 });

@@ -136,7 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 card.innerHTML = `
                     <div class="fc-header">
                         <div>
-                            <h3 class="fc-head-name">👨🏻 ${fam.primaryName} Family</h3>
+                            <h3 class="fc-head-name">👨🏻 ${fam.primaryName}</h3>
                             <p class="fc-mobile">📞 ${fam.mobile}</p>
                             <p class="fc-mobile" style="margin-top:0.4rem; font-size:0.95rem; color:#475569;">
                                 🔢 Family #: 

@@ -44,6 +44,7 @@ var NAV_CATEGORIES = [
         id: 'whatsapp', label: 'WhatsApp', icon: 'fab fa-whatsapp',
         items: [
             { href: 'wa_templates.html', label: 'WA Templates', icon: 'fab fa-whatsapp', key: 'fee_contacts' },
+            { href: 'surveys.html', label: 'Surveys / Campaigns', icon: 'fas fa-poll-h', key: 'fee_contacts' },
         ]
     },
   {
@@ -54,8 +55,16 @@ var NAV_CATEGORIES = [
             { href: 'thermal_print_settings.html', label: 'Thermal Print Settings', icon: 'fas fa-print', key: 'collect_fee' },
       { href: 'collect_family_fee.html', label: 'Collect Family Fee', icon: 'fas fa-users-cog', key: 'collect_family_fee' },
       { href: 'fee_contacts.html', label: 'Fee Contacts', icon: 'fas fa-phone-alt', key: 'fee_contacts' },
-      { href: 'fee_heads.html', label: 'Fee Config', icon: 'fas fa-cogs', key: 'fee_heads' },
-      { href: 'finance.html', label: 'Finance & Cash Flow', icon: 'fas fa-chart-pie', key: 'finance' }
+      { href: 'fee_heads.html', label: 'Fee Config', icon: 'fas fa-cogs', key: 'fee_heads' }
+    ]
+  },
+  {
+    id: 'finance', label: 'Finance', icon: 'fas fa-chart-line',
+    items: [
+      { href: 'revenue.html', label: 'Revenue Management', icon: 'fas fa-arrow-down', key: 'finance' },
+      { href: 'expenses.html', label: 'Expense Management', icon: 'fas fa-arrow-up', key: 'finance' },
+      { href: 'monthly_profit.html', label: 'Monthly Profit', icon: 'fas fa-chart-bar', key: 'finance' },
+      { href: 'daily_fee.html', label: 'Daily Fee', icon: 'fas fa-calendar-day', key: 'finance' }
     ]
   },
   {
@@ -72,7 +81,8 @@ var NAV_CATEGORIES = [
         items: [
             { href: 'examination.html', label: 'Examination', icon: 'fas fa-clipboard-check', key: 'examination' },
             { href: 'slip.html', label: 'Exam Slip', icon: 'fas fa-id-card', key: 'examination' },
-            { href: 'report_cards.html', label: 'Report Card', icon: 'fas fa-id-card-alt', key: 'examination' }
+            { href: 'report_cards.html', label: 'Report Card', icon: 'fas fa-id-card-alt', key: 'examination' },
+            { href: 'tick_report.html', label: 'Topic Mastery Report', icon: 'fas fa-check-circle', key: 'examination' }
         ]
     },
     {
@@ -87,10 +97,11 @@ var NAV_CATEGORIES = [
     id: 'admin', label: 'Administration', icon: 'fas fa-user-shield',
     items: [
       { href: 'classes.html', label: 'Manage Classes', icon: 'fas fa-chalkboard', key: 'classes' },
+      { href: 'picture_report.html', label: 'Picture Report', icon: 'fas fa-camera', key: 'classes' },
       { href: 'promote_students.html', label: 'Promote Students', icon: 'fas fa-level-up-alt', key: 'classes' },
       { href: 'curriculum_and_session.html', label: 'Curriculum & Session', icon: 'fas fa-book', key: 'classes' },
       { href: 'class_subjects_assignment.html', label: 'Class Subjects', icon: 'fas fa-link', key: 'classes' },
-      { href: 'access_control.html', label: 'Access Control', icon: 'fas fa-lock', key: 'access_control' },
+      { href: 'access_control.html', label: 'Access Control', icon: 'fas fa-lock', key: 'access_control' }
     ]
   }
 ];
