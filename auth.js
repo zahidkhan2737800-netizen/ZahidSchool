@@ -172,6 +172,7 @@ window.campusFeatureReady = false;
 
         // Signal completion globally
         window.authReady = true;
+        window.dispatchEvent(new CustomEvent('authready'));
 
     } catch (err) {
         console.error('Auth guard error:', err);

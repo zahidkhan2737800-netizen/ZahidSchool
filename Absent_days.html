@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Absent Days - Supabase</title>
+  <title>Absent Days</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root{
@@ -18,98 +18,53 @@
     .container{ max-width:1200px; margin:0 auto; }
     header{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
     h1{ margin:0; font-size:18px; }
-    .card{ background:var(--card); border-radius:var(--radius); padding:12px; box-shadow:0 6px 18px rgba(11,19,40,0.06); }
-    form{ display:flex; gap:8px; flex-wrap:wrap; align-items:end; }
-    label{ font-size:12px; color:var(--muted); display:block; margin-bottom:6px; }
-    .field{ display:flex; flex-direction:column; min-width:140px; }
-    input[type="text"], input[type="number"], select{
+    label{ font-size:12px; color:var(--muted); display:block; margin-bottom:4px; }
+    input[type="text"], select{
       padding:6px 8px; border-radius:6px; border:1px solid #e6eef8; font-size:13px;
       background:white;
     }
     button{ background:var(--accent); color:white; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; font-weight:600; }
-    button.ghost{ background:transparent; color:var(--accent); border:1px solid rgba(11,115,255,0.12); }
-    .controls{ display:flex; gap:8px; align-items:center; }
-    .table-wrap{ margin-top:12px; border-radius:8px; }
-    table{
-      width:100%;
-      border-collapse:collapse;
-      background:var(--card);
-      table-layout:fixed;
-      font-size:14px;
-    }
-    th, td{ padding:6px 5px; text-align:center; border-bottom:1px solid #f0f3f8; vertical-align:middle; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+    .controls-row{ display:flex; gap:8px; align-items:center; margin-top:12px; flex-wrap:wrap; justify-content:space-between; }
+    .left-controls{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .search-input{ min-width:220px; padding:8px 10px; border-radius:8px; border:1px solid #e6eef8; }
+    .small{ font-size:12px; color:var(--muted); }
+    .table-wrap{ margin-top:12px; overflow:auto; }
+    table{ width:100%; border-collapse:collapse; background:var(--card); table-layout:fixed; font-size:14px; }
+    th,td{ padding:6px 5px; text-align:center; border-bottom:1px solid #f0f3f8; vertical-align:middle; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     thead th{ position:sticky; top:0; background:#0b73ff; color:white; z-index:2; font-weight:700; font-size:13px; padding:8px 5px; }
     .table-input{ width:100%; padding:8px 4px; font-size:16px; border-radius:6px; border:1px solid #e6eef8; box-sizing:border-box; text-align:center; color:#0b0b0b; background:#fff; }
-    .month-input{
-      font-weight:700;
-      font-size:18px;
-      line-height:1.1;
-      min-width:42px;
-      padding:10px 4px;
-    }
-    .small{ font-size:12px; color:var(--muted); }
-    .wa-btn{
-      background:#25D366;
-      color:#fff;
-      border:none;
-      border-radius:6px;
-      padding:6px 8px;
-      font-size:12px;
-      font-weight:700;
-      cursor:pointer;
-    }
+    .month-input{ font-weight:700; font-size:18px; line-height:1.1; min-width:42px; padding:10px 4px; }
+    .wa-btn{ background:#25D366; color:#fff; border:none; border-radius:6px; padding:6px 8px; font-size:12px; font-weight:700; cursor:pointer; }
     .wa-btn:hover{ background:#1ebe5a; }
-    .delete{ color:var(--danger); cursor:pointer; font-weight:700; }
-    .controls-row{ display:flex; gap:12px; align-items:center; margin-top:12px; flex-wrap:wrap; justify-content:space-between; }
-    .left-controls{ display:flex; gap:8px; align-items:center; }
-    .search-input{ min-width:220px; max-width:420px; padding:8px 10px; border-radius:8px; border:1px solid #e6eef8; }
-    .autofill-note{ font-size:12px; color:var(--muted); margin-top:6px; }
-    @media (max-width:1100px){
-      .month-input{ font-size:15px; }
-    }
-    @media (max-width:900px){
-      .field{ min-width:120px; }
-      h1{ font-size:16px; }
-      body.narrow .table-wrap{ overflow:auto; }
-    }
-    @media (max-width:640px){
-      header{ flex-direction:column; align-items:stretch; gap:10px; }
-      form{ gap:6px; }
-    }
   </style>
 </head>
 <body>
   <div class="container">
     <header>
       <h1>Absent Days</h1>
-      <div class="small">Active students are auto-loaded from admissions. If class changes, filled months from previous class are highlighted.</div>
+      <div class="small">Active students loaded from admissions.</div>
     </header>
 
     <div class="controls-row">
       <div class="left-controls">
         <label class="small">From:</label>
-        <select id="fromMonth" aria-label="From month"></select>
-        <select id="fromYear" aria-label="From year" style="margin-left:4px;"></select>
-
+        <select id="fromMonth"></select>
+        <select id="fromYear" style="margin-left:4px;"></select>
         <label class="small" style="margin-left:8px;">To:</label>
-        <select id="toMonth" aria-label="To month"></select>
-        <select id="toYear" aria-label="To year" style="margin-left:4px;"></select>
-
+        <select id="toMonth"></select>
+        <select id="toYear" style="margin-left:4px;"></select>
         <label class="small" for="classFilter" style="margin-left:8px;">Class:</label>
-        <select id="classFilter" aria-label="Filter by class">
+        <select id="classFilter">
           <option value="__ALL__">- All classes -</option>
         </select>
-
-        <label class="small" for="globalSearch" style="margin-left:12px;">Search (Roll / Name / Father):</label>
-        <input id="globalSearch" class="search-input" placeholder="Type roll, name or father's name..." aria-label="Global search" />
+        <label class="small" for="globalSearch" style="margin-left:12px;">Search:</label>
+        <input id="globalSearch" class="search-input" placeholder="Roll / Name / Father..." />
       </div>
-
       <div class="small" id="counts">Students: 0</div>
     </div>
 
-    <div class="table-wrap" role="region" aria-label="Students table">
-      <table id="studentsTable" aria-describedby="tableDesc">
-        <caption id="tableDesc" style="display:none">Students with monthly columns Jan-Dec and TD (no dates)</caption>
+    <div class="table-wrap">
+      <table id="studentsTable">
         <thead>
           <tr id="theadRow">
             <th style="width:4%;">Roll</th>
@@ -118,27 +73,25 @@
             <th style="width:4%;">WA</th>
           </tr>
         </thead>
-        <tbody></tbody>
+        <tbody id="tableBody"></tbody>
       </table>
     </div>
 
-    <div id="waModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:3000; align-items:center; justify-content:center;">
-      <div style="background:#fff; width:95%; max-width:640px; border-radius:12px; box-shadow:0 10px 35px rgba(0,0,0,0.25); padding:1rem;">
-        <h3 style="margin:0 0 0.8rem 0; color:#0f172a;">Send WhatsApp Absent Summary</h3>
-
-        <div style="margin-bottom:0.7rem; display:flex; align-items:center; gap:0.4rem;">
-          <select id="waTemplateDropdown" style="flex-grow:1; padding:0.6rem; border-radius:8px; border:1px solid #cbd5e1; font-weight:600; color:#475569; outline:none;" onchange="applySelectedWaTemplate()">
+    <!-- WA Modal -->
+    <div id="waModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:3000;align-items:center;justify-content:center;">
+      <div style="background:#fff;width:95%;max-width:640px;border-radius:12px;box-shadow:0 10px 35px rgba(0,0,0,0.25);padding:1rem;">
+        <h3 style="margin:0 0 0.8rem 0;color:#0f172a;">Send WhatsApp Absent Summary</h3>
+        <div style="margin-bottom:0.7rem;display:flex;align-items:center;gap:0.4rem;">
+          <select id="waTemplateDropdown" style="flex-grow:1;padding:0.6rem;border-radius:8px;border:1px solid #cbd5e1;font-weight:600;color:#475569;" onchange="applySelectedWaTemplate()">
             <option value="">Loading Templates...</option>
           </select>
-          <a href="wa_templates.html" target="_blank" title="Manage Templates" style="padding:0.6rem; border-radius:8px; border:1px solid #cbd5e1; background:white; cursor:pointer; font-weight:700; text-decoration:none; color:inherit; display:flex; align-items:center;">⚙️</a>
-          <button onclick="loadWaTemplates()" title="Refresh Templates" style="padding:0.6rem; border-radius:8px; border:1px solid #cbd5e1; background:#f8fafc; cursor:pointer; font-size:1.1rem; color:#0f172a;">🔄</button>
+          <a href="wa_templates.html" target="_blank" style="padding:0.6rem;border-radius:8px;border:1px solid #cbd5e1;background:white;cursor:pointer;font-weight:700;text-decoration:none;color:inherit;">⚙️</a>
+          <button onclick="loadWaTemplates()" style="padding:0.6rem;border-radius:8px;border:1px solid #cbd5e1;background:#f8fafc;color:#0f172a;">🔄</button>
         </div>
-
-        <textarea id="waMessageText" style="width:100%; min-height:220px; max-height:55vh; resize:vertical; border-radius:10px; border:1px solid #cbd5e1; padding:0.8rem; font-family:inherit; font-size:0.92rem;"></textarea>
-
-        <div style="margin-top:0.7rem; display:flex; justify-content:flex-end; gap:0.5rem;">
-          <button onclick="closeWaModal()" style="padding:0.6rem 1rem; border-radius:8px; border:none; background:#e2e8f0; color:#475569; font-weight:600; cursor:pointer;">Cancel</button>
-          <button id="btnSendWa" style="padding:0.6rem 1rem; border-radius:8px; border:none; background:#25D366; color:white; font-weight:600; cursor:pointer;">Send WhatsApp</button>
+        <textarea id="waMessageText" style="width:100%;min-height:220px;max-height:55vh;resize:vertical;border-radius:10px;border:1px solid #cbd5e1;padding:0.8rem;font-family:inherit;font-size:0.92rem;"></textarea>
+        <div style="margin-top:0.7rem;display:flex;justify-content:flex-end;gap:0.5rem;">
+          <button onclick="closeWaModal()" style="background:#e2e8f0;color:#475569;">Cancel</button>
+          <button id="btnSendWa" style="background:#25D366;color:white;">Send WhatsApp</button>
         </div>
       </div>
     </div>
@@ -146,582 +99,395 @@
 
   <script src="auth.js"></script>
   <script>
-    const db = window.supabaseClient;
+    // ── State ─────────────────────────────────────────────────────────────────
     const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    let allStudents = [], admissionClasses = [], waTemplates = [], currentWaStudentId = null;
 
+    const CURRENT_YEAR      = new Date().getFullYear();
+    const CURRENT_MONTH_IDX = new Date().getMonth();
+
+    // ── DOM refs ──────────────────────────────────────────────────────────────
     const classFilter  = document.getElementById("classFilter");
     const fromMonthSel = document.getElementById("fromMonth");
     const fromYearSel  = document.getElementById("fromYear");
     const toMonthSel   = document.getElementById("toMonth");
     const toYearSel    = document.getElementById("toYear");
-    const tableBody = document.querySelector("#studentsTable tbody");
-    const theadRow = document.getElementById("theadRow");
-    const countsEl = document.getElementById("counts");
+    const tableBody    = document.getElementById("tableBody");
+    const theadRow     = document.getElementById("theadRow");
+    const countsEl     = document.getElementById("counts");
     const globalSearch = document.getElementById("globalSearch");
 
-    const CURRENT_YEAR = new Date().getFullYear();
-    const CURRENT_MONTH_IDX = new Date().getMonth();
-
-    // Populate year dropdowns (3 years back, 1 year ahead)
+    // ── Populate dropdowns ────────────────────────────────────────────────────
     [fromYearSel, toYearSel].forEach(sel => {
       for (let y = CURRENT_YEAR - 3; y <= CURRENT_YEAR + 1; y++) {
-        const opt = document.createElement("option");
-        opt.value = String(y);
-        opt.textContent = String(y);
-        if (y === CURRENT_YEAR) opt.selected = true;
-        sel.appendChild(opt);
+        const o = document.createElement("option");
+        o.value = o.textContent = String(y);
+        if (y === CURRENT_YEAR) o.selected = true;
+        sel.appendChild(o);
       }
     });
-
-    // Populate month dropdowns
     [fromMonthSel, toMonthSel].forEach(sel => {
-      months.forEach(m => {
-        const opt = document.createElement("option");
-        opt.value = m;
-        opt.textContent = m;
-        sel.appendChild(opt);
-      });
+      months.forEach(m => { const o = document.createElement("option"); o.value = o.textContent = m; sel.appendChild(o); });
     });
-
-    // Default: Jan of current year → current month
     fromMonthSel.value = "Jan";
-    toMonthSel.value = months[CURRENT_MONTH_IDX];
+    toMonthSel.value   = months[CURRENT_MONTH_IDX];
 
-    let allStudents = [];
-    let admissionClasses = [];
-    let currentSchoolId = null;
-    let waTemplates = [];
-    let currentWaStudentId = null;
-
-    // Returns [{year, month}, ...] for the selected from→to range
+    // ── Helpers ───────────────────────────────────────────────────────────────
     function getVisibleCols() {
-      const fm = months.indexOf(fromMonthSel.value);
-      const fy = parseInt(fromYearSel.value, 10);
-      const tm = months.indexOf(toMonthSel.value);
-      const ty = parseInt(toYearSel.value, 10);
-      const cols = [];
-      let cy = fy, cm = fm;
-      const maxIter = 60;
-      let iter = 0;
-      while ((cy < ty || (cy === ty && cm <= tm)) && iter < maxIter) {
+      const fm = months.indexOf(fromMonthSel.value), fy = +fromYearSel.value;
+      const tm = months.indexOf(toMonthSel.value),   ty = +toYearSel.value;
+      const cols = []; let cy = fy, cm = fm, iter = 0;
+      while ((cy < ty || (cy === ty && cm <= tm)) && iter < 60) {
         cols.push({ year: cy, month: months[cm] });
-        cm++;
-        if (cm >= 12) { cm = 0; cy++; }
-        iter++;
+        if (++cm >= 12) { cm = 0; cy++; } iter++;
       }
-      return cols.length > 0 ? cols : [{ year: fy, month: months[Math.max(0, fm)] }];
+      return cols.length ? cols : [{ year: fy, month: months[Math.max(0, fm)] }];
     }
 
-    // Read one cell value from year-keyed JSONB (or legacy flat)
-    function getCellValue(rawMonths, year, month) {
-      if (!rawMonths || typeof rawMonths !== "object") return "";
-      const keys = Object.keys(rawMonths);
-      const isYearKeyed = keys.length === 0 || keys.every(k => /^\d{4}$/.test(k));
-      const yd = isYearKeyed ? (rawMonths[String(year)] || {}) : rawMonths;
-      const raw = yd[month] !== undefined ? yd[month] : "";
-      const n = Number(raw);
-      return Number.isFinite(n) && raw !== "" ? n : "";
+    function getCellValue(raw, year, month) {
+      if (!raw || typeof raw !== "object") return "";
+      const keys = Object.keys(raw);
+      const yearKeyed = keys.length === 0 || keys.every(k => /^\d{4}$/.test(k));
+      const yd = yearKeyed ? (raw[String(year)] || {}) : raw;
+      const v = yd[month] !== undefined ? yd[month] : "";
+      const n = Number(v);
+      return Number.isFinite(n) && v !== "" ? n : "";
     }
 
-    function applySchoolScope(query) {
-      return currentSchoolId ? query.eq("school_id", currentSchoolId) : query;
+    function hasAnyMonthValue(raw) {
+      if (!raw || typeof raw !== "object") return false;
+      const keys = Object.keys(raw);
+      const yearKeyed = keys.length === 0 || keys.every(k => /^\d{4}$/.test(k));
+      const vals = yearKeyed
+        ? Object.values(raw).flatMap(yd => months.map(m => (yd || {})[m]))
+        : months.map(m => raw[m]);
+      return vals.some(v => v !== "" && v !== undefined && Number(v) > 0);
     }
 
-    async function waitForAuthContext(timeoutMs = 10000) {
-      const start = Date.now();
-      while (Date.now() - start < timeoutMs) {
-        if (window.authReady === true && window.supabaseClient) {
-          currentSchoolId = window.currentSchoolId || null;
-          return;
-        }
-        await new Promise(r => setTimeout(r, 80));
-      }
-
-      if ((window.currentSchoolId === null || window.currentSchoolId === undefined) && window.currentUser?.id) {
-        const { data: roleData } = await db
-          .from("user_roles")
-          .select("school_id")
-          .eq("user_id", window.currentUser.id)
-          .single();
-        window.currentSchoolId = roleData?.school_id ?? null;
-      }
-      currentSchoolId = window.currentSchoolId || null;
+    function computeTD(s) {
+      let t = 0;
+      getVisibleCols().forEach(col => { const v = getCellValue(s.rawMonths, col.year, col.month); if (v !== "") t += +v || 0; });
+      return t;
     }
 
     function ensureMonthHeaders() {
       while (theadRow.children.length > 4) theadRow.removeChild(theadRow.lastChild);
-
       const cols = getVisibleCols();
-      const totalFixed = 4 + 12 + 12 + 4;
-      const tdWidth = 6;
-      const remaining = 100 - totalFixed - tdWidth;
-      const colWidth = cols.length > 0 ? (remaining / cols.length).toFixed(2) : String(remaining);
-
+      const w = cols.length > 0 ? ((100 - 4 - 12 - 12 - 4 - 6) / cols.length).toFixed(2) : "5";
       let prevYear = null;
       cols.forEach(col => {
         const th = document.createElement("th");
-        const yearChanged = col.year !== prevYear;
-        // Show year suffix when year changes: "Nov '25", then plain "Dec", then "Jan '26"
-        th.textContent = yearChanged
-          ? `${col.month} '${String(col.year).slice(-2)}`
-          : col.month;
-        if (yearChanged) th.style.borderLeft = "2px solid rgba(255,255,255,0.35)";
-        th.style.width = colWidth + "%";
+        const changed = col.year !== prevYear;
+        th.textContent = changed ? `${col.month} '${String(col.year).slice(-2)}` : col.month;
+        if (changed) th.style.borderLeft = "2px solid rgba(255,255,255,0.35)";
+        th.style.width = w + "%";
         prevYear = col.year;
         theadRow.appendChild(th);
       });
-
       const thTD = document.createElement("th");
-      thTD.textContent = "TD";
-      thTD.style.width = tdWidth + "%";
+      thTD.textContent = "TD"; thTD.style.width = "6%";
       theadRow.appendChild(thTD);
     }
 
-    function hasAnyMonthValue(rawMonths) {
-      if (!rawMonths || typeof rawMonths !== "object") return false;
-      const keys = Object.keys(rawMonths);
-      const isYearKeyed = keys.length === 0 || keys.every(k => /^\d{4}$/.test(k));
-      const vals = isYearKeyed
-        ? Object.values(rawMonths).flatMap(yd => months.map(m => (yd || {})[m]))
-        : months.map(m => rawMonths[m]);
-      return vals.some(v => v !== "" && v !== undefined && Number(v) > 0);
+    function matchesSearch(s, q) {
+      q = q.toLowerCase();
+      return [s.roll, s.name, s.father].some(f => String(f || "").toLowerCase().includes(q));
     }
 
-    function computeTDForStudent(s) {
-      let total = 0;
-      getVisibleCols().forEach(col => {
-        const v = getCellValue(s.rawMonths || {}, col.year, col.month);
-        if (v !== "") total += Number(v) || 0;
-      });
-      return total;
-    }
+    // ── Data loading ──────────────────────────────────────────────────────────
+    async function loadData() {
+      tableBody.innerHTML = '<tr><td colspan="20" style="padding:1.5rem;text-align:center;color:#667085;">Loading students…</td></tr>';
+      countsEl.textContent = "Loading…";
 
-    async function syncAndLoadStudents() {
-      let admissionsQ = db
+      const client = window.supabaseClient;
+      const schoolId = window.currentSchoolId || null;
+      console.log("[AbsentDays] loadData | client =", !!client, "| schoolId =", schoolId);
+
+      if (!client) {
+        tableBody.innerHTML = '<tr><td colspan="20" style="padding:2rem;text-align:center;color:#d9534f;">Database not ready. Please refresh the page.</td></tr>';
+        return;
+      }
+
+      // 1. Load admissions — fetch all, filter Active in JS to handle any status casing
+      let q = client
         .from("admissions")
-        .select("id, roll_number, full_name, father_name, father_mobile, applying_for_class, status")
-        .in("status", ["Active", "active"])
+        .select("id,roll_number,full_name,father_name,father_mobile,applying_for_class,status")
         .order("roll_number", { ascending: true });
-      admissionsQ = applySchoolScope(admissionsQ);
+      if (schoolId) q = q.eq("school_id", schoolId);
 
-      const { data: admissions, error: admissionsErr } = await admissionsQ;
-      if (admissionsErr) {
-        console.error("admissions load error:", admissionsErr);
-        alert("Failed loading active students from admissions.");
+      const { data: allAdms, error: admErr } = await q;
+      console.log("[AbsentDays] admissions raw:", allAdms?.length, "| error:", admErr);
+
+      if (admErr) {
+        tableBody.innerHTML = `<tr><td colspan="20" style="padding:2rem;text-align:center;color:#d9534f;">Error loading admissions: ${admErr.message}</td></tr>`;
         return;
       }
 
-      // Keep an admissions-derived class list so filter is available even if merge fails.
-      admissionClasses = Array.from(new Set(
-        (admissions || [])
-          .map(a => String(a.applying_for_class || "").trim())
-          .filter(Boolean)
-      )).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
+      // Filter active in JS (handles 'Active', 'active', 'ACTIVE' etc.)
+      const adms = (allAdms || []).filter(a => String(a.status || "").toLowerCase() === "active");
+      console.log("[AbsentDays] active admissions:", adms.length, "| statuses seen:", [...new Set((allAdms||[]).map(a=>a.status))]);
 
-      let absentQ = db
-        .from("absent_days")
-        .select("id, student_id, roll, name, father, class_name, months");
-      absentQ = applySchoolScope(absentQ);
-      const { data: absentRows, error: absentErr } = await absentQ;
-      if (absentErr) {
-        console.error("absent_days load error:", absentErr);
-        alert("Failed to load absent days data. Run absent_days_setup.sql first.");
-        allStudents = [];
-        buildClassOptions();
-        renderTable();
+      if (adms.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="20" style="padding:2rem;text-align:center;color:#667085;">No active students found. Check admissions table has records with status = Active.</td></tr>';
+        countsEl.textContent = "Students: 0";
         return;
       }
 
-      const absentByStudent = new Map();
-      (absentRows || []).forEach(r => {
-        if (r.student_id) absentByStudent.set(r.student_id, r);
-      });
+      // 2. Build class list
+      admissionClasses = [...new Set(adms.map(a => String(a.applying_for_class || "").trim()).filter(Boolean))]
+        .sort((a,b) => a.localeCompare(b, undefined, {numeric:true}));
 
-      for (const adm of (admissions || [])) {
-        const existing = absentByStudent.get(adm.id);
-        if (!existing) {
-          const payload = {
-            student_id: adm.id,
-            roll: adm.roll_number || "",
-            name: adm.full_name || "",
-            father: adm.father_name || "",
-            class_name: adm.applying_for_class || "",
-            months: {},
-            updated_at: new Date().toISOString()
-          };
-          if (currentSchoolId) payload.school_id = currentSchoolId;
+      const ids = adms.map(a => a.id);
 
-          const { error } = await db.from("absent_days").insert(payload);
-          if (error) console.error("absent_days insert sync error:", error);
-          continue;
-        }
+      // 3. Load absent_days (optional)
+      let abMap = new Map();
+      try {
+        let abQ = client
+          .from("absent_days")
+          .select("id,student_id,months,class_name")
+          .in("student_id", ids);
+        if (schoolId) abQ = abQ.eq("school_id", schoolId);
+        const { data: abRows, error: abErr } = await abQ;
+        if (abErr) console.warn("[AbsentDays] absent_days warning:", abErr.message);
+        else { console.log("[AbsentDays] absent_days rows:", abRows?.length); (abRows||[]).forEach(r => { if(r.student_id) abMap.set(r.student_id, r); }); }
+      } catch(e) { console.warn("[AbsentDays] absent_days exception:", e); }
 
-        const patch = {};
-        if ((existing.roll || "") !== (adm.roll_number || "")) patch.roll = adm.roll_number || "";
-        if ((existing.name || "") !== (adm.full_name || "")) patch.name = adm.full_name || "";
-        if ((existing.father || "") !== (adm.father_name || "")) patch.father = adm.father_name || "";
-        if (!existing.class_name) patch.class_name = adm.applying_for_class || "";
-
-        if (Object.keys(patch).length > 0) {
-          patch.updated_at = new Date().toISOString();
-          let uq = db.from("absent_days").update(patch).eq("id", existing.id);
-          uq = applySchoolScope(uq);
-          const { error } = await uq;
-          if (error) console.error("absent_days update sync error:", error);
-        }
-      }
-
-      const activeIds = (admissions || []).map(a => a.id);
-      if (activeIds.length === 0) {
-        allStudents = [];
-        buildClassOptions();
-        renderTable();
-        return;
-      }
-
-      let rowsQ = db
-        .from("absent_days")
-        .select("id, student_id, roll, name, father, class_name, months")
-        .in("student_id", activeIds);
-      rowsQ = applySchoolScope(rowsQ);
-      const { data: mergedRows, error: rowsErr } = await rowsQ;
-      if (rowsErr) {
-        console.error("absent_days merged load error:", rowsErr);
-        return;
-      }
-
-      const admissionsMap = new Map((admissions || []).map(a => [a.id, a]));
-      allStudents = (mergedRows || []).map(r => {
-        const adm = admissionsMap.get(r.student_id) || {};
-        const currentClass = adm.applying_for_class || r.class_name || "";
-        const previousClass = r.class_name || currentClass;
-        const promoted = previousClass && currentClass && previousClass !== currentClass && hasAnyMonthValue(r.months);
-
+      // 4. Merge
+      allStudents = adms.map(adm => {
+        const ab = abMap.get(adm.id);
+        const cc = adm.applying_for_class || (ab && ab.class_name) || "";
+        const pc = (ab && ab.class_name) || cc;
         return {
-          ...r,
-          rawMonths: r.months || {},
-          father_mobile: adm.father_mobile || "",
-          current_class: currentClass,
-          previous_class: previousClass,
-          promoted
+          id:           ab ? ab.id : adm.id,
+          _admId:       adm.id,
+          _hasAb:       !!ab,
+          roll:         adm.roll_number || "",
+          name:         adm.full_name   || "",
+          father:       adm.father_name || "",
+          father_mobile:adm.father_mobile || "",
+          rawMonths:    (ab && ab.months) || {},
+          current_class: cc, previous_class: pc,
+          promoted: !!(pc && cc && pc !== cc && ab && hasAnyMonthValue(ab.months))
         };
       });
-
-      allStudents.sort((a, b) => {
-        const classCmp = String(a.current_class || "").localeCompare(String(b.current_class || ""), undefined, { numeric: true, sensitivity: "base" });
-        if (classCmp !== 0) return classCmp;
-        return String(a.roll || "").localeCompare(String(b.roll || ""), undefined, { numeric: true, sensitivity: "base" });
+      allStudents.sort((a,b) => {
+        const cc = String(a.current_class||"").localeCompare(String(b.current_class||""), undefined, {numeric:true});
+        return cc || String(a.roll||"").localeCompare(String(b.roll||""), undefined, {numeric:true});
       });
 
+      console.log("[AbsentDays] allStudents:", allStudents.length);
       buildClassOptions();
       renderTable();
+
+      // 5. Background sync: insert missing absent_days rows
+      const missing = adms.filter(a => !abMap.has(a.id));
+      if (missing.length > 0) {
+        console.log("[AbsentDays] syncing", missing.length, "missing rows");
+        try {
+          const payloads = missing.map(adm => ({
+            student_id: adm.id, roll: adm.roll_number||"", name: adm.full_name||"",
+            father: adm.father_name||"", class_name: adm.applying_for_class||"",
+            months: {}, updated_at: new Date().toISOString(),
+            ...(schoolId ? {school_id: schoolId} : {})
+          }));
+          for (let i = 0; i < payloads.length; i += 50) {
+            const {error: ie} = await client.from("absent_days").insert(payloads.slice(i, i+50));
+            if (ie) { console.warn("[AbsentDays] insert error:", ie.message); break; }
+          }
+          const {data: newRows} = await client.from("absent_days").select("id,student_id").in("student_id", missing.map(a=>a.id));
+          if (newRows) {
+            const nm = new Map(newRows.map(r=>[r.student_id, r.id]));
+            allStudents.forEach(s => { if (!s._hasAb && nm.has(s._admId)) { s.id = nm.get(s._admId); s._hasAb = true; } });
+          }
+        } catch(e) { console.warn("[AbsentDays] bg sync error:", e); }
+      }
     }
 
+    // ── Class dropdown ────────────────────────────────────────────────────────
     function buildClassOptions() {
       const classes = new Set();
-      allStudents.forEach(s => {
-        if (s.current_class && String(s.current_class).trim() !== "") classes.add(String(s.current_class));
-      });
+      allStudents.forEach(s => { if (s.current_class) classes.add(s.current_class); });
       admissionClasses.forEach(c => classes.add(c));
-
       const prev = classFilter.value;
       classFilter.innerHTML = "";
-      const allOpt = document.createElement("option");
-      allOpt.value = "__ALL__";
-      allOpt.textContent = "- All classes -";
-      classFilter.appendChild(allOpt);
-
-      Array.from(classes).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" })).forEach(c => {
-        const opt = document.createElement("option");
-        opt.value = c;
-        opt.textContent = c;
-        classFilter.appendChild(opt);
+      const ao = document.createElement("option"); ao.value = "__ALL__"; ao.textContent = "- All classes -";
+      classFilter.appendChild(ao);
+      [...classes].sort((a,b) => a.localeCompare(b, undefined, {numeric:true})).forEach(c => {
+        const o = document.createElement("option"); o.value = o.textContent = c; classFilter.appendChild(o);
       });
-
       if ([...classFilter.options].some(o => o.value === prev)) classFilter.value = prev;
     }
 
-    function matchesSearch(s, q) {
-      if (!q) return false;
-      q = q.toLowerCase();
-      return String(s.roll || "").toLowerCase().includes(q)
-        || String(s.name || "").toLowerCase().includes(q)
-        || String(s.father || "").toLowerCase().includes(q);
+    // ── Render table ──────────────────────────────────────────────────────────
+    function renderTable() {
+      tableBody.innerHTML = "";
+      const sq = globalSearch.value.trim().toLowerCase();
+      const fc = classFilter.value;
+      const filtered = sq
+        ? allStudents.filter(s => matchesSearch(s, sq))
+        : allStudents.filter(s => fc === "__ALL__" || s.current_class === fc);
+
+      countsEl.textContent = `Students: ${filtered.length}`;
+      if (filtered.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="20" style="padding:2rem;text-align:center;color:#667085;">No students match the filter.</td></tr>';
+        return;
+      }
+
+      filtered.forEach(s => {
+        const tr = document.createElement("tr");
+        const roll = document.createElement("td"); roll.textContent = s.roll; tr.appendChild(roll);
+        const name = document.createElement("td"); name.textContent = s.name; tr.appendChild(name);
+        const fath = document.createElement("td"); fath.textContent = s.father; tr.appendChild(fath);
+        const wa   = document.createElement("td");
+        wa.innerHTML = `<button class="wa-btn" onclick="openAbsentWaModal('${s.id}')">WA</button>`;
+        tr.appendChild(wa);
+
+        let tdCell;
+        getVisibleCols().forEach(col => {
+          const td = document.createElement("td");
+          const inp = document.createElement("input");
+          inp.className = "table-input month-input";
+          inp.type = "text"; inp.inputMode = "numeric"; inp.pattern = "[0-9]*";
+          const v = getCellValue(s.rawMonths, col.year, col.month);
+          inp.value = v === "" ? "N/A" : v;
+          if (s.promoted && v !== "") {
+            inp.style.background = "#fff7ed"; inp.style.borderColor = "#f59e0b";
+            inp.title = `Filled in previous class (${s.previous_class})`;
+          }
+          inp.addEventListener("focus", () => { if (inp.value.toUpperCase() === "N/A") inp.value = ""; });
+          inp.addEventListener("input", () => {
+            inp.value = inp.value.replace(/[^0-9]/g, "");
+            let sum = 0;
+            tr.querySelectorAll("input.month-input").forEach(i => { const vv = String(i.value||"").trim(); if(vv && !/^n\/a$/i.test(vv)) sum += +vv||0; });
+            if (tdCell) tdCell.textContent = sum;
+          });
+          inp.addEventListener("change", async () => {
+            try {
+              if (!inp.value.trim()) inp.value = "N/A";
+              await saveMonth(s, col, inp.value);
+              if (tdCell) tdCell.textContent = computeTD(s);
+            } catch(e) { alert("Save failed: " + e.message); }
+          });
+          td.appendChild(inp); tr.appendChild(td);
+        });
+
+        const tdTD = document.createElement("td");
+        tdTD.style.fontWeight = "700"; tdTD.textContent = computeTD(s);
+        tdCell = tdTD; tr.appendChild(tdTD);
+        tableBody.appendChild(tr);
+      });
     }
 
-    async function updateRow(docId, patch) {
-      let q = db.from("absent_days").update(patch).eq("id", docId);
-      q = applySchoolScope(q);
-      const { error } = await q;
+    // ── Save ──────────────────────────────────────────────────────────────────
+    async function saveMonth(s, col, val) {
+      const raw = JSON.parse(JSON.stringify(s.rawMonths || {}));
+      const yk = String(col.year);
+      if (!raw[yk]) raw[yk] = {};
+      const norm = String(val ?? "").trim();
+      raw[yk][col.month] = (norm === "" || /^n\/a$/i.test(norm)) ? "" : (+norm || 0);
+      s.rawMonths = raw;
+      const schoolId = window.currentSchoolId || null;
+      let q = supabaseClient.from("absent_days").update({months: raw, updated_at: new Date().toISOString()}).eq("id", s.id);
+      if (schoolId) q = q.eq("school_id", schoolId);
+      const {error} = await q;
       if (error) throw error;
     }
 
-    async function saveMonthFee(docId, col, fee) {
-      const target = allStudents.find(x => x.id === docId);
-      if (!target) return;
-
-      // Write into the correct year bucket
-      const rawMonths = JSON.parse(JSON.stringify(target.rawMonths || {}));
-      const yearKey = String(col.year);
-      if (!rawMonths[yearKey]) rawMonths[yearKey] = {};
-      const normalized = String(fee ?? "").trim();
-      rawMonths[yearKey][col.month] = (normalized === "" || /^n\/a$/i.test(normalized)) ? "" : (Number(normalized) || 0);
-      target.rawMonths = rawMonths;
-      await updateRow(docId, { months: rawMonths, updated_at: new Date().toISOString() });
-    }
-
+    // ── WA Templates ──────────────────────────────────────────────────────────
     async function loadWaTemplates() {
       try {
-        const { data, error } = await db.from('wa_templates').select('*').order('created_at', { ascending: true });
+        const {data, error} = await window.supabaseClient.from("wa_templates").select("*").order("created_at", {ascending:true});
         if (!error && data) {
           waTemplates = data;
-          const dropdown = document.getElementById('waTemplateDropdown');
-          if (dropdown) {
-            dropdown.innerHTML = '';
-            const lastUsed = localStorage.getItem('lastWaTemplate');
-            let selectedId = null;
-
-            if (lastUsed && waTemplates.find(t => t.id === lastUsed)) {
-              selectedId = lastUsed;
-            } else if (waTemplates.find(t => t.is_default)) {
-              selectedId = waTemplates.find(t => t.is_default).id;
-            } else if (waTemplates.length > 0) {
-              selectedId = waTemplates[0].id;
-            }
-
-            waTemplates.forEach(t => {
-              const opt = document.createElement('option');
-              opt.value = t.id;
-              opt.textContent = t.title;
-              if (t.id === selectedId) opt.selected = true;
-              dropdown.appendChild(opt);
-            });
-          }
+          const dd = document.getElementById("waTemplateDropdown");
+          if (!dd) return;
+          dd.innerHTML = "";
+          const last = localStorage.getItem("lastWaTemplate");
+          let sel = (last && waTemplates.find(t=>t.id===last)) ? last
+            : (waTemplates.find(t=>t.is_default)||waTemplates[0]||{}).id||null;
+          waTemplates.forEach(t => {
+            const o = document.createElement("option"); o.value = t.id; o.textContent = t.title;
+            if (t.id === sel) o.selected = true;
+            dd.appendChild(o);
+          });
         }
-      } catch (e) {
-        console.error('Error loading WA templates:', e);
-      }
+      } catch(e) { console.error("WA templates error:", e); }
     }
 
-    function buildAbsentWaMessageFromTemplate(s, templateText) {
-      const cols = getVisibleCols().filter(col => {
-        const isCurrentYear = Number(col.year) === CURRENT_YEAR;
-        const isCurrentMonth = col.month === months[CURRENT_MONTH_IDX];
-        return !(isCurrentYear && isCurrentMonth);
-      });
+    function buildWaMsg(s, tpl) {
+      const cols = getVisibleCols().filter(c => !(c.year===CURRENT_YEAR && c.month===months[CURRENT_MONTH_IDX]));
       let total = 0;
-      const monthLines = cols.map(col => {
-        const v = getCellValue(s.rawMonths || {}, col.year, col.month);
-        const n = v === "" ? 0 : (Number(v) || 0);
-        total += n;
-        return `${col.month} ${n}`;
-      });
-
-      const absentDetails = monthLines.join("\n");
-      const todayDate = new Date().toLocaleDateString('en-GB', {day: 'numeric', month: 'short', year: 'numeric'});
-
-      let parsed = (templateText || "").replace(/{{TODAY_DATE}}/g, todayDate)
-                                     .replace(/{{STUDENT_NAME}}/g, s.name || "Student")
-                                     .replace(/{{FATHER_NAME}}/g, s.father || "Father")
-                                     .replace(/{{ABSENT_DETAILS}}/g, absentDetails)
-                                     .replace(/{{TOTAL_ABSENT}}/g, String(total))
-                                     .replace(/{{BILL_DETAILS}}/g, absentDetails)
-                                     .replace(/{{GRAND_TOTAL}}/g, String(total));
-
-      // Force attendance wording so fee-template text like "Pending" does not appear.
-      parsed = parsed.replace(/Total\s*Pending\s*:?/gi, 'Total Absent Days:')
-                     .replace(/Pending\s*Amount\s*:?/gi, 'Total Absent Days:')
-                     .replace(/Grand\s*Total\s*:?/gi, 'Total Absent Days:');
-
-      if (!/Total\s*Absent\s*Days\s*:/i.test(parsed)) {
-        parsed = `${parsed.trim()}\nTotal Absent Days: ${total}`;
-      }
-
-      // If template already includes a total label line, remove accidental standalone numeric total line.
-      if (/Total\s*Absent\s*Days\s*:/i.test(parsed)) {
-        const lines = parsed.split(/\r?\n/);
-        const cleaned = [];
-        for (const line of lines) {
-          const t = line.trim();
-          if (t === String(total)) continue;
-          cleaned.push(line);
-        }
-        parsed = cleaned.join("\n");
-      }
-
-      return parsed;
-    }
-
-    function getCurrentTemplateText() {
-      const dropdown = document.getElementById('waTemplateDropdown');
-      if (dropdown && dropdown.value) {
-        const t = waTemplates.find(x => x.id === dropdown.value);
-        if (t) {
-          localStorage.setItem('lastWaTemplate', t.id);
-          return t.message_text || "";
-        }
-      }
-
-      return "Zahid School\n{{STUDENT_NAME}}\n\n{{ABSENT_DETAILS}}\nTotal {{TOTAL_ABSENT}}";
+      const lines = cols.map(c => { const v = getCellValue(s.rawMonths, c.year, c.month); const n = v===""?0:(+v||0); total+=n; return `${c.month} ${n}`; });
+      const det = lines.join("\n");
+      const today = new Date().toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
+      let p = (tpl||"")
+        .replace(/{{TODAY_DATE}}/g, today).replace(/{{STUDENT_NAME}}/g, s.name||"Student")
+        .replace(/{{FATHER_NAME}}/g, s.father||"Father").replace(/{{ABSENT_DETAILS}}/g, det)
+        .replace(/{{TOTAL_ABSENT}}/g, String(total)).replace(/{{BILL_DETAILS}}/g, det).replace(/{{GRAND_TOTAL}}/g, String(total));
+      p = p.replace(/Total\s*Pending\s*:?/gi,"Total Absent Days:").replace(/Pending\s*Amount\s*:?/gi,"Total Absent Days:").replace(/Grand\s*Total\s*:?/gi,"Total Absent Days:");
+      if (!/Total\s*Absent\s*Days\s*:/i.test(p)) p = `${p.trim()}\nTotal Absent Days: ${total}`;
+      return p;
     }
 
     function openAbsentWaModal(docId) {
       const s = allStudents.find(x => x.id === docId);
       if (!s) return;
-      if (!s.father_mobile) {
-        alert("This student has no mobile number registered.");
-        return;
-      }
-
+      if (!s.father_mobile) { alert("No mobile number for this student."); return; }
       currentWaStudentId = docId;
       applySelectedWaTemplate();
-      const modal = document.getElementById('waModal');
-      if (modal) modal.style.display = 'flex';
+      document.getElementById("waModal").style.display = "flex";
     }
 
     function applySelectedWaTemplate() {
       if (!currentWaStudentId) return;
       const s = allStudents.find(x => x.id === currentWaStudentId);
       if (!s) return;
-
-      const templateText = getCurrentTemplateText();
-      const parsed = buildAbsentWaMessageFromTemplate(s, templateText);
-      const ta = document.getElementById('waMessageText');
-      if (ta) ta.value = parsed;
-
-      const btnSend = document.getElementById('btnSendWa');
-      if (btnSend) {
-        btnSend.onclick = function() {
-          const text = (document.getElementById('waMessageText') || {}).value || parsed;
-          let phone = String(s.father_mobile).replace(/[^0-9]/g, '');
-          if (phone.startsWith('0') && phone.length === 11) phone = '92' + phone.substring(1);
-          window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
-          closeWaModal();
-        };
+      const dd = document.getElementById("waTemplateDropdown");
+      let tplText = "Zahid School\n{{STUDENT_NAME}}\n\n{{ABSENT_DETAILS}}\nTotal {{TOTAL_ABSENT}}";
+      if (dd && dd.value) {
+        const t = waTemplates.find(x => x.id === dd.value);
+        if (t) { localStorage.setItem("lastWaTemplate", t.id); tplText = t.message_text||tplText; }
       }
+      const msg = buildWaMsg(s, tplText);
+      document.getElementById("waMessageText").value = msg;
+      document.getElementById("btnSendWa").onclick = () => {
+        const text = document.getElementById("waMessageText").value;
+        let ph = String(s.father_mobile).replace(/[^0-9]/g,"");
+        if (ph.startsWith("0") && ph.length===11) ph = "92"+ph.slice(1);
+        window.open(`https://wa.me/${ph}?text=${encodeURIComponent(text)}`, "_blank");
+        closeWaModal();
+      };
     }
 
-    function closeWaModal() {
-      const modal = document.getElementById('waModal');
-      if (modal) modal.style.display = 'none';
-    }
+    function closeWaModal() { document.getElementById("waModal").style.display = "none"; }
 
-    window.loadWaTemplates = loadWaTemplates;
-    window.openAbsentWaModal = openAbsentWaModal;
+    window.loadWaTemplates       = loadWaTemplates;
+    window.openAbsentWaModal     = openAbsentWaModal;
     window.applySelectedWaTemplate = applySelectedWaTemplate;
-    window.closeWaModal = closeWaModal;
+    window.closeWaModal          = closeWaModal;
 
-    function renderTable() {
-      tableBody.innerHTML = "";
-      const searchQ = globalSearch.value.trim().toLowerCase();
-
-      let filtered;
-      if (searchQ) {
-        filtered = allStudents.filter(s => matchesSearch(s, searchQ));
-      } else {
-        const filterClass = classFilter.value;
-        filtered = allStudents.filter(s => {
-          if (filterClass === "__ALL__") return true;
-          return (s.current_class || "") === filterClass;
-        });
-      }
-
-      countsEl.textContent = `Students: ${filtered.length}`;
-
-      filtered.forEach(s => {
-        const tr = document.createElement("tr");
-
-        const tdRoll = document.createElement("td");
-        tdRoll.textContent = s.roll || "";
-        tr.appendChild(tdRoll);
-
-        const tdName = document.createElement("td");
-        tdName.textContent = s.name || "";
-        tr.appendChild(tdName);
-
-        const tdFather = document.createElement("td");
-        tdFather.textContent = s.father || "";
-        tr.appendChild(tdFather);
-
-        const tdWa = document.createElement("td");
-        tdWa.innerHTML = `<button class="wa-btn" title="Send absent summary on WhatsApp" onclick="openAbsentWaModal('${s.id}')">WA</button>`;
-        tr.appendChild(tdWa);
-
-        let tdCell;
-
-        getVisibleCols().forEach(col => {
-          const tdM = document.createElement("td");
-          const inM = document.createElement("input");
-          inM.className = "table-input month-input";
-          inM.type = "text";
-          inM.inputMode = "numeric";
-          inM.pattern = "[0-9]*";
-          const cellVal = getCellValue(s.rawMonths || {}, col.year, col.month);
-          inM.value = cellVal === "" ? "N/A" : cellVal;
-          if (s.promoted && cellVal !== "") {
-            inM.style.background = "#fff7ed";
-            inM.style.borderColor = "#f59e0b";
-            inM.title = `Filled in previous class (${s.previous_class})`;
-          }
-
-          inM.addEventListener("focus", () => {
-            if (String(inM.value).trim().toUpperCase() === "N/A") {
-              inM.value = "";
-            }
-          });
-
-          inM.addEventListener("input", () => {
-            inM.value = inM.value.replace(/[^0-9]/g, '');
-            let tdSum = 0;
-            tr.querySelectorAll("input.month-input").forEach(inp => {
-              const v = String(inp.value || "").trim();
-              if (v !== "" && !/^n\/a$/i.test(v)) tdSum += Number(v) || 0;
-            });
-            tdCell.textContent = tdSum;
-          });
-
-          inM.addEventListener("change", async () => {
-            try {
-              const v = String(inM.value || "").trim();
-              if (v === "") inM.value = "N/A";
-              await saveMonthFee(s.id, col, inM.value);
-              const newTD = computeTDForStudent(s);
-              tdCell.textContent = newTD;
-            } catch (e) {
-              alert("Failed to save " + col.month + " " + col.year + ": " + e.message);
-            }
-          });
-
-          tdM.appendChild(inM);
-          tr.appendChild(tdM);
-        });
-
-        const tdTD = document.createElement("td");
-        tdTD.style.fontWeight = "700";
-        const td0 = computeTDForStudent(s);
-        tdTD.textContent = td0;
-        tdCell = tdTD;
-        tr.appendChild(tdTD);
-
-        tableBody.appendChild(tr);
-      });
-    }
-
+    // ── Event listeners ───────────────────────────────────────────────────────
     [fromMonthSel, fromYearSel, toMonthSel, toYearSel].forEach(sel => {
-      sel.addEventListener("change", () => {
-        ensureMonthHeaders();
-        renderTable();
-      });
+      sel.addEventListener("change", () => { ensureMonthHeaders(); renderTable(); });
     });
-    classFilter.addEventListener("change", () => {
-      if (!globalSearch.value.trim()) renderTable();
-    });
+    classFilter.addEventListener("change", () => { if (!globalSearch.value.trim()) renderTable(); });
     globalSearch.addEventListener("input", renderTable);
 
+    // ── Boot ──────────────────────────────────────────────────────────────────
+    // NOTE: Script is at bottom of <body>, so DOMContentLoaded has already fired.
+    // Use an IIFE instead — DOM elements are already available at this point.
     (async function boot() {
       ensureMonthHeaders();
-      await waitForAuthContext();
-      await syncAndLoadStudents();
+      // Wait for auth.js to finish (it sets window.authReady and fires 'authready')
+      if (!window.authReady) {
+        await new Promise(resolve => {
+          window.addEventListener("authready", resolve, {once: true});
+          const poll = setInterval(() => { if (window.authReady) { clearInterval(poll); resolve(); } }, 100);
+          setTimeout(() => { clearInterval(poll); resolve(); }, 10000);
+        });
+      }
+      console.log("[AbsentDays] auth done | schoolId =", window.currentSchoolId);
+      await loadData();
       await loadWaTemplates();
     })();
   </script>

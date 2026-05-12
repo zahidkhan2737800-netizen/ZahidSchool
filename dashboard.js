@@ -9,13 +9,19 @@ var NAV_CATEGORIES = [
       { href: 'students.html', label: 'Active Students', icon: 'fas fa-users', key: 'students' },
             { href: 'Dairy.html', label: 'Dairy / Tasks', icon: 'fas fa-clipboard-list', key: 'students' },
       { href: 'family.html', label: 'Family Management', icon: 'fas fa-home', key: 'family' },
-      { href: 'monitoring.html', label: 'Monitoring', icon: 'fas fa-chart-pie', key: 'monitoring' },
       { href: 'homework.html', label: 'Homework Publisher', icon: 'fas fa-book', key: 'homework' },
       { href: 'publisher_config.html', label: 'Publisher Config', icon: 'fas fa-cog', key: 'homework' },
-      { href: 'complaint_diary.html', label: 'Complaint Diary', icon: 'fas fa-envelope-open-text', key: 'complaints' },
 
       { href: 'pending_withdrawn.html', label: 'Pending / Withdrawn', icon: 'fas fa-user-alt-slash', key: 'pending_withdrawn' },
       { href: 'reports.html', label: 'Report Generator', icon: 'fas fa-print', key: 'reports' },
+    ]
+  },
+  {
+    id: 'quality', label: 'Quality', icon: 'fas fa-star',
+    items: [
+      { href: 'complaint_diary.html', label: 'Complaint Diary', icon: 'fas fa-envelope-open-text', key: 'complaints' },
+      { href: 'monitoring.html', label: 'Monitoring', icon: 'fas fa-chart-pie', key: 'monitoring' },
+      { href: 'syllabus_progress.html', label: 'Progress', icon: 'fas fa-list-check', key: 'classes' }
     ]
   },
     {
@@ -25,8 +31,7 @@ var NAV_CATEGORIES = [
             { href: 'attendance_register.html', label: 'Attendance Register', icon: 'fas fa-table', key: 'attendance' },
             { href: 'Absent_days.html', label: 'Absent Days', icon: 'fas fa-calendar-minus', key: 'attendance' },
             { href: 'Absent_Report Card.html', label: 'Absent Days Reports', icon: 'fas fa-id-card', key: 'attendance' },
-            { href: 'Ceritficates.html', label: 'Ceritficates', icon: 'fas fa-award', key: 'attendance' },
-            { href: 'syllabus_progress.html', label: 'Syllabus Progress', icon: 'fas fa-list-check', key: 'classes' },
+            { href: 'Ceritficates.html', label: 'Ceritficates', icon: 'fas fa-award', key: 'attendance' }
         ]
     },
   {

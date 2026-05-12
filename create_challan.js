@@ -218,6 +218,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             foundAmount = student.monthly_fee;
         }
         
+        // 3. Apply student discount if applicable for monthly fee
+        if (foundAmount !== null && isMonthlyType && student.discount) {
+            foundAmount = Math.max(0, foundAmount - student.discount);
+        }
+        
         if(foundAmount !== null) {
             customAmountInput.value = foundAmount;
         } else {
@@ -392,6 +397,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
             
+            // Apply student discount if applicable for monthly fee
+            if (assignedAmt !== null && !isNaN(assignedAmt) && isMonthlyType && s.discount) {
+                assignedAmt = Math.max(0, assignedAmt - s.discount);
+            }
+            
             if(assignedAmt !== null && !isNaN(assignedAmt)) {
                 validPayloads.push({ student: s, amount: assignedAmt });
             }
@@ -430,7 +440,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const [classesRes, feeHeadsRes, admissionsRes] = await Promise.all([
                 supabaseClient.from('classes').select('id, class_name, section').order('class_name'),
                 supabaseClient.from('fee_heads').select('id, class_id, fee_type, amount, is_monthly'),
-                supabaseClient.from('admissions').select('id, roll_number, full_name, father_name, applying_for_class, monthly_fee').eq('status', 'Active')
+                supabaseClient.from('admissions').select('id, roll_number, full_name, father_name, applying_for_class, monthly_fee, discount').eq('status', 'Active')
             ]);
 
             if (classesRes.error) throw new Error("Classes Table: " + classesRes.error.message);
