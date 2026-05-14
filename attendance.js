@@ -49,7 +49,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 async function scopedQuery(table, selectCols, extraFilters = []) {
     let q = supabaseClient.from(table).select(selectCols);
     if (currentSchoolId) q = q.eq('school_id', currentSchoolId);
-    for (const [col, val] of extraFilters) q = q.eq(col, val);
+    for (const [col, val] of extraFilters) {
+        if (Array.isArray(val)) {
+            q = q.in(col, val);
+        } else {
+            q = q.eq(col, val);
+        }
+    }
     const { data, error } = await q;
     if (error) throw error;
     return data || [];
@@ -62,7 +68,13 @@ async function paginatedQuery(table, selectCols, filters = []) {
     while (true) {
         let q = supabaseClient.from(table).select(selectCols).range(from, from + PAGE - 1);
         if (currentSchoolId) q = q.eq('school_id', currentSchoolId);
-        for (const [col, val] of filters) q = q.eq(col, val);
+        for (const [col, val] of filters) {
+            if (Array.isArray(val)) {
+                q = q.in(col, val);
+            } else {
+                q = q.eq(col, val);
+            }
+        }
         const { data, error } = await q;
         if (error) throw error;
         if (!data || data.length === 0) break;
@@ -95,7 +107,7 @@ async function loadDatabase() {
             scopedQuery(
                 'admissions',
                 'id, roll_number, full_name, applying_for_class, father_name, father_mobile',
-                [['status', 'Active']]
+                [['status', ['Active', 'active']]]
             ),
             // 2 – Only today's attendance records
             scopedQuery(
@@ -153,7 +165,7 @@ async function refreshTodayAttendance() {
 
 function handleRollLookup(e) {
     const rNo = String(e.target.value).trim();
-    const stu = allStudents.find(s => String(s.roll_number) === rNo);
+    const stu = allStudents.find(s => String(s.roll_number).trim() === rNo);
     if (stu) {
         document.getElementById('entryName').value  = stu.full_name;
         document.getElementById('entryClass').value = stu.applying_for_class;
@@ -167,8 +179,8 @@ function handleRollLookup(e) {
 
 async function handleEntrySubmit(e) {
     e.preventDefault();
-    const rNo = document.getElementById('entryRoll').value;
-    const s   = allStudents.find(x => String(x.roll_number) === rNo);
+    const rNo = String(document.getElementById('entryRoll').value).trim();
+    const s   = allStudents.find(x => String(x.roll_number).trim() === rNo);
     if (!s) return showToast('Invalid Roll Number', 'error');
 
     await performUpsert([{
