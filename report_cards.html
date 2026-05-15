@@ -692,7 +692,7 @@
                 if (freshData && freshData.length > 0 && freshData[0].photo_url) {
                     livePhotoUrl = freshData[0].photo_url;
                     // Update the local cache so print also uses the fresh URL
-                    const cached = allStudents.find(x => x.id === studentId);
+                    const cached = allStudents.find(x => x.id == studentId);
                     if (cached) cached.photo_url = livePhotoUrl;
                 }
             } catch (e) { console.warn('Could not fetch fresh photo_url', e); }
@@ -717,7 +717,7 @@
                 if (document.getElementById('overallRemarks')) document.getElementById('overallRemarks').value = data[0].remarks || '';
             } else {
                 // Look for an explicitly saved Class Template
-                const sInfo = allStudents.find(x => x.id === studentId);
+                const sInfo = allStudents.find(x => x.id == studentId);
                 const classVal = sInfo ? sInfo.applying_for_class : '';
 
                 if (classVal) {
@@ -759,7 +759,7 @@
             const termName = document.getElementById('termName').value.trim();
             if (!studentId || !termName) return alert('Select student and term first.');
 
-            const studentInfo = allStudents.find(s => s.id === studentId);
+            const studentInfo = allStudents.find(s => s.id == studentId);
             const classVal = studentInfo ? studentInfo.applying_for_class : null;
             if (!classVal) return alert('Student class not determined.');
 
@@ -998,7 +998,7 @@
             const studentId = document.getElementById('studentSelect').value;
             if (!studentId) return alert("Select student and generate report first.");
 
-            const studentInfo = allStudents.find(s => s.id === studentId);
+            const studentInfo = allStudents.find(s => s.id == studentId);
             const termName = document.getElementById('termName').value.trim();
             const remarksEl = document.getElementById('overallRemarks');
             const remarks = remarksEl ? remarksEl.value.trim() : '';
@@ -1127,7 +1127,7 @@
             try {
                 for (const cb of checkboxes) {
                     const studentId = cb.value;
-                    const studentInfo = allStudents.find(s => s.id === studentId);
+                    const studentInfo = allStudents.find(s => s.id == studentId);
                     if (!studentInfo) continue;
 
                     // Fetch report card data for this student
