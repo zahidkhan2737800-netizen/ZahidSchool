@@ -259,6 +259,49 @@
             width: 100%;
         }
 
+        .student-card {
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            padding: 15px;
+            background: var(--card);
+            text-align: center;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.2s;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .student-card:hover {
+            border-color: var(--primary);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .student-card.active {
+            border-color: var(--primary);
+            background: #eff6ff;
+            box-shadow: 0 0 0 2px var(--primary) inset;
+        }
+
+        .student-card-checkbox {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            z-index: 10;
+        }
+
+        .student-card img {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-bottom: 10px;
+            border: 2px solid #e2e8f0;
+        }
+
         /* Print Area */
         #printArea {
             display: none;
@@ -366,7 +409,7 @@
                 </select>
             </div>
 
-            <div class="control-group">
+            <div class="control-group" id="studentSelectGroup" style="display: none;">
                 <label>Student</label>
                 <select id="studentSelect" class="control-input" onchange="loadReportCard()">
                     <option value="">- Select Student -</option>
@@ -395,10 +438,21 @@
             </div>
             <div class="control-group" style="margin-left: auto;">
                 <button class="btn btn-warning" onclick="openCopyModal()"><i class="fas fa-copy"></i> Copy Form</button>
-                <button class="btn btn-primary" onclick="saveReportCard()"><i class="fas fa-save"></i> Save Student
-                    Data</button>
-                <button class="btn btn-success" onclick="printReportCard()"><i class="fas fa-print"></i> Print
-                    A4</button>
+                <button class="btn btn-primary" onclick="saveReportCard()"><i class="fas fa-save"></i> Save Current</button>
+                <button class="btn btn-success" onclick="printReportCard()"><i class="fas fa-print"></i> Print Current</button>
+                <button class="btn btn-success" onclick="printSelectedCards()" style="background: #059669;"><i class="fas fa-print"></i> Print Selected</button>
+            </div>
+        </div>
+
+        <div id="studentGridContainer" style="display: none; margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h3 style="margin: 0; color: var(--text-main);">Select Students</h3>
+                <div>
+                    <button class="btn" style="background:#e2e8f0; color:#475569; padding: 6px 12px; font-size: 13px;" onclick="toggleAllStudents(true)">Select All</button>
+                    <button class="btn" style="background:#e2e8f0; color:#475569; padding: 6px 12px; font-size: 13px; margin-left: 5px;" onclick="toggleAllStudents(false)">Deselect All</button>
+                </div>
+            </div>
+            <div id="studentGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 15px;">
             </div>
         </div>
 
@@ -537,21 +591,65 @@
             });
         }
 
+        function toggleAllStudents(check) {
+            document.querySelectorAll('.student-card-checkbox').forEach(cb => cb.checked = check);
+        }
+
         function loadStudents() {
             const classVal = document.getElementById('classSelect').value;
             const stuSel = document.getElementById('studentSelect');
+            const gridContainer = document.getElementById('studentGridContainer');
+            const grid = document.getElementById('studentGrid');
+            
             stuSel.innerHTML = '<option value="">- Select Student -</option>';
+            grid.innerHTML = '';
+
+            if (!classVal) {
+                gridContainer.style.display = 'none';
+                document.getElementById('builderArea').style.display = 'none';
+                return;
+            }
 
             const filtered = allStudents.filter(s => s.applying_for_class === classVal);
             filtered.sort((a, b) => a.roll_number - b.roll_number);
+
+            if (filtered.length > 0) {
+                gridContainer.style.display = 'block';
+            } else {
+                gridContainer.style.display = 'none';
+            }
 
             filtered.forEach(s => {
                 const o = document.createElement('option');
                 o.value = s.id; o.textContent = `[Roll: ${s.roll_number}] ${s.full_name}`;
                 stuSel.appendChild(o);
+
+                const card = document.createElement('div');
+                card.className = 'student-card';
+                card.id = `scard-${s.id}`;
+                card.onclick = () => selectStudentForEdit(s.id);
+                
+                const photoUrl = s.photo_url || 'https://via.placeholder.com/90?text=No+Photo';
+                
+                card.innerHTML = `
+                    <input type="checkbox" class="student-card-checkbox" value="${s.id}" onclick="event.stopPropagation()">
+                    <img src="${photoUrl}" alt="Student Photo">
+                    <div style="font-weight: 600; font-size: 14px; color: var(--text-main); margin-bottom: 4px;">${s.full_name}</div>
+                    <div style="font-size: 12px; color: var(--text-muted);">Roll No: ${s.roll_number}</div>
+                `;
+                grid.appendChild(card);
             });
 
             document.getElementById('builderArea').style.display = 'none';
+        }
+
+        function selectStudentForEdit(studentId) {
+            document.querySelectorAll('.student-card').forEach(c => c.classList.remove('active'));
+            const card = document.getElementById(`scard-${studentId}`);
+            if (card) card.classList.add('active');
+
+            document.getElementById('studentSelect').value = studentId;
+            loadReportCard();
         }
 
         async function loadReportCard() {
@@ -992,6 +1090,180 @@
 
             document.getElementById('printArea').innerHTML = html;
             window.print();
+        }
+
+        async function printSelectedCards() {
+            const termName = document.getElementById('termName').value.trim();
+            if (!termName) return alert("Select an Examination Term first.");
+
+            const checkboxes = document.querySelectorAll('.student-card-checkbox:checked');
+            if (checkboxes.length === 0) return alert("Select at least one student to print.");
+
+            const printArea = document.getElementById('printArea');
+            printArea.innerHTML = ''; // Clear previous
+
+            const overrideClass = document.getElementById('printClassSelect').value;
+
+            // Show a loading indicator in UI since this might take a moment
+            const origBtnText = document.querySelector('button[onclick="printSelectedCards()"]').innerHTML;
+            document.querySelector('button[onclick="printSelectedCards()"]').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Preparing...';
+
+            try {
+                for (const cb of checkboxes) {
+                    const studentId = cb.value;
+                    const studentInfo = allStudents.find(s => s.id === studentId);
+                    if (!studentInfo) continue;
+
+                    // Fetch report card data for this student
+                    let q = db.from('report_cards').select('*')
+                        .eq('student_id', studentId)
+                        .eq('term_name', termName);
+                    if (currentSchoolId) q = q.eq('school_id', currentSchoolId);
+
+                    const { data, error } = await q.limit(1);
+
+                    let sReportData = [];
+                    let remarks = '';
+                    
+                    if (data && data.length > 0 && data[0].data) {
+                        sReportData = data[0].data;
+                        remarks = data[0].remarks || '';
+                    } else {
+                        // Load class template if no report card found
+                        const classVal = studentInfo.applying_for_class;
+                        let tmpQ = db.from('report_card_templates')
+                            .select('data')
+                            .eq('term_name', termName)
+                            .eq('class_name', classVal);
+                        if (currentSchoolId) tmpQ = tmpQ.eq('school_id', currentSchoolId);
+
+                        const tmpRes = await tmpQ.limit(1);
+                        if (tmpRes.data && tmpRes.data.length > 0 && tmpRes.data[0].data) {
+                            sReportData = JSON.parse(JSON.stringify(tmpRes.data[0].data));
+                            sReportData.forEach(sub => {
+                                sub.topics.forEach(t => t.marks = 0);
+                            });
+                        } else {
+                            continue; // Skip student if no template found
+                        }
+                    }
+
+                    // Generate HTML for this student's report card
+                    const printClass = overrideClass ? overrideClass : studentInfo.applying_for_class;
+                    
+                    let livePhotoUrl = studentInfo.photo_url;
+                    try {
+                        const { data: freshData } = await db.from('admissions').select('photo_url').eq('id', studentId).limit(1);
+                        if (freshData && freshData.length > 0 && freshData[0].photo_url) {
+                            livePhotoUrl = freshData[0].photo_url;
+                        }
+                    } catch(e) {}
+
+                    const photoHtml = livePhotoUrl
+                        ? `<img src="${livePhotoUrl}" alt="Student Photo" style="width:110px; height:135px; object-fit:cover; object-position:top center; border:2px solid #000; border-radius:4px;">`
+                        : ``;
+
+                    let html = `
+                    <div class="a4-page">
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px;">
+                            <div style="flex:1;">
+                                <div style="text-align: left; margin-bottom: 10px; border-bottom: 2px solid #000; padding-bottom: 5px;">
+                                    <h1 style="margin: 0; font-size: 28px;">Zahid School</h1>
+                                    <p style="margin: 5px 0 0; font-size: 16px;">Contact: 03337502737</p>
+                                    <p style="margin: 5px 0 0; font-size: 16px;">Academic Report Card - ${termName}</p>
+                                </div>
+                                <table style="font-size:14px; border-collapse:collapse; width:100%;">
+                                    <tr>
+                                        <td style="padding:4px 6px 4px 0; white-space:nowrap; width:1%;"><strong>Student Name:</strong></td>
+                                        <td style="padding:4px 24px 4px 4px;">${studentInfo.full_name}</td>
+                                        <td style="padding:4px 6px 4px 0; white-space:nowrap; width:1%;"><strong>Roll No:</strong></td>
+                                        <td style="padding:4px 0 4px 4px;">${studentInfo.roll_number}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding:4px 6px 4px 0; white-space:nowrap; width:1%;"><strong>Father's Name:</strong></td>
+                                        <td style="padding:4px 24px 4px 4px;">${studentInfo.father_name || 'N/A'}</td>
+                                        <td style="padding:4px 6px 4px 0; white-space:nowrap; width:1%;"><strong>Class:</strong></td>
+                                        <td style="padding:4px 0 4px 4px;">${printClass}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div style="margin-left: 20px;">${photoHtml}</div>
+                        </div>
+
+                        <table class="rc-table">
+                    `;
+
+                    let overallObtained = 0;
+                    let overallMax = 0;
+
+                    sReportData.forEach(sub => {
+                        const subObtained = sub.topics.reduce((sum, t) => sum + (parseFloat(t.marks) || 0), 0);
+                        overallObtained += subObtained;
+                        overallMax += parseFloat(sub.maxMarks) || 0;
+
+                        const rowsCount = Math.max(1, Math.ceil(sub.topics.length / 2));
+
+                        for (let i = 0; i < rowsCount; i++) {
+                            html += `<tr>`;
+
+                            if (i === 0) {
+                                html += `<td rowspan="${rowsCount}" style="font-weight:bold; font-size: 16px;">${sub.name}</td>`;
+                                html += `<td rowspan="${rowsCount}">Total Marks<br><b>${sub.maxMarks}</b></td>`;
+                            }
+
+                            const t1 = sub.topics[i * 2];
+                            if (t1) {
+                                html += `<td>${t1.name}</td><td>${t1.marks}</td>`;
+                            } else {
+                                html += `<td></td><td></td>`;
+                            }
+
+                            const t2 = sub.topics[i * 2 + 1];
+                            if (t2) {
+                                html += `<td>${t2.name}</td><td>${t2.marks}</td>`;
+                            } else {
+                                html += `<td></td><td></td>`;
+                            }
+
+                            if (i === 0) {
+                                html += `<td rowspan="${rowsCount}">Obtained Marks<br><b>${subObtained}</b></td>`;
+                            }
+
+                            html += `</tr>`;
+                        }
+                    });
+
+                    const pct = overallMax > 0 ? ((overallObtained / overallMax) * 100).toFixed(2) : 0;
+
+                    html += `
+                        </table>
+                        <div style="display:flex; justify-content:flex-end; font-size:16px; margin-top:10px;">
+                            <div style="border: 2px solid #000; padding:8px 16px; display:flex; gap:30px;">
+                                <div><b>Grand Total:</b> ${overallObtained} / ${overallMax}</div>
+                                <div><b>Percentage:</b> ${pct}%</div>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top: 50px; display:flex; justify-content:space-between; font-weight:bold;">
+                            <div>Class Teacher's Signature</div>
+                            <div>Principal's Signature</div>
+                        </div>
+                    </div>`;
+
+                    printArea.innerHTML += html;
+                }
+
+                if (printArea.innerHTML.trim() === '') {
+                    alert("No valid report cards could be generated for selected students. Have you created class templates?");
+                } else {
+                    window.print();
+                }
+            } catch (err) {
+                console.error("Print selected cards error", err);
+                alert("An error occurred while generating report cards.");
+            } finally {
+                document.querySelector('button[onclick="printSelectedCards()"]').innerHTML = '<i class="fas fa-print"></i> Print Selected';
+            }
         }
 
 
