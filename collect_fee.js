@@ -356,9 +356,14 @@ async function loadHistory(uuid) {
             return;
         }
 
-        historyBody.innerHTML = data.map((r, idx) => `
+        historyBody.innerHTML = data.map((r, idx) => {
+            const dateStr = new Date(r.created_at).toLocaleDateString();
+            return `
             <tr>
-                <td>${new Date(r.created_at).toLocaleDateString()}</td>
+                <td>
+                    ${dateStr}
+                    <button onclick="window.printDaySummary('${dateStr}')" style="margin-left:5px; font-size:0.75rem; background:#f8fafc; border:1px solid #cbd5e1; border-radius:4px; padding:2px 4px; cursor:pointer; color:#334155;" title="Print combined summary for this day">📅</button>
+                </td>
                 <td style="font-family:monospace; font-weight:600; font-size:0.82rem;">${r.receipt_number}</td>
                 <td style="color:#16a34a; font-weight:700;">Rs ${Number(r.total_paid).toLocaleString()}</td>
                 <td style="color:${r.remaining > 0 ? '#ef4444' : '#16a34a'}; font-weight:700;">Rs ${Number(r.remaining).toLocaleString()}</td>
@@ -366,7 +371,8 @@ async function loadHistory(uuid) {
                 <td style="color:#94a3b8; font-size:0.82rem;">${r.remarks || '—'}</td>
                 <td><button class="print-row-btn" onclick="reprintFromHistory(receiptCache[${idx}])">🖨️</button></td>
             </tr>
-        `).join('');
+            `;
+        }).join('');
     } catch (e) {
         historyBody.innerHTML = `<tr><td colspan="7" style="color:red; text-align:center;">Error loading history: ${e.message}</td></tr>`;
     }
@@ -402,6 +408,58 @@ function reprintFromHistory(receipt) {
     // Delay so browser fully renders receipt DOM before print dialog opens
     setTimeout(() => window.print(), 350);
 }
+
+// ─── Print Daily Combined Summary ─────────────────────────────────────────────
+window.printDaySummary = function(dateStr) {
+    if (!receiptCache || receiptCache.length === 0) return;
+    
+    const dayReceipts = receiptCache.filter(r => new Date(r.created_at).toLocaleDateString() === dateStr);
+    if (dayReceipts.length === 0) return;
+    
+    const sorted = [...dayReceipts].sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+    
+    let combinedTotal = 0;
+    let allLines = [];
+    
+    sorted.forEach(r => {
+        combinedTotal += parseFloat(r.total_paid || 0);
+        allLines.push(...(Array.isArray(r.fee_lines) ? r.fee_lines : []));
+    });
+    
+    let studentRemaining = 0;
+    if (typeof pendingDues !== 'undefined' && Array.isArray(pendingDues)) {
+        pendingDues.forEach(c => {
+            studentRemaining += parseFloat(c.amount) - parseFloat(c.paid_amount || 0);
+        });
+    } else {
+        studentRemaining = sorted[sorted.length - 1].remaining;
+    }
+
+    const firstReceipt = sorted[0];
+
+    applyThermalSettings('collect_fee');
+    document.getElementById('rctNo').textContent        = `DAY-${dateStr.replace(/\//g, '')}`;
+    document.getElementById('rctDate').textContent      = `${dateStr} (Combined Summary)`;
+    document.getElementById('rctName').textContent      = firstReceipt.student_name;
+    document.getElementById('rctRoll').textContent      = firstReceipt.roll_number;
+    document.getElementById('rctFather').textContent    = firstReceipt.father_name || 'N/A';
+    document.getElementById('rctClass').textContent     = firstReceipt.class_name;
+    document.getElementById('rctTotal').textContent     = Number(combinedTotal).toLocaleString();
+    document.getElementById('rctRemaining').textContent = Number(studentRemaining).toLocaleString();
+
+    document.getElementById('rowReceiptNo').style.display = 'flex';
+    document.getElementById('rowTotalPaid').style.display = 'flex';
+    document.getElementById('rctFooter').textContent = 'Thank you! — Zahid School System';
+
+    document.getElementById('rctBody').innerHTML = allLines.map(line => `
+        <div class="th-fee-row">
+            <span class="th-fee-desc">${line.desc}</span>
+            <span class="th-fee-amt">Rs ${Number(line.amount).toLocaleString()}</span>
+        </div>
+    `).join('');
+
+    setTimeout(() => window.print(), 350);
+};
 
 // ─── Load Pending Dues ────────────────────────────────────────────────────────
 async function loadDues(uuid) {

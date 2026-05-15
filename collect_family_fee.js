@@ -11,10 +11,8 @@ let grandTotal    = 0;
 let receiptCache  = [];   // saved receipts for current family (for reprint)
 
 // ─── DOM Refs ─────────────────────────────────────────────────────────────────
-const filterFamilyNo= document.getElementById('filterFamilyNo');
-const filterMobile = document.getElementById('filterMobile');
-const filterFather = document.getElementById('filterFather');
-const searchStatus = document.getElementById('searchStatus');
+const familySearch      = document.getElementById('familySearch');
+const searchStatus      = document.getElementById('searchStatus');
 
 const familyListSection = document.getElementById('familyListSection');
 const familyList        = document.getElementById('familyList');
@@ -107,19 +105,29 @@ function applyThermalSettings(moduleName) {
     root.style.setProperty('--tp-footer-font', `${settings.footerFontPx}px`);
 }
 
-// ─── Boot ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
     await loadFamiliesData();
 
-    // Wire filters — debounced
+    // Close workspace on button / backdrop / Escape
+    const btnClose = document.getElementById('btnCloseWorkspace');
+    if (btnClose) btnClose.addEventListener('click', closeWorkspace);
+
+    workspace.addEventListener('click', (e) => {
+        if (e.target === workspace) closeWorkspace();
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && workspace.classList.contains('is-open')) closeWorkspace();
+    });
+
+    // Wire single search input — debounced
     let debTimer;
-    [filterFamilyNo, filterMobile, filterFather].forEach(el => {
-        if(!el) return;
-        el.addEventListener('input', () => {
+    if (familySearch) {
+        familySearch.addEventListener('input', () => {
             clearTimeout(debTimer);
             debTimer = setTimeout(renderFamilyList, 250);
         });
-    });
+    }
 
     inputMethod.addEventListener('change', () => {
         refGroup.style.display = inputMethod.value !== 'Cash' ? 'block' : 'none';
@@ -141,56 +149,55 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     btnReprint.addEventListener('click', () => {
         if (receiptCache.length === 0) return;
-        reprintFromHistory(receiptCache[0]); // Reprint the most recent receipt
+        reprintFromHistory(receiptCache[0]);
     });
     
     if (btnBill) btnBill.addEventListener('click', printBill);
 
     btnPayAll.addEventListener('click', () => {
         if (pendingDues.length === 0) return;
-        
         pendingDues.forEach(c => selectedIds.add(c.id));
         document.querySelectorAll('.challan-item input[type="checkbox"]').forEach(cb => {
             cb.checked = true;
             cb.closest('.challan-item').classList.add('selected');
         });
-        
         recalcCart();
         inputPaying.value = grandTotal;
-        recalcCart(); 
-
+        recalcCart();
         inputPaying.style.transition = 'background 0.3s';
         inputPaying.style.background = '#d1fae5';
         setTimeout(() => inputPaying.style.background = 'white', 600);
-        
         const checkoutPanel = document.getElementById('checkoutPanel');
         if (checkoutPanel) checkoutPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
 
     btnPartial.addEventListener('click', () => {
         if (pendingDues.length === 0) return;
-        
         pendingDues.forEach(c => selectedIds.add(c.id));
         document.querySelectorAll('.challan-item input[type="checkbox"]').forEach(cb => {
             cb.checked = true;
             cb.closest('.challan-item').classList.add('selected');
         });
-        
         recalcCart();
         inputPaying.value = '';
-        recalcCart(); 
-
+        recalcCart();
         inputPaying.style.transition = 'background 0.3s';
         inputPaying.style.background = '#fef3c7';
         setTimeout(() => inputPaying.style.background = 'white', 800);
-        
         const checkoutPanel = document.getElementById('checkoutPanel');
         if (checkoutPanel) checkoutPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        inputPaying.focus(); 
+        inputPaying.focus();
     });
 
     btnSubmit.addEventListener('click', submitPayment);
 });
+
+// ─── Close Workspace (global so onclick attribute works) ──────────────────────────
+window.closeWorkspace = function() {
+    workspace.classList.remove('is-open');
+    document.body.classList.remove('workspace-open');
+    renderFamilyList();
+};
 
 // ─── Load all active students and group into families ─────────────────────────
 async function loadFamiliesData() {
@@ -244,15 +251,15 @@ function processFamilies(students) {
 
 // ─── Filter & render family cards ───────────────────────────────────────────
 function renderFamilyList() {
-    const no = filterFamilyNo ? filterFamilyNo.value.trim().toLowerCase() : '';
-    const m = filterMobile.value.trim().toLowerCase();
-    const f = filterFather.value.trim().toLowerCase();
+    const q = familySearch ? familySearch.value.trim().toLowerCase() : '';
 
     const filtered = familiesData.filter(fam => {
-        const noMatch = !no || (fam.familyNo && fam.familyNo.toLowerCase().includes(no));
-        const mobMatch = !m || fam.mobile.toLowerCase().includes(m);
-        const fatMatch = !f || fam.primaryName.toLowerCase().includes(f);
-        return noMatch && mobMatch && fatMatch;
+        if (!q) return true;
+        return (
+            fam.primaryName.toLowerCase().includes(q) ||
+            fam.mobile.toLowerCase().includes(q) ||
+            (fam.familyNo || '').toLowerCase().includes(q)
+        );
     });
 
     resultCount.textContent = filtered.length;
@@ -288,14 +295,20 @@ async function openFamily(fam) {
     selectedIds.clear();
     receiptCache = [];
 
-    // Update profile strip
-    wsAvatar.textContent = fam.primaryName.charAt(0).toUpperCase();
-    wsName.textContent   = `${fam.primaryName}`;
-    const wsFamilyNo = document.getElementById('wsFamilyNo');
-    if(wsFamilyNo) wsFamilyNo.textContent = fam.familyNo || 'N/A';
-    wsContact.textContent= fam.mobile;
-    
-    wsMembersList.innerHTML = fam.members.map(m => `${m.full_name} (${m.roll_number})`).join('  •  ');
+    wsAvatar.textContent  = fam.primaryName.charAt(0).toUpperCase();
+    wsName.textContent    = fam.primaryName;
+    wsContact.textContent = fam.mobile;
+    const wsFamilyNoEl = document.getElementById('wsFamilyNo');
+    if(wsFamilyNoEl) wsFamilyNoEl.textContent = fam.familyNo || 'N/A';
+
+    // Clear member chips — will repopulate after dues load
+    if(wsMembersList) wsMembersList.innerHTML = fam.members.map(m =>
+        `<span class="member-chip">${m.full_name.split(' ')[0]} <span class="chip-due">…</span></span>`
+    ).join('');
+
+    // Show total fee as loading
+    const wsTotalFeeEl = document.getElementById('wsTotalFee');
+    if(wsTotalFeeEl) wsTotalFeeEl.textContent = 'Loading…';
 
     // Reset checkout
     inputFine.value = '0';
@@ -309,8 +322,15 @@ async function openFamily(fam) {
 
     recalcCart();
 
-    workspace.style.display = 'block';
-    workspace.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Open as popup modal (class-based — allows close button to work)
+    workspace.style.display = ''; // clear any leftover inline style
+    workspace.classList.remove('workspace-pop');
+    void workspace.offsetWidth; // force reflow for animation restart
+    workspace.classList.add('is-open');
+    workspace.classList.add('workspace-pop');
+    document.body.classList.add('workspace-open');
+    workspace.scrollTo(0, 0);
+    setTimeout(() => workspace.classList.remove('workspace-pop'), 550);
 
     renderFamilyList();
 
@@ -333,16 +353,17 @@ async function loadHistory(famMembers) {
             .from('receipts')
             .select('*')
             .in('student_id', studentIds)
-            .ilike('receipt_number', 'FAM-%')
             .order('created_at', { ascending: false });
             
         if (error) throw error;
         
         const grouped = {};
         (data || []).forEach(r => {
-             const parts = String(r.receipt_number).split('-');
-             if (parts.length < 2) return;
-             const base = parts.slice(0, 2).join('-'); // e.g. FAM-1234567
+             let base = String(r.receipt_number);
+             const parts = base.split('-');
+             if (base.startsWith('FAM-') && parts.length >= 2) {
+                 base = parts.slice(0, 2).join('-'); // e.g. FAM-1234567
+             }
              
              if (!grouped[base]) {
                  grouped[base] = {
@@ -357,8 +378,21 @@ async function loadHistory(famMembers) {
                  };
              }
              grouped[base].total_paid += parseFloat(r.total_paid || 0);
+             // For single receipts, the remaining is accurate per receipt.
+             // For grouped FAM receipts, remaining is cumulative if we add them, but actually 
+             // in Family payments, remaining is stored independently per student. Adding them up gives the correct family total remaining at that moment!
              grouped[base].remaining += parseFloat(r.remaining || 0);
-             const rLines = Array.isArray(r.fee_lines) ? r.fee_lines : [];
+             
+             // Ensure RCT- receipts have the student name prepended so they match FAM- format when reprinted
+             const rLines = Array.isArray(r.fee_lines) ? r.fee_lines.map(line => {
+                 let desc = line.desc;
+                 if (base.startsWith('RCT-') && !desc.startsWith('[')) {
+                     const firstName = (r.student_name || 'Unknown').split(' ')[0];
+                     desc = `[${firstName} (${r.roll_number || '?'})] ${desc}`;
+                 }
+                 return { ...line, desc };
+             }) : [];
+             
              grouped[base].fee_lines.push(...rLines);
         });
 
@@ -379,9 +413,14 @@ async function loadHistory(famMembers) {
             return;
         }
 
-        historyBody.innerHTML = historyArray.map((r, idx) => `
+        historyBody.innerHTML = historyArray.map((r, idx) => {
+            const dateStr = new Date(r.created_at).toLocaleDateString();
+            return `
             <tr>
-                <td>${new Date(r.created_at).toLocaleDateString()}</td>
+                <td>
+                    ${dateStr}
+                    <button onclick="window.printDaySummary('${dateStr}')" style="margin-left:5px; font-size:0.75rem; background:#f8fafc; border:1px solid #cbd5e1; border-radius:4px; padding:2px 4px; cursor:pointer; color:#334155;" title="Print combined summary for this day">📅</button>
+                </td>
                 <td style="font-family:monospace; font-weight:600; font-size:0.82rem;">${r.receipt_number}</td>
                 <td style="color:#16a34a; font-weight:700;">Rs ${Number(r.total_paid).toLocaleString()}</td>
                 <td style="color:${r.remaining > 0 ? '#ef4444' : '#16a34a'}; font-weight:700;">Rs ${Number(r.remaining).toLocaleString()}</td>
@@ -389,7 +428,8 @@ async function loadHistory(famMembers) {
                 <td style="color:#94a3b8; font-size:0.82rem;">${r.remarks || '—'}</td>
                 <td><button class="print-row-btn" onclick="reprintFromHistory(receiptCache[${idx}])">🖨️</button></td>
             </tr>
-        `).join('');
+            `;
+        }).join('');
 
     } catch (e) {
         console.warn('History load error:', e.message);
@@ -407,7 +447,17 @@ function reprintFromHistory(receipt) {
     const rctFamNode = document.getElementById('rctFamilyNo');
     if(rctFamNode) rctFamNode.textContent = activeFamily.familyNo || 'N/A';
     document.getElementById('rctTotal').textContent     = Number(receipt.total_paid).toLocaleString();
-    document.getElementById('rctRemaining').textContent = Number(receipt.remaining).toLocaleString();
+    
+    let familyRemaining = 0;
+    if (typeof pendingDues !== 'undefined' && Array.isArray(pendingDues)) {
+        pendingDues.forEach(c => {
+            familyRemaining += parseFloat(c.amount) - parseFloat(c.paid_amount || 0);
+        });
+    } else {
+        familyRemaining = receipt.remaining;
+    }
+    
+    document.getElementById('rctRemaining').textContent = Number(familyRemaining).toLocaleString();
 
     // Ensure visibility
     const rowReceiptNo = document.getElementById('rowReceiptNo');
@@ -428,6 +478,58 @@ function reprintFromHistory(receipt) {
 
     setTimeout(() => window.print(), 350);
 }
+
+// ─── Print Daily Combined Summary ─────────────────────────────────────────────
+window.printDaySummary = function(dateStr) {
+    if (!receiptCache || receiptCache.length === 0) return;
+    
+    const dayReceipts = receiptCache.filter(r => new Date(r.created_at).toLocaleDateString() === dateStr);
+    if (dayReceipts.length === 0) return;
+    
+    const sorted = [...dayReceipts].sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+    
+    let combinedTotal = 0;
+    let allLines = [];
+    
+    sorted.forEach(r => {
+        combinedTotal += parseFloat(r.total_paid || 0);
+        allLines.push(...(Array.isArray(r.fee_lines) ? r.fee_lines : []));
+    });
+    
+    let familyRemaining = 0;
+    if (typeof pendingDues !== 'undefined' && Array.isArray(pendingDues)) {
+        pendingDues.forEach(c => {
+            familyRemaining += parseFloat(c.amount) - parseFloat(c.paid_amount || 0);
+        });
+    } else {
+        familyRemaining = sorted[sorted.length - 1].remaining;
+    }
+
+    applyThermalSettings('collect_family_fee');
+    document.getElementById('rctNo').textContent        = `DAY-${dateStr.replace(/\//g, '')}`;
+    document.getElementById('rctDate').textContent      = `${dateStr} (Combined Summary)`;
+    document.getElementById('rctName').textContent      = `${activeFamily.primaryName}`;
+    const rctFamNode = document.getElementById('rctFamilyNo');
+    if(rctFamNode) rctFamNode.textContent = activeFamily.familyNo || 'N/A';
+    document.getElementById('rctTotal').textContent     = Number(combinedTotal).toLocaleString();
+    document.getElementById('rctRemaining').textContent = Number(familyRemaining).toLocaleString();
+
+    const rowReceiptNo = document.getElementById('rowReceiptNo');
+    if(rowReceiptNo) rowReceiptNo.style.display = 'flex';
+    const rowTotalPaid = document.getElementById('rowTotalPaid');
+    if(rowTotalPaid) rowTotalPaid.style.display = 'flex';
+    const rctFooter = document.getElementById('rctFooter');
+    if(rctFooter) rctFooter.textContent = 'Thank you! — Zahid School System';
+
+    document.getElementById('rctBody').innerHTML = allLines.map(line => `
+        <div class="th-fee-row">
+            <span class="th-fee-desc">${line.desc}</span>
+            <span class="th-fee-amt">Rs ${Number(line.amount).toLocaleString()}</span>
+        </div>
+    `).join('');
+
+    setTimeout(() => window.print(), 350);
+};
 
 // ─── Load Pending Dues for ALL members ────────────────────────────────────────
 async function loadFamilyDues(members) {
@@ -470,6 +572,7 @@ async function loadFamilyDues(members) {
                     <small style="color:#64748b;">This family has no outstanding challans.</small>
                 </div>`;
             recalcCart();
+            updateFamilyBalanceSummary();
             return;
         }
 
@@ -477,8 +580,41 @@ async function loadFamilyDues(members) {
         btnPartial.style.display = 'block';
         if(btnBill) btnBill.style.display = 'inline-block';
         renderDues();
+        updateFamilyBalanceSummary();
     } catch (e) {
         challansList.innerHTML = `<p style="color:red;">Error loading dues: ${e.message}</p>`;
+    }
+}
+
+// ─── Update family balance badge and per-member chips ─────────────────────────
+function updateFamilyBalanceSummary() {
+    const wsTotalFeeEl = document.getElementById('wsTotalFee');
+    
+    // Calculate total family due
+    let familyTotal = 0;
+    pendingDues.forEach(c => {
+        familyTotal += Math.max(0, parseFloat(c.amount) - parseFloat(c.paid_amount || 0));
+    });
+    familyTotal = Math.round(familyTotal * 100) / 100;
+    
+    if(wsTotalFeeEl) wsTotalFeeEl.textContent = `Rs ${familyTotal.toLocaleString()}`;
+
+    // Build per-member chip breakdown
+    if(wsMembersList && activeFamily) {
+        const memberTotals = {};
+        activeFamily.members.forEach(m => { memberTotals[m.id] = 0; });
+        pendingDues.forEach(c => {
+            const rem = Math.max(0, parseFloat(c.amount) - parseFloat(c.paid_amount || 0));
+            if (memberTotals[c.student_id] !== undefined) {
+                memberTotals[c.student_id] += rem;
+            }
+        });
+        
+        wsMembersList.innerHTML = activeFamily.members.map(m => {
+            const due = Math.round((memberTotals[m.id] || 0) * 100) / 100;
+            const color = due > 0 ? '#dc2626' : '#16a34a';
+            return `<span class="member-chip">${m.full_name.split(' ')[0]} <span class="chip-due" style="color:${color};">Rs ${due.toLocaleString()}</span></span>`;
+        }).join('');
     }
 }
 
@@ -543,16 +679,17 @@ function recalcCart() {
         const c = pendingDues.find(x => x.id === id);
         if (c) subtotal += parseFloat(c.amount) - parseFloat(c.paid_amount || 0);
     });
+    subtotal = Math.round(subtotal * 100) / 100;
 
-    const fine     = parseFloat(inputFine.value)     || 0;
-    const discount = parseFloat(inputDiscount.value) || 0;
-    grandTotal = Math.max(0, subtotal + fine - discount);
+    const fine     = Math.round((parseFloat(inputFine.value)     || 0) * 100) / 100;
+    const discount = Math.round((parseFloat(inputDiscount.value) || 0) * 100) / 100;
+    grandTotal = Math.round(Math.max(0, subtotal + fine - discount) * 100) / 100;
 
     sumSubtotal.textContent   = `Rs ${subtotal}`;
     sumGrandTotal.textContent = `Rs ${grandTotal}`;
 
-    const paying = parseFloat(inputPaying.value) || 0;
-    sumRemaining.textContent  = `Rs ${Math.max(0, grandTotal - paying)}`;
+    const paying = Math.round((parseFloat(inputPaying.value) || 0) * 100) / 100;
+    sumRemaining.textContent  = `Rs ${Math.round(Math.max(0, grandTotal - paying) * 100) / 100}`;
 
     // Build Live Allocation Preview
     const previewDiv = document.getElementById('allocationPreview');
@@ -622,7 +759,7 @@ async function submitPayment() {
     btnSubmit.disabled   = true;
 
     try {
-        let wallet = paying;
+        let wallet = Math.round(paying * 100) / 100;
         const txRecords     = [];
         const updateOps     = [];
         
@@ -635,17 +772,17 @@ async function submitPayment() {
         for (const cid of selectedIds) {
             if (wallet <= 0) break;
             const c   = pendingDues.find(x => x.id === cid);
-            const rem = parseFloat(c.amount) - parseFloat(c.paid_amount || 0);
+            const rem = Math.round((parseFloat(c.amount) - parseFloat(c.paid_amount || 0)) * 100) / 100;
 
-            let appliedFine = firstEntry ? fine : 0;
-            let appliedDisc = firstEntry ? discount : 0;
+            let appliedFine = firstEntry ? Math.round(fine * 100) / 100 : 0;
+            let appliedDisc = firstEntry ? Math.round(discount * 100) / 100 : 0;
             firstEntry = false;
 
-            const adjusted   = Math.max(0, rem + appliedFine - appliedDisc);
-            const debit      = Math.min(wallet, adjusted);
+            const adjusted   = Math.round(Math.max(0, rem + appliedFine - appliedDisc) * 100) / 100;
+            const debit      = Math.round(Math.min(wallet, adjusted) * 100) / 100;
             if (debit <= 0) continue;
 
-            const newPaid   = parseFloat(c.paid_amount || 0) + debit;
+            const newPaid   = Math.round((parseFloat(c.paid_amount || 0) + debit) * 100) / 100;
             const newStatus = newPaid >= parseFloat(c.amount) ? 'Paid' : 'Partially Paid';
 
             updateOps.push(
@@ -669,7 +806,7 @@ async function submitPayment() {
                 remarks:           remarks || null
             });
 
-            wallet -= debit;
+            wallet = Math.round((wallet - debit) * 100) / 100;
         }
 
         // Parallel update challans
@@ -739,7 +876,11 @@ async function submitPayment() {
         const { error: rctErr } = await db.from('receipts').insert(receiptsToInsert);
         if (rctErr) console.warn('Receipt save warning:', rctErr.message);
 
-        const remainingGlobal = Math.max(0, grandTotal - paying);
+        let totalFamilyDues = 0;
+        pendingDues.forEach(c => {
+            totalFamilyDues += parseFloat(c.amount) - parseFloat(c.paid_amount || 0);
+        });
+        const remainingGlobal = Math.max(0, totalFamilyDues - paying);
 
         // Print combined physical receipt using UI grouping logic
         printReceipt(baseReceipt, txRecords, paying, remainingGlobal);

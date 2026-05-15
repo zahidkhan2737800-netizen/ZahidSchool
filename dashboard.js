@@ -87,7 +87,9 @@ var NAV_CATEGORIES = [
             { href: 'examination.html', label: 'Examination', icon: 'fas fa-clipboard-check', key: 'examination' },
             { href: 'slip.html', label: 'Exam Slip', icon: 'fas fa-id-card', key: 'examination' },
             { href: 'report_cards.html', label: 'Report Card', icon: 'fas fa-id-card-alt', key: 'examination' },
-            { href: 'tick_report.html', label: 'Topic Mastery Report', icon: 'fas fa-check-circle', key: 'examination' }
+            { href: 'tick_report.html', label: 'Topic Mastery Report', icon: 'fas fa-check-circle', key: 'examination' },
+            { href: 'Mark_Sheet.html', label: 'Mark Sheet', icon: 'fas fa-file-excel', key: 'examination' },
+            { href: 'RS.html', label: 'RS', icon: 'fas fa-file-alt', key: 'examination' }
         ]
     },
     {

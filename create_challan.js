@@ -616,30 +616,55 @@ document.addEventListener('DOMContentLoaded', async () => {
                     // 1. Find associated transactions to get the receipt numbers (Payment History)
                     const { data: txData } = await supabaseClient
                         .from('transactions')
-                        .select('receipt_number')
+                        .select('receipt_number, fee_details, amount_paid, student_id')
                         .eq('challan_id', id);
 
-                    let baseReceiptsToDelete = [];
-                    if (txData && txData.length > 0) {
-                        for (const tx of txData) {
-                            if (tx.receipt_number) {
-                                // Extract base receipt (RCT-1234567 from RCT-1234567-1)
-                                const base = tx.receipt_number.replace(/-\d+$/, '');
-                                if (base && !baseReceiptsToDelete.includes(base)) {
-                                    baseReceiptsToDelete.push(base);
-                                }
-                            }
-                        }
-                    }
-
-                    // 2. Delete the challan (transactions might cascade, but we explicitly delete history)
+                    // 2. Delete the challan (transactions might cascade, but we explicitly update history)
                     const {error} = await supabaseClient.from('challans').delete().eq('id', id);
                     if(error) throw error;
                     
-                    // 3. Delete the orphaned receipts from the history
-                    if (baseReceiptsToDelete.length > 0) {
-                        for (const baseRct of baseReceiptsToDelete) {
-                            await supabaseClient.from('receipts').delete().eq('receipt_number', baseRct);
+                    // 3. Update or delete the associated receipts carefully
+                    if (txData && txData.length > 0) {
+                        for (const tx of txData) {
+                            if (!tx.receipt_number) continue;
+                            
+                            const base = tx.receipt_number.replace(/-\d+$/, '');
+                            
+                            // Find the receipt for this transaction's student and base receipt
+                            let query = supabaseClient.from('receipts').select('*').eq('student_id', tx.student_id);
+                            if (base.startsWith('RCT-')) {
+                                query = query.eq('receipt_number', base);
+                            } else {
+                                query = query.ilike('receipt_number', `${base}-%`);
+                            }
+                            
+                            const { data: rctData } = await query;
+                            
+                            if (rctData && rctData.length > 0) {
+                                for (const rct of rctData) {
+                                    // Remove the fee line
+                                    const oldLines = Array.isArray(rct.fee_lines) ? rct.fee_lines : [];
+                                    
+                                    // Find index of line to remove (match by desc)
+                                    const lineIdx = oldLines.findIndex(l => l.desc === tx.fee_details);
+                                    
+                                    if (lineIdx !== -1) {
+                                        oldLines.splice(lineIdx, 1); // remove 1 item
+                                        
+                                        if (oldLines.length === 0) {
+                                            // No more lines -> delete receipt entirely
+                                            await supabaseClient.from('receipts').delete().eq('receipt_number', rct.receipt_number);
+                                        } else {
+                                            // Update the receipt
+                                            const newTotal = parseFloat(rct.total_paid) - parseFloat(tx.amount_paid);
+                                            await supabaseClient.from('receipts').update({
+                                                fee_lines: oldLines,
+                                                total_paid: Math.max(0, newTotal)
+                                            }).eq('receipt_number', rct.receipt_number);
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 

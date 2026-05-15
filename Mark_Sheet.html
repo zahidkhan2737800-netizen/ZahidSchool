@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Student Result Cards</title>
+
+<style>
+  /* --- General Styling --- */
+  body { 
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+    background: #f3f6fb; 
+    padding: 20px; 
+    color: #1e293b;
+  }
+  .wrap { max-width: 960px; margin: auto; }
+
+  /* --- Controls (Hidden when printing) --- */
+  .controls, .config-panel { 
+    display: flex; 
+    gap: 10px; 
+    flex-wrap: wrap; 
+    margin-bottom: 15px; 
+    background: white; 
+    padding: 15px; 
+    border-radius: 8px; 
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1); 
+  }
+  
+  .config-panel {
+      display: none; 
+      flex-direction: column;
+      border-left: 5px solid #ff9f43;
+  }
+
+  .subject-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 8px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #eee;
+  }
+  .subject-row label { width: 150px; font-weight: bold; }
+
+  input[type="text"], input[type="file"], input[type="number"] { 
+    padding: 8px 10px; 
+    border-radius: 6px; 
+    border: 1px solid #ccc; 
+  }
+  button { 
+    padding: 8px 15px; 
+    border: none; 
+    border-radius: 6px; 
+    background: #2563eb; 
+    color: white; 
+    cursor: pointer; 
+    font-weight: bold; 
+  }
+  button.green { background: #27ae60; }
+  button.secondary { background: #475569; }
+  button:hover { opacity: 0.9; }
+
+  /* --- Result Card Styling --- */
+  .card {
+      position: relative;
+      background: white;
+      padding: 15px 25px; 
+      border: 4px solid #4a90e2; 
+      border-radius: 15px;
+      outline: 2px dashed #ff9f43; 
+      outline-offset: -8px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+      box-sizing: border-box; 
+      overflow: hidden;
+  }
+
+  .icon-deco {
+      position: absolute;
+      top: 15px;
+      font-size: 24px;
+      z-index: 10;
+  }
+  .icon-left { left: 15px; }
+  .icon-right { right: 15px; }
+
+  .header-area { text-align: center; margin-bottom: 5px; }
+  .header-area img { 
+      height: 60px; 
+      width: auto; 
+      margin-bottom: 2px; 
+  }
+
+  h1.school-name {
+      margin: 2px 0 0 0;
+      color: #1e3a8a; 
+      font-size: 1.6em; 
+      text-transform: uppercase;
+      font-weight: 800;
+      letter-spacing: 1px;
+  }
+
+  h2.exam {
+      margin: 0 0 8px 0;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #555;
+      font-size: 1em;
+      font-weight: normal;
+  }
+
+  .info-table { width: 100%; margin: 5px 0; }
+  .info-table td { 
+      padding: 3px; 
+      font-size: 14px; 
+      color: #333;
+  }
+
+  .marks-table { width: 100%; border-collapse: collapse; margin-top: 5px; }
+  .marks-table th { 
+      background: #4a90e2 !important; 
+      color: white !important; 
+      border: 1px solid #2980b9; 
+      padding: 5px;
+      font-size: 13px;
+      -webkit-print-color-adjust: exact; 
+      print-color-adjust: exact;
+  }
+  .marks-table td {
+      border: 1px solid #bdc3c7;
+      padding: 4px; 
+      text-align: center;
+      font-size: 13px;
+  }
+  .marks-table tr:nth-child(even) { background-color: #f2f6fc; }
+
+  .status-pass { color: green; font-weight: bold; }
+  .status-fail { color: red; font-weight: bold; }
+
+  .comments { margin-top: 10px; font-size: 13px; color: #555; }
+  
+  .center-footer { text-align: center; margin-top: 5px; }
+  .contact {
+      font-weight: bold;
+      font-size: 12px;
+      color: #1e293b;
+      background: #eee;
+      padding: 4px 15px;
+      border-radius: 20px;
+      display: inline-block;
+      -webkit-print-color-adjust: exact; 
+  }
+
+  .print-checkbox {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 30;
+    transform: scale(1.1);
+  }
+
+  /* --- PRINT SETTINGS --- */
+  @media print {
+      @page {
+          size: A4;
+          margin: 0; 
+      }
+      body { 
+          background: white; 
+          padding: 0; 
+          margin: 0; 
+          -webkit-print-color-adjust: exact; 
+          print-color-adjust: exact;
+      }
+      .controls, .config-panel, #note, h1.main-title { display: none !important; }
+      .wrap { max-width: none; width: 100%; }
+      
+      .card {
+          height: 148mm; 
+          margin: 0;
+          border-radius: 0; 
+          border: none; 
+          border-bottom: 1px dashed #999; 
+          outline: none; 
+          page-break-inside: avoid;
+          padding: 10px 30px; 
+      }
+      
+      .card-inner {
+          border: 3px solid #4a90e2;
+          border-radius: 15px;
+          height: 98%; 
+          padding: 10px 15px; 
+          box-sizing: border-box;
+          position: relative;
+          top: 1%; 
+      }
+
+      .marks-table th { background-color: #4a90e2 !important; color: white !important; }
+      .contact { background-color: #eee !important; }
+      
+      .marks-table td, .marks-table th { font-size: 12px; padding: 3px; }
+      .school-name { font-size: 1.4em; }
+
+      .card.page-break {
+          page-break-after: always;
+          border-bottom: none; 
+      }
+
+      .card { display: none !important; }
+      .card.printable { display: block !important; }
+      .print-checkbox { display: none !important; }
+  }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const schoolInput = document.getElementById("schoolName");
+    const examInput = document.getElementById("examName");
+    const classInput = document.getElementById("className");
+    const logoInput = document.getElementById("logoInput");
+    const loadBtn = document.getElementById("loadBtn");
+    const container = document.getElementById("cardsContainer");
+    const noteEl = document.getElementById("note");
+    
+    const configPanel = document.getElementById("configPanel");
+    const subjectListDiv = document.getElementById("subjectList");
+    const generateBtn = document.getElementById("generateBtn");
+
+    const printBtn = document.getElementById('printBtn');
+    const selectAllPrint = document.getElementById('selectAllPrint');
+
+    let fetchedDocs = [];
+    let detectedSubjects = [];
+    let currentLogoSrc = "https://via.placeholder.com/150x80?text=Logo"; 
+
+    logoInput.addEventListener('change', function() {
+        if (this.files && this.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) { currentLogoSrc = e.target.result; }
+            reader.readAsDataURL(this.files[0]);
+        }
+    });
+
+    const timer = setInterval(() => {
+        if (window.authReady && window.supabaseClient) {
+            clearInterval(timer);
+            init();
+        }
+    }, 100);
+
+    async function init() {
+        try {
+            let qCls = window.supabaseClient.from('classes').select('id, class_name, section');
+            if (window.currentSchoolId) qCls = qCls.eq('school_id', window.currentSchoolId);
+            const { data: clsData } = await qCls;
+            classInput.innerHTML = '<option value="">-- Class --</option>';
+            (clsData || []).forEach(c => {
+                const clsName = c.section ? `${c.class_name} ${c.section}` : c.class_name;
+                const o = document.createElement("option"); 
+                o.value = clsName; 
+                o.textContent = clsName; 
+                classInput.appendChild(o);
+            });
+
+            let qEx = window.supabaseClient.from('examination').select('id, name').order('start_date', { ascending: false });
+            if (window.currentSchoolId) qEx = qEx.eq('school_id', window.currentSchoolId);
+            const { data: exData } = await qEx;
+            examInput.innerHTML = '<option value="">-- Exam --</option>';
+            (exData || []).forEach(ex => {
+                const o = document.createElement("option");
+                o.value = ex.id;
+                o.dataset.name = ex.name;
+                o.textContent = ex.name;
+                examInput.appendChild(o);
+            });
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    loadBtn.addEventListener("click", async () => {
+        const examId = examInput.value;
+        const examName = examInput.options[examInput.selectedIndex]?.textContent || "";
+        const cls = classInput.value;
+        if (!examId || !cls) { alert("Please select Exam and Class."); return; }
+
+        container.innerHTML = "<p>Fetching data...</p>";
+        configPanel.style.display = "none";
+        noteEl.textContent = "";
+
+        let q = window.supabaseClient.from('marks').select('*').eq('class', cls);
+        if (examId) q = q.eq('exam_id', examId);
+        else q = q.is('exam_id', null);
+        if (window.currentSchoolId) q = q.eq('school_id', window.currentSchoolId);
+
+        const { data: snap, error } = await q;
+
+        if (error || !snap || snap.length === 0) {
+            container.innerHTML = "<p>No records found.</p>";
+            return;
+        }
+
+        detectedSubjects = [];
+        fetchedDocs = [];
+
+        snap.forEach(data => {
+            fetchedDocs.push(data);
+            if (data.marks && typeof data.marks === "object") {
+                for (const s in data.marks) {
+                    if (!detectedSubjects.includes(s)) detectedSubjects.push(s);
+                }
+            }
+        });
+        detectedSubjects.sort();
+
+        container.innerHTML = "";
+        noteEl.textContent = "Data loaded! Please configure passing marks below.";
+        
+        let configHTML = "";
+        detectedSubjects.forEach(sub => {
+            configHTML += `
+                <div class="subject-row">
+                    <label>${escape(sub)}</label>
+                    <div style="display:flex; flex-direction:column; font-size:10px;">
+                        <span>Total</span>
+                        <input type="number" class="sub-total" data-sub="${sub}" value="100" style="width:60px">
+                    </div>
+                    <div style="display:flex; flex-direction:column; font-size:10px;">
+                        <span>Pass</span>
+                        <input type="number" class="sub-pass" data-sub="${sub}" value="33" style="width:60px">
+                    </div>
+                </div>
+            `;
+        });
+        
+        subjectListDiv.innerHTML = configHTML;
+        configPanel.style.display = "flex";
+    });
+
+    generateBtn.addEventListener("click", () => {
+        const school = schoolInput.value.trim();
+        const examName = examInput.options[examInput.selectedIndex]?.textContent || "Examination";
+        const cls = classInput.value.trim();
+        
+        const configMap = {};
+        document.querySelectorAll(".sub-total").forEach(input => {
+            const s = input.getAttribute("data-sub");
+            if(!configMap[s]) configMap[s] = {};
+            configMap[s].total = Number(input.value);
+        });
+        document.querySelectorAll(".sub-pass").forEach(input => {
+            const s = input.getAttribute("data-sub");
+            configMap[s].pass = Number(input.value);
+        });
+
+        container.innerHTML = "";
+
+        fetchedDocs.forEach(stu => {
+            let grandTotalObt = 0;
+            let grandTotalMax = 0;
+            let printedCount = 0;
+            let rows = "";
+
+            detectedSubjects.forEach(sub => {
+                const marksObj = stu.marks || {};
+                const obtRaw = marksObj[sub];
+                if (obtRaw === null || obtRaw === undefined) return;
+                const obtStr = String(obtRaw).trim();
+                if (obtStr === "") return;
+
+                const obtNum = Number(obtStr);
+                if (Number.isNaN(obtNum)) return;
+
+                const subTotal = configMap[sub]?.total || 100;
+                const subPass = configMap[sub]?.pass || 33;
+
+                grandTotalMax += subTotal;
+                grandTotalObt += obtNum;
+                printedCount += 1;
+
+                const status = (obtNum >= subPass ? "Pass" : "Fail");
+                const statusClass = status === "Pass" ? "status-pass" : "status-fail";
+
+                rows += `
+                    <tr>
+                        <td style="text-align:left;padding-left:8px">${escape(sub)}</td>
+                        <td>${subTotal}</td>
+                        <td>${subPass}</td>
+                        <td>${obtNum}</td>
+                        <td class="${statusClass}">${status}</td>
+                    </tr>
+                `;
+            });
+
+            if (printedCount === 0) return;
+
+            let percentageValue = 0;
+            let percentage = "-";
+            let grade = "F";
+            let remark = "Fail";
+            let finalColor = "red";
+
+            if (grandTotalMax > 0) {
+                percentageValue = (grandTotalObt / grandTotalMax) * 100;
+                percentage = percentageValue.toFixed(1) + "%";
+                
+                // Grading Logic
+                if (percentageValue >= 90) { grade = "A+"; remark = "Excellent"; finalColor = "green"; }
+                else if (percentageValue >= 80) { grade = "A"; remark = "Very Good"; finalColor = "green"; }
+                else if (percentageValue >= 70) { grade = "B"; remark = "Good"; finalColor = "green"; }
+                else if (percentageValue >= 60) { grade = "C"; remark = "Average"; finalColor = "green"; }
+                else if (percentageValue >= 40) { grade = "D"; remark = "Pass"; finalColor = "green"; }
+                else { grade = "F"; remark = "Fail"; finalColor = "red"; }
+            }
+
+            const cardHTML = `
+                <div class="card">
+                  <input type="checkbox" class="print-checkbox" checked title="Include in print" />
+                  <div class="card-inner">
+                    <div class="icon-deco icon-left">★</div>
+                    <div class="icon-deco icon-right">✨</div>
+
+                    <div class="header-area">
+                        <img src="${currentLogoSrc}" alt="School Logo">
+                        <h1 class="school-name">${escape(school)}</h1>
+                        <h2 class="exam">${escape(examName)}</h2>
+                    </div>
+
+                    <table class="info-table">
+                        <tr>
+                          <td><b>Name:</b> ${escape(stu.name)}</td>
+                          <td><b>Class:</b> ${escape(cls)}</td>
+                        </tr>
+                        <tr>
+                          <td><b>Roll #:</b> ${escape(stu.roll_number || stu.rollNumber)}</td>
+                          <td><b>Date:</b> ${new Date().toLocaleDateString()}</td>
+                        </tr>
+                    </table>
+
+                    <table class="marks-table">
+                        <thead>
+                          <tr>
+                              <th>Subjects</th>
+                              <th>Total</th>
+                              <th>Pass</th>
+                              <th>Obt</th>
+                              <th>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          ${rows}
+                          <tr style="background:#fff3cd; font-weight:bold;">
+                              <td colspan="3" style="text-align:right;">Grand Total</td>
+                              <td>${grandTotalObt} / ${grandTotalMax}</td>
+                              <td style="color:${finalColor}">${grade}</td>
+                          </tr>
+                          <tr style="background:#e3f2fd; font-weight:bold;">
+                              <td colspan="3" style="text-align:right;">Percentage</td>
+                              <td>${percentage}</td>
+                              <td style="color:${finalColor}">${remark}</td>
+                          </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="comments">
+                      <b>Remarks:</b> ${remark === "Fail" ? "________________________" : "Keep up the hard work!"}
+                    </div>
+
+                    <div class="center-footer">
+                        <div class="contact">
+                             📞 Contact: 03337502737
+                        </div>
+                    </div>
+                  </div>
+                </div>
+            `;
+            container.insertAdjacentHTML("beforeend", cardHTML);
+        });
+        updateSelectAllState();
+        container.scrollIntoView({behavior: "smooth"});
+    });
+
+    printBtn.addEventListener('click', () => {
+        const cards = document.querySelectorAll('#cardsContainer .card');
+        let anySelected = false;
+        let printCount = 0; 
+        cards.forEach(c => {
+            const cb = c.querySelector('.print-checkbox');
+            c.classList.remove('page-break');
+            if (cb && cb.checked) {
+                c.classList.add('printable');
+                anySelected = true;
+                printCount++;
+                if (printCount % 2 === 0) c.classList.add('page-break');
+            } else {
+                c.classList.remove('printable');
+            }
+        });
+        if (!anySelected) { if (!confirm('No cards selected for printing.')) return; }
+        window.print();
+    });
+
+    selectAllPrint.addEventListener('change', (e) => {
+        const checked = e.target.checked;
+        document.querySelectorAll('#cardsContainer .card .print-checkbox').forEach(cb => cb.checked = checked);
+    });
+
+    function updateSelectAllState() {
+        const cards = document.querySelectorAll('#cardsContainer .card');
+        const total = cards.length;
+        if (total === 0) { selectAllPrint.checked = true; return; }
+        let checkedCount = 0;
+        cards.forEach(c => { if (c.querySelector('.print-checkbox').checked) checkedCount++; });
+        selectAllPrint.checked = (checkedCount === total);
+        cards.forEach(c => {
+            const cb = c.querySelector('.print-checkbox');
+            if (cb && !cb._hasListener) {
+                cb.addEventListener('change', () => updateSelectAllState());
+                cb._hasListener = true;
+            }
+        });
+    }
+
+    function escape(s) {
+        return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    }
+});
+</script>
+</head>
+<body>
+<div class="wrap">
+    <h1 class="main-title">🖨️ Print Result Cards</h1>
+    <div class="controls">
+        <div style="flex-grow:1; min-width:200px;">
+            <label style="display:block; font-size:12px; margin-bottom:4px; font-weight:bold;">1. Upload Logo:</label>
+            <input id="logoInput" type="file" accept="image/*">
+        </div>
+        <div style="flex-grow:1; min-width:200px;">
+            <label style="display:block; font-size:12px; margin-bottom:4px; font-weight:bold;">2. School Name:</label>
+            <input id="schoolName" type="text" value="Zahid School">
+        </div>
+        <div style="flex-grow:1; min-width:200px;">
+            <label style="display:block; font-size:12px; margin-bottom:4px; font-weight:bold;">3. Search Filter:</label>
+            <select id="examName"><option value="">Loading...</option></select>
+            <select id="className"><option value="">Loading...</option></select>
+        </div>
+        <div style="align-self: flex-end; display:flex; gap:8px; align-items:center;">
+            <button id="loadBtn">Load Data</button>
+            <label style="font-weight:bold; font-size:13px; display:flex; align-items:center; gap:6px;">
+                <input id="selectAllPrint" type="checkbox" checked> Print All
+            </label>
+            <button id="printBtn" class="secondary">Print</button>
+        </div>
+    </div>
+    <div id="configPanel" class="config-panel">
+        <h3>Configure Subjects</h3>
+        <p style="margin-top:0; font-size:13px; color:#666;">Set the Total and Passing Marks for each subject.</p>
+        <div id="subjectList"></div>
+        <div style="text-align:right; margin-top:10px;">
+            <button id="generateBtn" class="green">Generate Result Cards</button>
+        </div>
+    </div>
+    <div id="note" style="margin-bottom:10px;color:#1e293b; font-weight:bold;"></div>
+    <div id="cardsContainer"></div>
+</div>
+</body>
+</html>

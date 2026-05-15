@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Marks Entry — Classwise</title>
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial; background:#f5f7fb; margin:20px; }
+    .wrap { max-width:1200px; margin:0 auto; }
+    h1 { text-align:center; color:#1f2937; }
+    .controls, .toolbar { display:flex; gap:8px; align-items:center; margin:12px 0; flex-wrap:wrap; }
+    .controls input[type="text"], .controls select { padding:8px 10px; border-radius:6px; border:1px solid #cbd5e1; min-width:180px; }
+    button { padding:8px 12px; border:none; border-radius:6px; background:#2563eb; color:white; cursor:pointer; }
+    button.secondary { background:#64748b; }
+    button.warn { background:#f59e0b; color:#111; }
+    .subjects { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .subject-pill { background:#fff; border:1px solid #cbd5e1; padding:6px 8px; border-radius:6px; display:flex; gap:6px; align-items:center; }
+    table { width:100%; border-collapse:collapse; background:#fff; border-radius:8px; overflow:hidden; box-shadow:0 2px 8px rgba(15,23,42,0.06); }
+    th, td { padding:8px 10px; border-bottom:1px solid #eef2ff; text-align:left; vertical-align:middle; }
+    thead th { background:#0ea5e9; color:#fff; position:sticky; top:0; }
+    input.mark { width:90px; padding:6px; border-radius:6px; border:1px solid #e6e9f2; }
+    input.small { width:60px; }
+    .right { text-align:right; }
+    .notice { font-size:13px; color:#475569; margin:8px 0; }
+    .actions { display:flex; gap:6px; }
+    .saved { color:green; font-size:12px; margin-left:8px; }
+  </style>
+
+  <!-- Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="auth.js"></script>
+
+  <script>
+    // === State ===
+    let allAdmissions = [];      
+    let currentStudents = [];    
+    let subjects = []; 
+    let marksMap = {}; 
+    let allExams = [];
+    let allClasses = [];
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const classSelect = document.getElementById("classSelect");
+      const examNameInput = document.getElementById("examName");
+      const loadBtn = document.getElementById("loadExam");
+      const subjectsContainer = document.getElementById("subjectsContainer");
+      const tableWrap = document.getElementById("tableWrap");
+      const saveAllBtn = document.getElementById("saveAll");
+      const exportCsvBtn = document.getElementById("exportCsv");
+      const notice = document.getElementById("notice");
+
+      // Replace examName input with select
+      const examNameSelect = document.createElement("select");
+      examNameSelect.id = "examName";
+      examNameSelect.innerHTML = '<option value="">Loading exams...</option>';
+      examNameInput.parentNode.replaceChild(examNameSelect, examNameInput);
+
+      // Wait for authReady
+      const timer = setInterval(() => {
+        if (window.authReady && window.supabaseClient) {
+          clearInterval(timer);
+          init();
+        }
+      }, 100);
+
+      async function init() {
+        try {
+          // 1. Fetch Admissions
+          let q = window.supabaseClient.from('admissions').select('id, roll_number, full_name, applying_for_class');
+          if (window.currentSchoolId) q = q.eq('school_id', window.currentSchoolId);
+          const { data: admData, error: admErr } = await q.in('status', ['Active', 'active']);
+          if (admErr) throw admErr;
+          
+          allAdmissions = (admData || []).map(d => ({
+            id: d.id,
+            rollNumber: d.roll_number,
+            name: d.full_name,
+            class: d.applying_for_class
+          }));
+
+          // 2. Fetch Classes
+          let qCls = window.supabaseClient.from('classes').select('id, class_name, section');
+          if (window.currentSchoolId) qCls = qCls.eq('school_id', window.currentSchoolId);
+          const { data: clsData, error: clsErr } = await qCls;
+          if (clsErr) throw clsErr;
+          allClasses = clsData || [];
+          
+          classSelect.innerHTML = '<option value="">-- pick class --</option>';
+          allClasses.forEach(c => {
+            const clsName = c.section ? `${c.class_name} ${c.section}` : c.class_name;
+            const o = document.createElement("option"); 
+            o.dataset.id = c.id;
+            o.value = clsName; 
+            o.textContent = clsName; 
+            classSelect.appendChild(o);
+          });
+
+          // 3. Fetch Exams
+          let qEx = window.supabaseClient.from('examination').select('id, name').order('start_date', { ascending: false });
+          if (window.currentSchoolId) qEx = qEx.eq('school_id', window.currentSchoolId);
+          const { data: exData, error: exErr } = await qEx;
+          if (exErr) throw exErr;
+          allExams = exData || [];
+
+          examNameSelect.innerHTML = '<option value="">-- pick exam --</option>';
+          allExams.forEach(ex => {
+            const o = document.createElement("option");
+            o.value = ex.id;
+            o.textContent = ex.name;
+            examNameSelect.appendChild(o);
+          });
+
+          subjects = [];
+          renderSubjects();
+
+        } catch (err) {
+          console.error(err);
+          alert("Error loading data: " + err.message);
+        }
+      }
+
+      function renderSubjects() {
+        subjectsContainer.innerHTML = "";
+        subjects.forEach((s) => {
+          const pill = document.createElement("span");
+          pill.className = "subject-pill";
+          pill.textContent = s;
+          subjectsContainer.appendChild(pill);
+        });
+      }
+
+      loadBtn.addEventListener("click", async () => {
+        const classOption = classSelect.options[classSelect.selectedIndex];
+        const cls = classOption ? classOption.value : "";
+        const clsId = classOption ? classOption.dataset.id : "";
+        const examId = examNameSelect.value;
+        
+        if (!cls) { alert("Select a class first."); return; }
+        if (!examId) { if (!confirm("No exam selected — continue and enter marks without exam?")) return; }
+        
+        loadBtn.disabled = true;
+        loadBtn.textContent = "Loading...";
+
+        try {
+          if (clsId) {
+            let qSub = window.supabaseClient.from('class_subject').select('subject:subject_id(name)').eq('class_id', clsId);
+            const { data: subData, error: subErr } = await qSub;
+            if (!subErr && subData && subData.length > 0) {
+              subjects = subData.map(d => d.subject?.name).filter(Boolean);
+            } else {
+              subjects = [];
+            }
+            renderSubjects();
+          }
+        } catch (e) {
+          console.error("Error loading class subjects", e);
+        }
+
+        currentStudents = allAdmissions.filter(s => s.class === cls).sort((a,b) => {
+          const ra = (a.rollNumber || "").toString(), rb = (b.rollNumber || "").toString();
+          if (!isNaN(Number(ra)) && !isNaN(Number(rb))) return Number(ra) - Number(rb);
+          return (ra || "").localeCompare(rb || "");
+        });
+        
+        marksMap = {};
+        if (examId) {
+          try {
+            let marksQuery = window.supabaseClient.from('marks').select('*').eq('exam_id', examId).eq('class', cls);
+            if (window.currentSchoolId) marksQuery = marksQuery.eq('school_id', window.currentSchoolId);
+            const { data: snap, error: marksErr } = await marksQuery;
+            if (marksErr) throw marksErr;
+            if (snap) {
+              snap.forEach(d => {
+                const key = d.student_id || (d.roll_number ? `roll:${d.roll_number}` : d.id);
+                marksMap[key] = d;
+              });
+            }
+          } catch (err) {
+            console.error("Failed to load existing marks", err);
+          }
+        }
+        rebuildTable();
+        notice.textContent = `Loaded ${currentStudents.length} students for class ${cls}.`;
+        
+        loadBtn.disabled = false;
+        loadBtn.textContent = "Load Exam / Students";
+      });
+
+      function rebuildTable() {
+        const cls = classSelect.value;
+        const tbl = document.getElementById("marksTable");
+        const thead = tbl.querySelector("thead");
+        const tbody = tbl.querySelector("tbody");
+        
+        thead.innerHTML = "";
+        const hRow = document.createElement("tr");
+        ["Roll", "Student Name"].forEach(t => { const th=document.createElement("th"); th.textContent = t; hRow.appendChild(th); });
+        subjects.forEach(s => {
+          const th = document.createElement("th"); th.textContent = s; hRow.appendChild(th);
+        });
+        const thTotal = document.createElement("th"); thTotal.textContent = "Total"; hRow.appendChild(thTotal);
+        const thAct = document.createElement("th"); thAct.textContent = "Actions"; hRow.appendChild(thAct);
+        thead.appendChild(hRow);
+
+        tbody.innerHTML = "";
+        currentStudents.forEach(student => {
+          const tr = document.createElement("tr");
+          const rollTd = document.createElement("td"); rollTd.textContent = student.rollNumber || "—"; tr.appendChild(rollTd);
+          const nameTd = document.createElement("td"); nameTd.textContent = student.name || "—"; tr.appendChild(nameTd);
+
+          const keyById = student.id;
+          const keyByRoll = student.rollNumber ? `roll:${student.rollNumber}` : null;
+          const existing = marksMap[keyById] || (keyByRoll ? marksMap[keyByRoll] : null);
+
+          subjects.forEach((s, si) => {
+            const td = document.createElement("td");
+            const inp = document.createElement("input");
+            inp.type = "number";
+            inp.min = 0;
+            inp.max = 1000;
+            inp.className = "mark";
+            inp.dataset.sub = s;
+            inp.dataset.sid = student.id;
+            if (existing && existing.marks && typeof existing.marks[s] !== "undefined") inp.value = existing.marks[s];
+            td.appendChild(inp);
+            tr.appendChild(td);
+            inp.addEventListener("input", () => recalcRowTotal(tr));
+          });
+
+          const totalTd = document.createElement("td");
+          totalTd.className = "right";
+          totalTd.textContent = "0";
+          tr.appendChild(totalTd);
+
+          const actTd = document.createElement("td");
+          actTd.className = "actions";
+          const saveBtn = document.createElement("button");
+          saveBtn.textContent = "Save";
+          saveBtn.className = "secondary";
+          saveBtn.addEventListener("click", async () => {
+            saveBtn.disabled = true;
+            await saveStudentMarks(student, tr);
+            saveBtn.disabled = false;
+            const s = document.createElement("span"); s.className = "saved"; s.textContent = "Saved";
+            actTd.appendChild(s);
+            setTimeout(() => s.remove(), 2000);
+          });
+          actTd.appendChild(saveBtn);
+          tr.appendChild(actTd);
+
+          tbody.appendChild(tr);
+          recalcRowTotal(tr);
+        });
+
+        updateClassSummary();
+      }
+
+      function recalcRowTotal(tr) {
+        const inputs = tr.querySelectorAll("input.mark");
+        let sum = 0;
+        inputs.forEach(i => {
+          const v = Number(i.value);
+          if (!isNaN(v)) sum += v;
+        });
+        const tcell = tr.querySelectorAll("td")[2 + subjects.length];
+        if (tcell) tcell.textContent = sum;
+        updateClassSummary();
+      }
+
+      function updateClassSummary() {
+        const tbody = document.getElementById("marksTable").querySelector("tbody");
+        const rows = Array.from(tbody.querySelectorAll("tr"));
+        let grandTotal = 0;
+        let count = 0;
+        rows.forEach(r => {
+          const tcell = r.querySelectorAll("td")[2 + subjects.length];
+          if (tcell) {
+            const v = Number(tcell.textContent) || 0;
+            grandTotal += v;
+            count++;
+          }
+        });
+        const avg = count ? (grandTotal / count).toFixed(2) : "—";
+        document.getElementById("classTotal").textContent = `Class Total: ${grandTotal} | Average: ${avg}`;
+      }
+
+      async function saveStudentMarks(student, tr) {
+        const examId = examNameSelect.value;
+        const examNameStr = examId ? examNameSelect.options[examNameSelect.selectedIndex].textContent : null;
+        const cls = classSelect.value;
+        if (!cls) { alert("Select class before saving."); return; }
+        
+        const inputs = tr.querySelectorAll("input.mark");
+        const marksObj = {};
+        inputs.forEach(inp => marksObj[inp.dataset.sub] = inp.value === "" ? null : Number(inp.value));
+        const total = Number(tr.querySelectorAll("td")[2 + subjects.length].textContent) || 0;
+        
+        const payload = {
+          school_id: window.currentSchoolId || null,
+          exam_id: examId || null,
+          exam_name: examNameStr,
+          class: cls,
+          student_id: student.id,
+          roll_number: student.rollNumber || null,
+          name: student.name || null,
+          marks: marksObj,
+          total,
+          updated_at: new Date().toISOString()
+        };
+        
+        try {
+          let query = window.supabaseClient.from('marks')
+            .select('id')
+            .eq('student_id', student.id)
+            .eq('class', cls);
+            
+          if (examId) query = query.eq('exam_id', examId);
+          else query = query.is('exam_id', null);
+          
+          if (window.currentSchoolId) query = query.eq('school_id', window.currentSchoolId);
+          
+          const { data: existingRecords, error: err1 } = await query;
+          if (err1) throw err1;
+          
+          if (existingRecords && existingRecords.length > 0) {
+            const { error: err2 } = await window.supabaseClient.from('marks')
+              .update(payload)
+              .eq('id', existingRecords[0].id);
+            if (err2) throw err2;
+          } else {
+            const { error: err3 } = await window.supabaseClient.from('marks')
+              .insert(payload);
+            if (err3) throw err3;
+          }
+        } catch (err) {
+          console.error("Save failed", err);
+          alert("Save failed: " + (err.message || err));
+        }
+      }
+
+      saveAllBtn.addEventListener("click", async () => {
+        if (!confirm("Save marks for all students shown?")) return;
+        const cls = classSelect.value;
+        if (!cls) { alert("Choose class first."); return; }
+        const tbody = document.getElementById("marksTable").querySelector("tbody");
+        const rows = Array.from(tbody.querySelectorAll("tr"));
+        saveAllBtn.disabled = true;
+        saveAllBtn.textContent = "Saving...";
+        for (const r of rows) {
+          const sid = currentStudents[rows.indexOf(r)]?.id;
+          if (!sid) continue;
+          await saveStudentMarks(currentStudents[rows.indexOf(r)], r);
+        }
+        saveAllBtn.disabled = false;
+        saveAllBtn.textContent = "Save All";
+        alert("All marks saved.");
+      });
+
+      exportCsvBtn.addEventListener("click", () => {
+        const examNameStr = examNameSelect.value ? examNameSelect.options[examNameSelect.selectedIndex].textContent : "";
+        const cls = classSelect.value;
+        if (!cls) { alert("Select class to export."); return; }
+        const rows = [];
+        const header = ["Roll", "Name", ...subjects, "Total"];
+        rows.push(header.join(","));
+        const tbody = document.getElementById("marksTable").querySelector("tbody");
+        Array.from(tbody.querySelectorAll("tr")).forEach((r) => {
+          const cells = r.querySelectorAll("td");
+          const roll = cells[0].textContent.replace(/,/g," ");
+          const name = cells[1].textContent.replace(/,/g," ");
+          const marks = [];
+          for (let i=0;i<subjects.length;i++){
+            const inp = cells[2+i].querySelector("input");
+            marks.push(inp && inp.value !== "" ? inp.value : "");
+          }
+          const total = cells[2+subjects.length].textContent || "";
+          rows.push([roll, name, ...marks, total].map(v => `"${String(v).replace(/"/g,'""')}"`).join(","));
+        });
+        const csv = rows.join("\n");
+        const blob = new Blob([csv], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a"); a.href = url; a.download = `${examNameStr || "exam"}_${cls}_marks.csv`;
+        document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+      });
+
+      function escapeHtml(s){ return (s||"").toString().replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+    });
+  </script>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Marks Entry (Classwise)</h1>
+
+    <div class="controls">
+      <label for="classSelect">Class:</label>
+      <select id="classSelect"><option value="">Loading classes…</option></select>
+
+      <label for="examName">Exam Name:</label>
+      <input id="examName" type="text" placeholder="e.g. Midterms 2025" />
+
+      <button id="loadExam">Load Exam / Students</button>
+
+      <div style="margin-left:auto" class="actions">
+        <button id="saveAll">Save All</button>
+        <button id="exportCsv" class="secondary">Export CSV</button>
+      </div>
+    </div>
+
+    <div class="notice" id="notice">Tip: Select a Class and Exam, then press "Load Exam" to show students and assigned subjects.</div>
+
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+      <div style="flex:1"></div>
+      <div id="classTotal" style="font-weight:600;color:#0f172a"></div>
+    </div>
+
+    <div class="subjects" id="subjectsContainer"></div>
+
+    <div id="tableWrap" style="margin-top:12px;">
+      <table id="marksTable">
+        <thead></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,7 +1,8 @@
 // Uses supabaseClient from auth.js
 
 document.addEventListener('DOMContentLoaded', () => {
-    const grid = document.getElementById('familiesGrid');
+    const gridContainer = document.getElementById('familiesTableContainer');
+    const tbody = document.getElementById('familiesTbody');
     const spinner = document.getElementById('spinner');
     const searchBar = document.getElementById('searchFamilies');
     
@@ -23,7 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadFamilies();
 
     async function loadFamilies() {
-        grid.style.display = 'none';
+        gridContainer.style.display = 'none';
         spinner.style.display = 'block';
         
         try {
@@ -88,9 +89,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderFamilies(filterText = '') {
-        grid.innerHTML = '';
+        tbody.innerHTML = '';
         spinner.style.display = 'none';
-        grid.style.display = 'grid';
+        gridContainer.style.display = 'block';
 
         const flatFilter = filterText.toLowerCase().trim();
 
@@ -106,66 +107,57 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         if (filtered.length === 0) {
-            grid.innerHTML = `<div style="grid-column: 1/-1; text-align:center; padding:3rem; color:#64748b; font-size:1.2rem;">No valid families found. A family appears only when 2 or more active students share the same mobile number.</div>`;
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:3rem; color:#64748b; font-size:1.2rem;">No valid families found. A family appears only when 2 or more active students share the same mobile number.</td></tr>`;
             return;
         }
 
         filtered.forEach(fam => {
-            const card = document.createElement('div');
-            card.className = `family-card ${fam.conflict ? 'conflict-card' : ''}`;
+            const tr = document.createElement('tr');
+            if(fam.conflict) tr.className = 'conflict-row';
 
+            let fatherCell = '';
             if(fam.conflict) {
-                // Render Conflict Resolution UI
                 let optionsHtml = fam.uniqueFatherNames.map(name => `
-                    <button class="conflict-btn" data-mobile="${fam.mobile}" data-choose="${name}">
+                    <button class="conflict-btn" data-mobile="${fam.mobile}" data-choose="${name}" style="display:block; width:100%; margin-bottom:0.3rem; padding:0.4rem; font-size:0.85rem;">
                         Choose "${name}"
                     </button>
                 `).join('');
-
-                card.innerHTML = `
-                    <div class="conflict-alert">⚠️ Naming Conflict Detected</div>
-                    <p style="font-size:0.9rem; color:#475569; margin-bottom:1rem;">
-                        Mobile <strong>${fam.mobile}</strong> has students with different father names. Please choose the correct family name:
-                    </p>
-                    <div class="conflict-options">
-                        ${optionsHtml}
-                    </div>
+                fatherCell = `
+                    <div style="color: #b45309; font-weight: 600; font-size: 0.9rem; margin-bottom: 0.3rem;">⚠️ Conflict Detected</div>
+                    <div style="font-size: 0.85rem; color: #475569; margin-bottom: 0.5rem;">Choose correct name:</div>
+                    ${optionsHtml}
                 `;
             } else {
-                // Render Normal Family UI
-                card.innerHTML = `
-                    <div class="fc-header">
-                        <div>
-                            <h3 class="fc-head-name">👨🏻 ${fam.primaryName}</h3>
-                            <p class="fc-mobile">📞 ${fam.mobile}</p>
-                            <p class="fc-mobile" style="margin-top:0.4rem; font-size:0.95rem; color:#475569;">
-                                🔢 Family #: 
-                                <input type="text" class="family-no-input" data-mobile="${fam.mobile}" value="${fam.familyNo}" placeholder="Type # & click out" title="Type a custom family number and click anywhere else to auto-save" style="width:130px; padding:0.3rem 0.5rem; border-radius:6px; border:1px solid #cbd5e1; font-size:0.9rem; outline:none; transition:0.2s;">
-                            </p>
-                        </div>
-                        <span style="font-size:0.85rem; background:#e0e7ff; color:var(--primary); padding:0.3rem 0.6rem; border-radius:12px; font-weight:700;">
-                            ${fam.members.length} Members
-                        </span>
-                    </div>
-                    
-                    <ul class="fc-members-list">
-                        ${fam.members.map(m => `
-                            <li class="fc-member">
-                                <div><strong>${m.roll_number}</strong> - ${m.full_name}</div>
-                                <button class="btn-remove remove-member-btn" title="Remove from family" data-id="${m.id}" data-name="${m.full_name}">×</button>
-                            </li>
-                        `).join('')}
-                    </ul>
-
-                    <div class="fc-actions">
-                        <button class="btn-add-member add-member-prompt" data-mobile="${fam.mobile}" data-fname="${fam.primaryName}">
-                            + Add Exisiting Student to Family
-                        </button>
-                    </div>
-                `;
+                fatherCell = `<strong>${fam.primaryName}</strong>`;
             }
 
-            grid.appendChild(card);
+            let membersHtml = `<div style="display: flex; flex-wrap: wrap; gap: 0.4rem;">` + fam.members.map(m => `
+                <span class="member-pill">
+                    ${m.roll_number} - ${m.full_name.split(' ')[0]}
+                    <button class="btn-remove-small remove-member-btn" title="Remove from family" data-id="${m.id}" data-name="${m.full_name}">×</button>
+                </span>
+            `).join('') + `</div>`;
+
+            tr.innerHTML = `
+                <td>
+                    <input type="text" class="family-no-input" data-mobile="${fam.mobile}" value="${fam.familyNo}" placeholder="Type # & click out" title="Type a custom family number and click anywhere else to auto-save" style="width:100px; padding:0.4rem; border-radius:6px; border:1px solid #cbd5e1; font-size:1rem; font-weight:600; outline:none; transition:0.2s; color:#0f172a;">
+                </td>
+                <td style="font-size:1.1rem; color:#0f172a;">${fatherCell}</td>
+                <td style="font-weight: 700; color: var(--primary); font-size:1.1rem; white-space: nowrap;">${fam.mobile}</td>
+                <td style="text-align: center;">
+                    <span style="background: #e0e7ff; color: var(--primary); padding: 0.3rem 0.8rem; border-radius: 12px; font-weight: 700; font-size: 1rem;">
+                        ${fam.members.length}
+                    </span>
+                </td>
+                <td>${membersHtml}</td>
+                <td style="text-align: center;">
+                    <button class="btn-add-member add-member-prompt" data-mobile="${fam.mobile}" data-fname="${fam.primaryName}" title="Add existing student to this family">
+                        + Add
+                    </button>
+                </td>
+            `;
+
+            tbody.appendChild(tr);
         });
 
         attachCardListeners();
