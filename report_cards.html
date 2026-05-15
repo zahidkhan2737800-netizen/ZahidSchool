@@ -592,7 +592,12 @@
         }
 
         function toggleAllStudents(check) {
-            document.querySelectorAll('.student-card-checkbox').forEach(cb => cb.checked = check);
+            document.querySelectorAll('.student-card').forEach(card => {
+                const cb = card.querySelector('.student-card-checkbox');
+                if (cb) cb.checked = check;
+                if (check) card.classList.add('active');
+                else card.classList.remove('active');
+            });
         }
 
         function loadStudents() {
@@ -627,12 +632,12 @@
                 const card = document.createElement('div');
                 card.className = 'student-card';
                 card.id = `scard-${s.id}`;
-                card.onclick = () => selectStudentForEdit(s.id);
+                card.onclick = (e) => toggleStudentCard(s.id, e);
                 
                 const photoUrl = s.photo_url || 'https://via.placeholder.com/90?text=No+Photo';
                 
                 card.innerHTML = `
-                    <input type="checkbox" class="student-card-checkbox" value="${s.id}" onclick="event.stopPropagation()">
+                    <input type="checkbox" class="student-card-checkbox" value="${s.id}">
                     <img src="${photoUrl}" alt="Student Photo">
                     <div style="font-weight: 600; font-size: 14px; color: var(--text-main); margin-bottom: 4px;">${s.full_name}</div>
                     <div style="font-size: 12px; color: var(--text-muted);">Roll No: ${s.roll_number}</div>
@@ -643,10 +648,21 @@
             document.getElementById('builderArea').style.display = 'none';
         }
 
-        function selectStudentForEdit(studentId) {
-            document.querySelectorAll('.student-card').forEach(c => c.classList.remove('active'));
+        function toggleStudentCard(studentId, event) {
             const card = document.getElementById(`scard-${studentId}`);
-            if (card) card.classList.add('active');
+            if (!card) return;
+            
+            const checkbox = card.querySelector('.student-card-checkbox');
+            
+            if (event && event.target !== checkbox) {
+                checkbox.checked = !checkbox.checked;
+            }
+
+            if (checkbox.checked) {
+                card.classList.add('active');
+            } else {
+                card.classList.remove('active');
+            }
 
             document.getElementById('studentSelect').value = studentId;
             loadReportCard();

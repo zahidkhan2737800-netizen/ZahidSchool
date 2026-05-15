@@ -161,9 +161,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 .limit(1));
             
             const label = document.getElementById('lastAdmittedRoll');
+            const rollInput = document.getElementById('rollNumber');
             if (label) {
                 if (!error && data && data.length > 0) {
-                    label.innerHTML = `Last admitted roll no: <span style="background-color: #fef08a; padding: 2px 6px; border-radius: 4px; color: #854d0e; font-weight: 600;">${data[0].roll_number}</span>`;
+                    const lastRollStr = data[0].roll_number;
+                    label.innerHTML = `Last admitted roll no: <span style="background-color: #fef08a; padding: 2px 6px; border-radius: 4px; color: #854d0e; font-weight: 600;">${lastRollStr}</span>`;
+                    
+                    if (rollInput && !rollInput.value && typeof editingStudentRecordId !== 'undefined' && !editingStudentRecordId) {
+                        const lastRollNum = parseInt(lastRollStr, 10);
+                        if (!isNaN(lastRollNum)) {
+                            rollInput.value = lastRollNum + 1;
+                        }
+                    }
                 } else {
                     label.textContent = `No previous admissions found.`;
                 }
@@ -192,7 +201,12 @@ document.addEventListener('DOMContentLoaded', () => {
             ageInput.value = '';
         }
     });
-    
+    // Set admission date to today by default
+    const admissionDateInput = document.getElementById('admissionDate');
+    if (admissionDateInput) {
+        admissionDateInput.value = new Date().toISOString().split('T')[0];
+    }
+
     // Photo Preview + Compression
     const photoInput       = document.getElementById('studentPhoto');
     const photoPreviewImg  = document.getElementById('studentPhotoPreviewImg');
@@ -429,6 +443,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!cropperInstance) return;
         const d = cropperInstance.getData();
         cropperInstance.scaleY(d.scaleY === -1 ? 1 : -1);
+    });
+    
+    document.getElementById('cropChangePhoto')?.addEventListener('click', () => {
+        if (photoInput) photoInput.click();
     });
 
     if (cropAspectToggle) {
