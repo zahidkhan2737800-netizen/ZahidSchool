@@ -7,6 +7,22 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="fee_paid_log.css">
+    <style>
+        .nav-bar{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+        .nav-bar>a{text-decoration:none;color:var(--brand-dark);font-weight:600;font-size:.85rem;border:1px solid #c7d2fe;background:#eef2ff;padding:.4rem .65rem;border-radius:8px;white-space:nowrap}
+        .nav-bar>a:hover{background:#e0e7ff}
+        .nav-dropdown{position:relative}
+        .nav-dropdown-btn{display:flex;align-items:center;gap:.4rem;color:var(--brand-dark);font-weight:700;font-size:.85rem;border:1px solid #c7d2fe;background:#e0e7ff;padding:.4rem .75rem;border-radius:8px;cursor:pointer;white-space:nowrap;user-select:none}
+        .nav-dropdown-btn:hover{background:#c7d2fe}
+        .nav-dropdown-menu{display:none;position:absolute;top:calc(100% + 6px);right:0;background:#fff;border:1px solid #c7d2fe;border-radius:10px;box-shadow:0 8px 24px rgba(79,70,229,.12);z-index:999;min-width:230px;padding:.4rem 0;overflow:hidden}
+        .nav-dropdown:hover .nav-dropdown-menu{display:block}
+        .nav-dropdown-menu a{display:flex;align-items:center;gap:.5rem;padding:.48rem 1rem;font-size:.84rem;font-weight:600;color:#334155;text-decoration:none;background:transparent;border:none;border-radius:0}
+        .nav-dropdown-menu a:hover{background:#eef2ff;color:var(--brand)}
+        .nav-dropdown-menu a.active-page{background:#eef2ff;color:var(--brand);border-left:3px solid var(--brand);padding-left:calc(1rem - 3px)}
+        .nav-dropdown-menu a i{width:16px;text-align:center}
+        .nav-sep{height:1px;background:#e2e8f0;margin:.3rem 0}
+        @media print{.nav-bar,.nav-dropdown{display:none!important}}
+    </style>
 </head>
 <body>
     <div class="page-wrap">
@@ -18,9 +34,20 @@
                     <p>Date-wise challan payments with student details</p>
                 </div>
             </div>
-            <div class="head-links">
+            <div class="nav-bar">
                 <a href="dashboard.html"><i class="fas fa-chart-line"></i> Dashboard</a>
                 <a href="collect_fee.html"><i class="fas fa-hand-holding-usd"></i> Collect Fee</a>
+                <div class="nav-dropdown">
+                    <span class="nav-dropdown-btn" tabindex="0"><i class="fas fa-file-invoice-dollar"></i> Fee Reports <i class="fas fa-chevron-down" style="font-size:.7rem"></i></span>
+                    <div class="nav-dropdown-menu">
+                        <a href="fee_paid_log.html" class="active-page"><i class="fas fa-list-check"></i> Fee Paid Log</a>
+                        <a href="fee_register.html"><i class="fas fa-table"></i> Fee Register</a>
+                        <div class="nav-sep"></div>
+                        <a href="fee_type_report.html"><i class="fas fa-file-invoice"></i> Fee Type Report</a>
+                        <a href="head_wise_fee_report.html"><i class="fas fa-chart-bar"></i> Head Wise Collection</a>
+                        <a href="fee_unpaid_head_report.html"><i class="fas fa-exclamation-circle"></i> Fee Not Paid Head Wise</a>
+                    </div>
+                </div>
             </div>
         </header>
 

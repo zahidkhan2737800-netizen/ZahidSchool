@@ -315,6 +315,27 @@
             border-radius: 8px; font-size: 0.9rem; transition: all 0.2s; border: 1px solid #d8b4fe;
         }
         .nav-links a:hover { background: #7c3aed; color: white; border-color: #7c3aed; }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+        }
     </style>
 </head>
 <body>

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zahid School - Head Wise Fee Collection Report</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="head_wise_fee_report.css">
+    <style>
+        /* ── Fee Reports dropdown nav ── */
+        .nav-bar {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        .nav-bar a {
+            text-decoration: none;
+            color: var(--brand-dark);
+            font-weight: 600;
+            font-size: 0.85rem;
+            border: 1px solid #c7d2fe;
+            background: #eef2ff;
+            padding: 0.4rem 0.65rem;
+            border-radius: 8px;
+            white-space: nowrap;
+        }
+        .nav-bar a:hover { background: #e0e7ff; }
+        .nav-bar a.active {
+            background: var(--brand);
+            color: #fff;
+            border-color: var(--brand);
+        }
+        .nav-dropdown {
+            position: relative;
+        }
+        .nav-dropdown-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            text-decoration: none;
+            color: var(--brand-dark);
+            font-weight: 700;
+            font-size: 0.85rem;
+            border: 1px solid #c7d2fe;
+            background: #e0e7ff;
+            padding: 0.4rem 0.75rem;
+            border-radius: 8px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .nav-dropdown-btn:hover { background: #c7d2fe; }
+        .nav-dropdown-menu {
+            display: none;
+            position: absolute;
+            top: calc(100% + 6px);
+            right: 0;
+            background: #fff;
+            border: 1px solid #c7d2fe;
+            border-radius: 10px;
+            box-shadow: 0 8px 24px rgba(79,70,229,0.12);
+            z-index: 999;
+            min-width: 230px;
+            padding: 0.4rem 0;
+            overflow: hidden;
+        }
+        .nav-dropdown:hover .nav-dropdown-menu,
+        .nav-dropdown-btn:focus + .nav-dropdown-menu {
+            display: block;
+        }
+        .nav-dropdown-menu a {
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+            padding: 0.5rem 1rem;
+            font-size: 0.84rem;
+            font-weight: 600;
+            color: #334155;
+            text-decoration: none;
+            border: none;
+            border-radius: 0;
+            background: transparent;
+        }
+        .nav-dropdown-menu a:hover { background: #eef2ff; color: var(--brand); }
+        .nav-dropdown-menu a.active-page {
+            background: #eef2ff;
+            color: var(--brand);
+            border-left: 3px solid var(--brand);
+        }
+        .nav-dropdown-menu a i { width: 16px; text-align: center; }
+        .nav-sep { height: 1px; background: #e2e8f0; margin: 0.3rem 0; }
+        @media print { .nav-bar, .nav-dropdown { display: none !important; } }
+    </style>
+</head>
+<body>
+    <div class="page-wrap">
+        <header class="top-head">
+            <div class="title-wrap">
+                <div class="icon">📊</div>
+                <div>
+                    <h1>Head Wise Fee Collection</h1>
+                    <p>View total fee collected per head for a specific month or date range</p>
+                </div>
+            </div>
+            <div class="nav-bar">
+                <a href="dashboard.html"><i class="fas fa-chart-line"></i> Dashboard</a>
+                <a href="collect_fee.html"><i class="fas fa-hand-holding-usd"></i> Collect Fee</a>
+                <div class="nav-dropdown">
+                    <span class="nav-dropdown-btn" tabindex="0">
+                        <i class="fas fa-file-invoice-dollar"></i> Fee Reports <i class="fas fa-chevron-down" style="font-size:0.7rem;"></i>
+                    </span>
+                    <div class="nav-dropdown-menu">
+                        <a href="fee_paid_log.html"><i class="fas fa-list-check"></i> Fee Paid Log</a>
+                        <a href="fee_register.html"><i class="fas fa-table"></i> Fee Register</a>
+                        <div class="nav-sep"></div>
+                        <a href="fee_type_report.html"><i class="fas fa-file-invoice"></i> Fee Type Report</a>
+                        <a href="head_wise_fee_report.html" class="active-page"><i class="fas fa-chart-bar"></i> Head Wise Collection</a>
+                        <a href="fee_unpaid_head_report.html"><i class="fas fa-exclamation-circle"></i> Fee Not Paid Head Wise</a>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <section class="filters">
+            <div class="field">
+                <label for="filterType">Filter Type</label>
+                <select id="filterType">
+                    <option value="month">Monthly</option>
+                    <option value="range">Date Range</option>
+                </select>
+            </div>
+            
+            <div class="field" id="monthField">
+                <label for="monthFilter">Select Month</label>
+                <input type="month" id="monthFilter">
+            </div>
+
+            <div class="field" id="fromDateField" style="display: none;">
+                <label for="fromDate">From Date</label>
+                <input type="date" id="fromDate">
+            </div>
+
+            <div class="field" id="toDateField" style="display: none;">
+                <label for="toDate">To Date</label>
+                <input type="date" id="toDate">
+            </div>
+
+            <div class="field slider-field">
+                <label for="fontSizeRange">Font Size <span id="fontSizeValue">10px</span></label>
+                <input type="range" id="fontSizeRange" min="7" max="20" step="0.5" value="10">
+            </div>
+
+            <div class="field slider-field">
+                <label for="compactnessRange">Compactness <span id="compactnessValue">50%</span></label>
+                <input type="range" id="compactnessRange" min="0" max="100" step="5" value="50">
+            </div>
+
+            <div class="actions" style="grid-column: 1 / -1; display: flex; justify-content: flex-end;">
+                <button id="loadBtn" class="btn-primary"><i class="fas fa-sync"></i> Load Data</button>
+                <button id="printBtn" class="btn-primary"><i class="fas fa-print"></i> Print</button>
+            </div>
+        </section>
+
+        <section class="summary" id="summaryBar">
+            <div class="card">
+                <span class="lbl" id="summaryFeeLabel">Total Collected Amount</span>
+                <strong id="totalAmount">Rs 0</strong>
+            </div>
+            <div class="card">
+                <span class="lbl">Total Transactions</span>
+                <strong id="rowCount">0</strong>
+            </div>
+        </section>
+
+        <section class="table-wrap">
+            <div id="printDateHeader" class="print-date-header"></div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Fee Head</th>
+                        <th style="text-align: right;">Transactions Count</th>
+                        <th style="text-align: right;">Total Amount Collected</th>
+                    </tr>
+                </thead>
+                <tbody id="reportLogBody">
+                    <tr>
+                        <td colspan="4" class="empty">Please select dates and click Load Data.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+    </div>
+
+    <script src="auth.js"></script>
+    <script src="head_wise_fee_report.js"></script>
+</body>
+</html>

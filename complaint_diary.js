@@ -37,11 +37,15 @@ function getTenantScopePatch() {
 
 // ─── Toast ────────────────────────────────────────────────────
 function showToast(msg, type = 'info') {
+    const container = document.getElementById('toastContainer');
     const t = document.createElement('div');
     t.className = `toast-item ${type}`;
     t.textContent = msg;
-    document.getElementById('toastContainer').appendChild(t);
-    setTimeout(() => t.remove(), 3500);
+    container.appendChild(t);
+    setTimeout(() => {
+        t.style.animation = 'slideOut 0.3s ease';
+        t.addEventListener('animationend', () => t.remove());
+    }, 3000);
 }
 
 // ─── Set Defaults ─────────────────────────────────────────────
@@ -449,25 +453,68 @@ window.sendWaMessage = function() {
     const student = studentsMap[complaint.roll] || {};
     let mobile = student.mobile;
     
-    if (!mobile) {
-        alert("This student doesn't have a Mobile or WhatsApp number saved in the system. Roll number: " + complaint.roll);
-        return;
-    }
-    
-    mobile = mobile.replace(/[^0-9]/g, '');
-    if (mobile.startsWith('0')) mobile = '92' + mobile.substring(1);
-    
+    // Validate message text
     const msg = document.getElementById('waMessageText').value;
-    if (!msg.trim()) {
-        alert("Message cannot be empty.");
+    if (!msg || !msg.trim()) {
+        showToast("Please enter a message", 'danger');
         return;
     }
     
-    const encoded = encodeURIComponent(msg);
-    const url = `https://wa.me/${mobile}?text=${encoded}`;
+    // Validate phone number exists
+    if (!mobile || String(mobile).trim().length === 0) {
+        showToast("This student doesn't have a Mobile or WhatsApp number saved in the system. Roll number: " + complaint.roll, 'danger');
+        return;
+    }
     
-    window.open(url, '_blank');
-    window.closeWaModal();
+    // Process phone number - remove all non-numeric characters
+    let phone = String(mobile).trim().replace(/[^0-9+]/g, '');
+    
+    // Remove leading + if present
+    if (phone.startsWith('+')) {
+        phone = phone.substring(1);
+    }
+    
+    // Validate phone number length
+    if (phone.length < 10 || phone.length > 15) {
+        showToast("Invalid phone number format. Expected 10-15 digits.", 'danger');
+        return;
+    }
+    
+    // Convert Pakistan phone numbers: 0XXXXXXXXXX -> 92XXXXXXXXX
+    if (phone.startsWith('0') && phone.length === 11) {
+        phone = '92' + phone.substring(1);
+    }
+    
+    // Ensure country code is present
+    if (!phone.startsWith('92') && !phone.startsWith('1') && phone.length === 10) {
+        phone = '92' + phone; // Assume Pakistan
+    }
+    
+    try {
+        // Build WhatsApp URL
+        const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+        
+        // Validate URL length (WhatsApp has limits)
+        if (waUrl.length > 2048) {
+            showToast("Message is too long. Please reduce the length.", 'danger');
+            return;
+        }
+        
+        // Open WhatsApp with error handling
+        const newWindow = window.open(waUrl, '_blank');
+        
+        // Check if window was successfully opened
+        if (!newWindow) {
+            showToast("Failed to open WhatsApp. Your browser may have blocked the popup.", 'danger');
+            return;
+        }
+        
+        showToast("WhatsApp opened successfully!", 'success');
+        window.closeWaModal();
+    } catch (error) {
+        console.error('Error opening WhatsApp:', error);
+        showToast("Error opening WhatsApp. Please try again.", 'danger');
+    }
 };
 
 // ─── Helpers ──────────────────────────────────────────────────

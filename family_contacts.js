@@ -21,6 +21,45 @@ const STATUS_COLORS = {
     'NN': 'status-NN'
 };
 
+function toLocalYmd(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+// ─── Toast Notifications ──────────────────────────────────────────────────────
+function showToast(msg, type = 'success') {
+    let toastContainer = document.getElementById('toastContainer');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.id = 'toastContainer';
+        toastContainer.style.cssText = 'position:fixed;top:20px;right:20px;z-index:5000;display:flex;flex-direction:column;gap:10px;';
+        document.body.appendChild(toastContainer);
+    }
+    
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+        padding:12px 16px;
+        border-radius:8px;
+        font-weight:600;
+        display:flex;
+        align-items:center;
+        gap:8px;
+        box-shadow:0 4px 12px rgba(0,0,0,0.15);
+        animation:slideIn 0.3s ease-in-out;
+        ${type === 'error' ? 'background:#fee2e2;color:#991b1b;border:1px solid #fecaca;' : 'background:#dcfce7;color:#166534;border:1px solid #bbf7d0;'}
+    `;
+    toast.innerHTML = `<span>${type === 'error' ? '❌' : '✅'}</span><div>${msg}</div>`;
+    
+    toastContainer.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.style.animation = 'slideOut 0.3s ease-in-out';
+        toast.addEventListener('animationend', () => toast.remove());
+    }, 3000);
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     await waitForAuthContext();
 
@@ -461,6 +500,59 @@ function attachCellEvents(tr, familyMobile) {
         cdBtn.addEventListener('click', async () => {
             const isActive = cdBtn.classList.toggle('active');
             await saveContactState(familyMobile, { complaint: isActive });
+
+            // Auto-log to Complaint Diary if turned ON
+            if (isActive) {
+                try {
+                    // Fetch configured fee complaint message
+                    let complaintText = "Student has pending fee dues. Please contact parents."; // Fallback
+                    const { data: tData } = await window.supabaseClient
+                        .from('wa_templates')
+                        .select('message_text')
+                        .eq('title', 'FEE_COMPLAINT_AUTO_MSG')
+                        .limit(1)
+                        .single();
+                    if (tData && tData.message_text) {
+                        complaintText = tData.message_text;
+                    }
+
+                    const fam = allFamilies.find(f => f.mobile === familyMobile);
+                    if (!fam || !fam.members) return;
+
+                    // Log for each student in the family
+                    for (const s of fam.members) {
+                        const obj = {
+                            name: s.full_name,
+                            roll: s.roll_number,
+                            class_name: s.applying_for_class,
+                            date: toLocalYmd(new Date()),
+                            category: 'Fee',
+                            status: 'Pending',
+                            contact_status: 'Whatsapp',
+                            complaint: complaintText,
+                            updated_at: new Date().toISOString()
+                        };
+                        
+                        if (window.currentSchoolId) obj.school_id = window.currentSchoolId;
+                        if (window.campusFeatureReady && window.currentCampusId) obj.campus_id = window.currentCampusId;
+
+                        const { data: existing } = await window.supabaseClient
+                            .from('complaints')
+                            .select('id')
+                            .eq('roll', s.roll_number)
+                            .eq('date', obj.date)
+                            .eq('category', 'Fee')
+                            .limit(1);
+
+                        if (!existing || existing.length === 0) {
+                            await window.supabaseClient.from('complaints').insert(obj);
+                            console.log("Auto-logged family fee complaint for roll:", s.roll_number);
+                        }
+                    }
+                } catch (err) {
+                    console.error("Failed to auto-log family complaints:", err);
+                }
+            }
         });
     }
 
@@ -496,9 +588,50 @@ function attachCellEvents(tr, familyMobile) {
 
 // ─── WhatsApp Bill Modal ──────────────────────────────────────────────────────
 window.openAudioChat = function(mobile) {
-    let phone = mobile.replace(/[^0-9]/g, '');
-    if (phone.startsWith('0') && phone.length === 11) phone = '92' + phone.substring(1);
-    window.open(`https://wa.me/${phone}`, '_blank');
+    // Validate mobile number
+    if (!mobile || String(mobile).trim().length === 0) {
+        showToast("No mobile number provided", 'error');
+        return;
+    }
+    
+    // Process phone number - remove all non-numeric characters
+    let phone = String(mobile).trim().replace(/[^0-9+]/g, '');
+    
+    // Remove leading + if present
+    if (phone.startsWith('+')) {
+        phone = phone.substring(1);
+    }
+    
+    // Validate phone number length
+    if (phone.length < 10 || phone.length > 15) {
+        showToast("Invalid phone number format. Expected 10-15 digits.", 'error');
+        return;
+    }
+    
+    // Convert Pakistan phone numbers: 0XXXXXXXXXX -> 92XXXXXXXXX
+    if (phone.startsWith('0') && phone.length === 11) {
+        phone = '92' + phone.substring(1);
+    }
+    
+    // Ensure country code is present
+    if (!phone.startsWith('92') && !phone.startsWith('1') && phone.length === 10) {
+        phone = '92' + phone; // Assume Pakistan
+    }
+    
+    try {
+        const waUrl = `https://wa.me/${phone}`;
+        const newWindow = window.open(waUrl, '_blank');
+        
+        if (!newWindow) {
+            showToast("Failed to open WhatsApp. Your browser may have blocked the popup.", 'error');
+            return;
+        }
+        
+        showToast("WhatsApp opened successfully!");
+    } catch (error) {
+        console.error('Error opening WhatsApp:', error);
+        showToast("Error opening WhatsApp. Please try again.", 'error');
+    }
 };
 
 window.openWaModal = function(mobile) {
@@ -584,12 +717,68 @@ window.applySelectedWaTemplate = function() {
     const btnSend = document.getElementById('btnSendWa');
     btnSend.onclick = function() {
         const text = document.getElementById('waMessageText').value;
-        let phone = mobile.replace(/[^0-9]/g, '');
+        
+        // Validate message text
+        if(!text || text.trim().length === 0) {
+            showToast("Please enter a message", 'error');
+            return;
+        }
+        
+        // Validate mobile number exists
+        if(!mobile || String(mobile).trim().length === 0) {
+            showToast("No mobile number provided", 'error');
+            return;
+        }
+        
+        // Process phone number - remove all non-numeric characters
+        let phone = String(mobile).trim().replace(/[^0-9+]/g, '');
+        
+        // Remove leading + if present
+        if (phone.startsWith('+')) {
+            phone = phone.substring(1);
+        }
+        
+        // Validate phone number length
+        if (phone.length < 10 || phone.length > 15) {
+            showToast("Invalid phone number format. Expected 10-15 digits.", 'error');
+            return;
+        }
+        
+        // Convert Pakistan phone numbers: 0XXXXXXXXXX -> 92XXXXXXXXX
         if (phone.startsWith('0') && phone.length === 11) {
             phone = '92' + phone.substring(1);
         }
-        window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
-        closeWaModal();
+        
+        // Ensure country code is present
+        if (!phone.startsWith('92') && !phone.startsWith('1') && phone.length === 10) {
+            phone = '92' + phone; // Assume Pakistan
+        }
+        
+        try {
+            // Build WhatsApp URL
+            const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+            
+            // Validate URL length (WhatsApp has limits)
+            if (waUrl.length > 2048) {
+                showToast("Message is too long. Please reduce the length.", 'error');
+                return;
+            }
+            
+            // Open WhatsApp with error handling
+            const newWindow = window.open(waUrl, '_blank');
+            
+            // Check if window was successfully opened
+            if (!newWindow) {
+                showToast("Failed to open WhatsApp. Your browser may have blocked the popup.", 'error');
+                return;
+            }
+            
+            showToast("WhatsApp opened successfully!");
+            closeWaModal();
+        } catch (error) {
+            console.error('Error opening WhatsApp:', error);
+            showToast("Error opening WhatsApp. Please try again.", 'error');
+        }
     };
 };
 

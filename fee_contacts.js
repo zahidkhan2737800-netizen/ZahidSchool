@@ -402,6 +402,61 @@ function attachCellEvents(tr, studentId) {
         cdBtn.addEventListener('click', async () => {
             const isActive = cdBtn.classList.toggle('active');
             await saveContactState(studentId, { complaint: isActive });
+
+            // Auto-log to Complaint Diary if turned ON
+            if (isActive) {
+                try {
+                    // Fetch configured fee complaint message
+                    let complaintText = "Student has pending fee dues. Please contact parents."; // Fallback
+                    const { data: tData } = await supabaseClient
+                        .from('wa_templates')
+                        .select('message_text')
+                        .eq('title', 'FEE_COMPLAINT_AUTO_MSG')
+                        .limit(1)
+                        .single();
+                    if (tData && tData.message_text) {
+                        complaintText = tData.message_text;
+                    }
+
+                    const s = allStudents.find(x => x.id === studentId);
+                    if (!s) return;
+
+                    // Build complaint payload
+                    const obj = {
+                        name: s.full_name,
+                        roll: s.roll_number,
+                        class_name: s.applying_for_class,
+                        date: toLocalYmd(new Date()),
+                        category: 'Fee',
+                        status: 'Pending',
+                        contact_status: 'Whatsapp',
+                        complaint: complaintText,
+                        updated_at: new Date().toISOString()
+                    };
+                    
+                    if (window.currentSchoolId) obj.school_id = window.currentSchoolId;
+                    if (window.campusFeatureReady && window.currentCampusId) obj.campus_id = window.currentCampusId;
+
+                    // Check for duplicate on the same day to avoid spam
+                    const { data: existing } = await supabaseClient
+                        .from('complaints')
+                        .select('id')
+                        .eq('roll', s.roll_number)
+                        .eq('date', obj.date)
+                        .eq('category', 'Fee')
+                        .limit(1);
+
+                    if (!existing || existing.length === 0) {
+                        const { error: insErr } = await supabaseClient.from('complaints').insert(obj);
+                        if (insErr) console.error("Error logging auto complaint:", insErr);
+                        else console.log("Auto-logged fee complaint for roll:", s.roll_number);
+                    } else {
+                        console.log("Complaint already exists today for this roll.");
+                    }
+                } catch (err) {
+                    console.error("Failed to auto-log complaint:", err);
+                }
+            }
         });
     }
 

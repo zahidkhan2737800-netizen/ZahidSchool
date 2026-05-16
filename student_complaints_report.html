@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zahid School - Student Complaints Report</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="student_complaints_report.css">
+</head>
+<body>
+    <div class="page-wrap">
+        <header class="top-head">
+            <div class="title-wrap">
+                <div class="icon"><i class="fas fa-exclamation-triangle"></i></div>
+                <div>
+                    <h1>Student Complaints Report</h1>
+                    <p>Class-wise breakdown of student complaints by category</p>
+                </div>
+            </div>
+            <div class="head-links">
+                <a href="dashboard.html"><i class="fas fa-chart-line"></i> Dashboard</a>
+                <a href="complaint_diary.html"><i class="fas fa-book"></i> Complaint Diary</a>
+            </div>
+        </header>
+
+        <section class="filters">
+            <div class="field">
+                <label for="classFilter">Select Class</label>
+                <select id="classFilter">
+                    <option value="">Loading...</option>
+                </select>
+            </div>
+            <div class="field search-field">
+                <label for="searchText">Search Student / Roll</label>
+                <input type="text" id="searchText" placeholder="Type student name or roll number">
+            </div>
+            <div class="field slider-field">
+                <label for="fontSizeRange">Font Size <span id="fontSizeValue">8.5px</span></label>
+                <input type="range" id="fontSizeRange" min="7" max="20" step="0.5" value="8.5">
+            </div>
+            <div class="field slider-field">
+                <label for="compactnessRange">Compactness <span id="compactnessValue">80%</span></label>
+                <input type="range" id="compactnessRange" min="0" max="100" step="5" value="80">
+            </div>
+            <div class="actions">
+                <button id="loadBtn" class="btn-primary"><i class="fas fa-sync"></i> Load</button>
+                <button id="printBtn" class="btn-primary" style="background:#0f766e;"><i class="fas fa-print"></i> Report</button>
+                <button id="printCardsBtn" class="btn-primary" style="background:#4f46e5;"><i class="fas fa-id-card"></i> Cards</button>
+            </div>
+        </section>
+
+        <section class="table-wrap">
+            <div id="printDateHeader" class="print-date-header"></div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Roll No</th>
+                        <th>Student Name</th>
+                        <th>Father Name</th>
+                        <th>Class</th>
+                        <th style="text-align:center;">Homework</th>
+                        <th style="text-align:center;">Fee</th>
+                        <th style="text-align:center;">Fair Copy</th>
+                        <th style="text-align:center;">Book(s)</th>
+                        <th style="text-align:center;">Copies</th>
+                        <th style="text-align:center;">Late Coming</th>
+                        <th style="text-align:center;">Dress Code</th>
+                        <th style="text-align:center;">Attendance</th>
+                        <th style="text-align:center;">Other</th>
+                        <th style="text-align:center;">TOTAL</th>
+                    </tr>
+                </thead>
+                <tbody id="reportBody">
+                    <tr>
+                        <td colspan="14" class="empty">Please select a Class and click Load.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        
+        <div id="cardsPrintContainer"></div>
+    </div>
+
+    <script src="auth.js"></script>
+    <script src="student_complaints_report.js"></script>
+</body>
+</html>

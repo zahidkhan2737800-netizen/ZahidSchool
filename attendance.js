@@ -3,13 +3,29 @@ let allStudents       = [];      // Active admissions (fetched once)
 let todayAttMap       = {};      // { student_id: {status, ...} } for selectedDate only
 let absenceCountMap   = {};      // { student_id: totalAbsences }  (only absent rows)
 let selectedDate      = '';
-const currentSchoolId = window.currentSchoolId || null;
-
 let waTemplates = [];
 let currentOpenStudentId = null;
 
+// ── Wait for auth context (school_id) to be ready ──
+async function waitForAuthContext(timeoutMs = 10000) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+        if (window.authReady === true && window.supabaseClient) return;
+        await new Promise(r => setTimeout(r, 80));
+    }
+    // Fallback
+    if ((window.currentSchoolId === null || window.currentSchoolId === undefined) && window.currentUser?.id) {
+        try {
+            const { data } = await window.supabaseClient.from('user_roles').select('school_id').eq('user_id', window.currentUser.id).single();
+            window.currentSchoolId = data?.school_id ?? null;
+        } catch (e) { console.error('Fallback auth resolution failed:', e); }
+    }
+}
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
+    await waitForAuthContext();
+
     const picker = document.getElementById('globalDate');
     picker.valueAsDate = new Date();
     selectedDate = picker.value;
@@ -37,6 +53,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('btnBulkPresent').addEventListener('click', () => applyBulkStatus('Present'));
     document.getElementById('btnBulkAbsent').addEventListener('click',  () => applyBulkStatus('Absent'));
     document.getElementById('btnBulkHoliday').addEventListener('click', () => applyBulkStatus('Holiday'));
+    document.getElementById('btnThermalPrint').addEventListener('click', generateThermalPrint);
 
     showToast('Initializing System...', 'success');
     await loadWaTemplates();
@@ -47,8 +64,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 /** Single non-paginated query scoped to this school. Fast for small result sets. */
 async function scopedQuery(table, selectCols, extraFilters = []) {
-    let q = supabaseClient.from(table).select(selectCols);
-    if (currentSchoolId) q = q.eq('school_id', currentSchoolId);
+    let q = window.supabaseClient.from(table).select(selectCols);
+    if (window.currentSchoolId) q = q.eq('school_id', window.currentSchoolId);
     for (const [col, val] of extraFilters) {
         if (Array.isArray(val)) {
             q = q.in(col, val);
@@ -66,8 +83,8 @@ async function paginatedQuery(table, selectCols, filters = []) {
     const PAGE = 1000;
     let result = [], from = 0;
     while (true) {
-        let q = supabaseClient.from(table).select(selectCols).range(from, from + PAGE - 1);
-        if (currentSchoolId) q = q.eq('school_id', currentSchoolId);
+        let q = window.supabaseClient.from(table).select(selectCols).range(from, from + PAGE - 1);
+        if (window.currentSchoolId) q = q.eq('school_id', window.currentSchoolId);
         for (const [col, val] of filters) {
             if (Array.isArray(val)) {
                 q = q.in(col, val);
@@ -203,11 +220,11 @@ async function handleEntrySubmit(e) {
  */
 async function performUpsert(payloadArray) {
     try {
-        const scopedPayload = currentSchoolId
-            ? payloadArray.map(item => ({ ...item, school_id: currentSchoolId }))
+        const scopedPayload = window.currentSchoolId
+            ? payloadArray.map(item => ({ ...item, school_id: window.currentSchoolId }))
             : payloadArray;
 
-        const { error } = await supabaseClient
+        const { error } = await window.supabaseClient
             .from('attendance')
             .upsert(scopedPayload, { onConflict: 'student_id, date' });
 
@@ -435,7 +452,7 @@ function showToast(msg, type = 'success') {
 
 async function loadWaTemplates() {
     try {
-        const { data, error } = await supabaseClient.from('wa_templates').select('*').order('created_at', { ascending: true });
+        const { data, error } = await window.supabaseClient.from('wa_templates').select('*').order('created_at', { ascending: true });
         if (!error && data) {
             waTemplates = data;
             const dropdown = document.getElementById('waTemplateDropdown');
@@ -469,12 +486,33 @@ window.openWaModal = function(studentId) {
 };
 
 window.applySelectedWaTemplate = function() {
-    if(!currentOpenStudentId) return;
+    if(!currentOpenStudentId) {
+        showToast("No student selected", 'error');
+        return;
+    }
+    
     const ids = String(currentOpenStudentId).split(',');
     const students = ids.map(id => allStudents.find(x => x.id === id)).filter(Boolean);
-    if (students.length === 0) return;
+    
+    if (students.length === 0) {
+        showToast("Student not found", 'error');
+        return;
+    }
 
+    // Use first student for father's mobile (primary contact)
     let s = students[0];
+    
+    // Validate that at least one student has a mobile number
+    const studentsWithMobile = students.filter(st => st.father_mobile && String(st.father_mobile).trim().length > 0);
+    if (studentsWithMobile.length === 0) {
+        showToast("No student has a registered mobile number", 'error');
+        return;
+    }
+    
+    // If primary student has no mobile, use the first one that does
+    if (!s.father_mobile || String(s.father_mobile).trim().length === 0) {
+        s = studentsWithMobile[0];
+    }
 
     let templateText = "";
     const dropdown = document.getElementById('waTemplateDropdown');
@@ -511,20 +549,134 @@ window.applySelectedWaTemplate = function() {
     const btnSend = document.getElementById('btnSendWa');
     btnSend.onclick = function() {
         const text = document.getElementById('waMessageText').value;
-        if(!s.father_mobile) {
-            alert("This student has no mobile number registered.");
-            closeWaModal();
+        
+        // Validate message text
+        if(!text || text.trim().length === 0) {
+            showToast("Please enter a message", 'error');
             return;
         }
-        let phone = String(s.father_mobile).replace(/[^0-9]/g, '');
+        
+        // Validate phone number exists
+        if(!s.father_mobile || String(s.father_mobile).trim().length === 0) {
+            showToast("This student has no mobile number registered.", 'error');
+            return;
+        }
+        
+        // Process phone number - remove all non-numeric characters
+        let phone = String(s.father_mobile).trim().replace(/[^0-9+]/g, '');
+        
+        // Remove leading + if present
+        if (phone.startsWith('+')) {
+            phone = phone.substring(1);
+        }
+        
+        // Validate phone number length
+        if (phone.length < 10 || phone.length > 15) {
+            showToast("Invalid phone number format. Expected 10-15 digits.", 'error');
+            return;
+        }
+        
+        // Convert Pakistan phone numbers: 0XXXXXXXXXX -> 92XXXXXXXXX
         if (phone.startsWith('0') && phone.length === 11) {
             phone = '92' + phone.substring(1);
         }
-        window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
-        closeWaModal();
+        
+        // Ensure country code is present (if it starts with digits and is 10 digits, assume Pakistan)
+        if (!phone.startsWith('92') && !phone.startsWith('1') && phone.length === 10) {
+            phone = '92' + phone; // Assume Pakistan
+        }
+        
+        try {
+            // Build WhatsApp URL
+            const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+            
+            // Validate URL length (WhatsApp has limits)
+            if (waUrl.length > 2048) {
+                showToast("Message is too long. Please reduce the length.", 'error');
+                return;
+            }
+            
+            // Open WhatsApp with error handling
+            const newWindow = window.open(waUrl, '_blank');
+            
+            // Check if window was successfully opened
+            if (!newWindow) {
+                showToast("Failed to open WhatsApp. Your browser may have blocked the popup.", 'error');
+                return;
+            }
+            
+            showToast("WhatsApp opened successfully!");
+            closeWaModal();
+        } catch (error) {
+            console.error('Error opening WhatsApp:', error);
+            showToast("Error opening WhatsApp. Please try again.", 'error');
+        }
     };
 };
 
 window.closeWaModal = function() {
     document.getElementById('waModal').style.display = 'none';
 };
+
+// ─── Thermal Print ─────────────────────────────────────────────────────────────
+function generateThermalPrint() {
+    const absentByClass = {};
+    allStudents.forEach(s => {
+        const record = todayAttMap[s.id] || {};
+        if (record.status === 'Absent') {
+            const cls = s.applying_for_class || 'Unknown';
+            absentByClass[cls] = (absentByClass[cls] || 0) + 1;
+        }
+    });
+
+    // Don't print if no absentees
+    if (Object.keys(absentByClass).length === 0) {
+        showToast("No absent students found for this date.", "success");
+        return;
+    }
+
+    const d = new Date(selectedDate);
+    // e.g. "16-May-2026"
+    const dateStr = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    const dayStr = d.toLocaleDateString('en-GB', { weekday: 'long' });
+
+    let html = `
+        <html><head><title>Thermal Print - Absent Report</title>
+        <style>
+            @media print { @page { margin: 0; } body { margin: 0; padding: 5px; } }
+            body { font-family: monospace; width: 100%; max-width: 260px; box-sizing: border-box; margin: 0 auto; padding: 5px; color: #000; font-size: 14px; }
+            h3 { text-align: center; margin: 5px 0; font-size: 16px; text-transform: uppercase; font-weight: bold; }
+            .meta { text-align: left; margin-bottom: 10px; font-size: 14px; padding-bottom: 5px; font-weight: bold; }
+            .meta div { margin-bottom: 2px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 5px; table-layout: auto; }
+            th { border-bottom: 1px dashed #000; text-align: left; padding: 4px 0; font-size: 14px; }
+            td { padding: 4px 0; vertical-align: top; word-wrap: break-word; font-size: 14px; font-weight: bold; }
+            .right { text-align: right; padding-right: 8px; }
+        </style>
+        </head>
+        <body onload="window.print()">
+          <div class="meta">
+            <div>Date : ${dateStr}</div>
+            <div>Day  : ${dayStr}</div>
+          </div>
+          <table>
+    `;
+
+    let totalAbsent = 0;
+    const classes = Object.keys(absentByClass).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    classes.forEach(cls => {
+        const count = absentByClass[cls];
+        totalAbsent += count;
+        html += `<tr><td>${cls}</td><td class="right">${count}</td></tr>`;
+    });
+
+    html += `</table>
+          <div style="text-align:left;margin-top:10px;border-top:1px dashed #000;padding-top:5px;font-size:14px; font-weight: bold;">
+             Total Absent: <span style="float:right;padding-right:8px;">${totalAbsent}</span>
+          </div>
+        </body></html>`;
+
+    const printWindow = window.open('', '_blank', 'width=400,height=600');
+    printWindow.document.write(html);
+    printWindow.document.close();
+}
