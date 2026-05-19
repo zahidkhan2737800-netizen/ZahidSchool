@@ -16,6 +16,7 @@ let absentDaysByRoll = new Map();
 let hiddenTopicIds = JSON.parse(localStorage.getItem('mon_hiddenTopics')) || [];
 
 // DOM References
+const sessionSelect       = document.getElementById('sessionSelect');
 const classSelect         = document.getElementById('classSelect');
 const studentSearchInput  = document.getElementById('studentSearchInput');
 const subjectsToolbar     = document.getElementById('subjectsToolbar');
@@ -25,6 +26,8 @@ const tableContainer      = document.getElementById('tableContainer');
 const addSubjectBtn       = document.getElementById('addSubjectBtn');
 const addColBtn           = document.getElementById('addColBtn');
 const thermalPrintBtn     = document.getElementById('thermalPrintBtn');
+const saveSessionBtn      = document.getElementById('saveSessionBtn');
+const archiveBadge        = document.getElementById('archiveBadge');
 const toggleColsBtn       = document.getElementById('toggleColsBtn');
 const colToggleMenu       = document.getElementById('colToggleMenu');
 const currentSubjectLabel = document.getElementById('currentSubjectLabel');
@@ -68,10 +71,41 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     await waitForAuthContext();
+    await loadSessions();
     await loadClasses();
 });
 
-// ── 1. Load Classes — directly from classes table ──
+// ── 1. Load Sessions ──
+async function loadSessions() {
+    const { data, error } = await applySchoolScope(
+        supabaseClient
+            .from('session')
+            .select('session_value')
+    )
+        .order('created_at', { ascending: false });
+
+    if (error) { 
+        console.error('Error loading sessions:', error); 
+        sessionSelect.innerHTML = '<option value="">Error loading sessions</option>';
+        return; 
+    }
+
+    sessionSelect.innerHTML = '<option value="">-- Select Session --</option>';
+    if (data && data.length > 0) {
+        data.forEach(sess => {
+            const opt = document.createElement('option');
+            opt.value = sess.session_value;
+            opt.textContent = sess.session_value;
+            sessionSelect.appendChild(opt);
+        });
+        // Select the first session by default
+        sessionSelect.value = data[0].session_value;
+    } else {
+        sessionSelect.innerHTML = '<option value="">No sessions available</option>';
+    }
+}
+
+// ── 1b. Load Classes — directly from classes table ──
 async function loadClasses() {
     const { data, error } = await applySchoolScope(
         supabaseClient
@@ -101,15 +135,16 @@ async function loadClasses() {
     }
 }
 
-// ── 2. Class Selection ──
-classSelect.addEventListener('change', async () => {
+// ── 2. Session and Class Selection ──
+function onFilterChange() {
     const selectedClass = classSelect.value;
+    const selectedSession = sessionSelect.value;
     selectedSubject = null;
     tableContainer.style.display = 'none';
     actionsToolbar.style.display = 'none';
     studentSearchInput.value = '';
 
-    if (!selectedClass) {
+    if (!selectedClass || !selectedSession) {
         subjectsToolbar.style.display = 'none';
         studentSearchInput.style.display = 'none';
         clearData();
@@ -118,24 +153,75 @@ classSelect.addEventListener('change', async () => {
 
     subjectsToolbar.style.display = 'flex';
     studentSearchInput.style.display = 'block';
-    await loadClassData(selectedClass);
-});
+    loadClassData(selectedClass, selectedSession);
+}
+
+classSelect.addEventListener('change', onFilterChange);
+sessionSelect.addEventListener('change', onFilterChange);
 
 // ── Search ──
 studentSearchInput.addEventListener('input', () => {
     if (selectedSubject) renderTable();
 });
 
+// ── Global Archive State ──
+let isArchived = false;
+let archiveData = null;
+
 // ── 3. Load Students & Subjects for Selected Class ──
-async function loadClassData(className) {
-    // Students — from admissions table, Active only
-    const { data: sData, error: sErr } = await applySchoolScope(
-        supabaseClient
-            .from('admissions')
-            .select('id, roll_number, full_name, applying_for_class')
-    )
+async function loadClassData(className, sessionName) {
+    isArchived = false;
+    archiveData = null;
+    archiveBadge.style.display = 'none';
+    addSubjectBtn.style.display = 'inline-block';
+    addColBtn.style.display = 'inline-block';
+    saveSessionBtn.style.display = 'inline-block';
+
+    // 3a. Check for Archive First
+    let archQuery = supabaseClient
+        .from('monitoring_archives')
+        .select('archive_data')
+        .eq('session_value', sessionName)
+        .eq('class_name', className);
+    if (window.currentSchoolId) archQuery = archQuery.eq('school_id', window.currentSchoolId);
+
+    const { data: archData, error: archErr } = await archQuery.maybeSingle();
+    
+    if (archData && archData.archive_data) {
+        isArchived = true;
+        archiveData = archData.archive_data;
+        students = archiveData.students || [];
+        subjects = archiveData.subjects || [];
+        archiveBadge.style.display = 'inline-block';
+        archiveBadge.textContent = '📦 Archived (Edit Mode)';
+        addSubjectBtn.style.display = 'inline-block';
+        addColBtn.style.display = 'inline-block';
+        saveSessionBtn.style.display = 'inline-block';
+        saveSessionBtn.innerHTML = '💾 Update Archive';
+        renderSubjectButtons();
+        if (selectedSubject) renderTable();
+        return;
+    }
+
+    // 3b. Live Data (Students — from admissions table, Active only, filtered by class and session)
+    let query = supabaseClient
+        .from('admissions')
+        .select('id, roll_number, full_name, applying_for_class, session')
         .eq('applying_for_class', className)
         .eq('status', 'Active');
+
+    if (window.currentSchoolId) {
+        query = query.eq('school_id', window.currentSchoolId);
+    }
+
+    // Support legacy data: if "2025-26" or "2025-2026" is selected, include students with no session assigned
+    if (sessionName === '2025-26' || sessionName === '2025-2026') {
+        query = query.or(`session.eq.${sessionName},session.is.null,session.eq.`);
+    } else {
+        query = query.eq('session', sessionName);
+    }
+
+    const { data: sData, error: sErr } = await query;
 
     if (sErr) { console.error('Student load error:', sErr); return; }
     students = sData || [];
@@ -248,6 +334,18 @@ addSubjectBtn.addEventListener('click', async () => {
     const subName = prompt("Enter a new Subject name (e.g., 'Math', 'Science'):");
     if (!subName || !subName.trim()) return;
 
+    if (isArchived) {
+        const newSub = {
+            id: 'arch-sub-' + Date.now(),
+            applying_for_class: className,
+            subject_name: subName.trim()
+        };
+        subjects.push(newSub);
+        if (archiveData) archiveData.subjects = subjects;
+        renderSubjectButtons();
+        return;
+    }
+
     const payload = {
         applying_for_class: className,
         subject_name: subName.trim()
@@ -277,6 +375,14 @@ function selectSubject(sub) {
 // ── 7. Load Topics & Scores ──
 async function loadColumnsAndScores(subjectId) {
     tableBody.innerHTML = '<tr><td colspan="100%" class="loading-text">Loading topics and scores...</td></tr>';
+
+    if (isArchived) {
+        progressColumns = (archiveData.progressColumns || []).filter(c => c.subject_id === subjectId);
+        scoresMap = archiveData.scoresMap || {};
+        renderDropdownMenu();
+        renderTable();
+        return;
+    }
 
     const { data: cData, error: cErr } = await applySchoolScope(
         supabaseClient
@@ -358,8 +464,14 @@ function renderTable() {
         colInput.placeholder = 'Topic Name';
         colInput.addEventListener('change', async () => {
             col.topic_name = colInput.value;
-            const { error } = await supabaseClient.from('monitoring_topics').update({ topic_name: colInput.value }).eq('id', col.id);
-            if (error) alert('Failed to rename: ' + error.message);
+            if (isArchived) {
+                // Update in memory only
+                const idx = (archiveData.progressColumns || []).findIndex(c => c.id === col.id);
+                if (idx !== -1) archiveData.progressColumns[idx].topic_name = col.topic_name;
+            } else {
+                const { error } = await supabaseClient.from('monitoring_topics').update({ topic_name: colInput.value }).eq('id', col.id);
+                if (error) alert('Failed to rename: ' + error.message);
+            }
         });
 
         // Criteria input
@@ -373,8 +485,14 @@ function renderTable() {
         criteriaInput.addEventListener('change', async () => {
             criteriaInput.classList.remove('criteria-error');
             col.criteria = criteriaInput.value;
-            const { error } = await supabaseClient.from('monitoring_topics').update({ criteria: criteriaInput.value }).eq('id', col.id);
-            if (error) alert('Failed to save criteria: ' + error.message);
+            if (isArchived) {
+                // Update in memory
+                const idx = (archiveData.progressColumns || []).findIndex(c => c.id === col.id);
+                if (idx !== -1) archiveData.progressColumns[idx].criteria = col.criteria;
+            } else {
+                const { error } = await supabaseClient.from('monitoring_topics').update({ criteria: criteriaInput.value }).eq('id', col.id);
+                if (error) alert('Failed to save criteria: ' + error.message);
+            }
         });
 
         // Delete button
@@ -384,10 +502,19 @@ function renderTable() {
         delBtn.title = 'Delete Topic Permanently';
         delBtn.addEventListener('click', async () => {
             if (confirm(`PERMANENTLY delete "${col.topic_name}"? (Use 👁️ to just hide it instead!)`)) {
-                await supabaseClient.from('monitoring_topics').delete().eq('id', col.id);
-                progressColumns = progressColumns.filter(c => c.id !== col.id);
-                renderDropdownMenu();
-                renderTable();
+                if (isArchived) {
+                    progressColumns = progressColumns.filter(c => c.id !== col.id);
+                    if (archiveData) {
+                        archiveData.progressColumns = archiveData.progressColumns.filter(c => c.id !== col.id);
+                    }
+                    renderDropdownMenu();
+                    renderTable();
+                } else {
+                    await supabaseClient.from('monitoring_topics').delete().eq('id', col.id);
+                    progressColumns = progressColumns.filter(c => c.id !== col.id);
+                    renderDropdownMenu();
+                    renderTable();
+                }
             }
         });
 
@@ -492,17 +619,25 @@ function renderTable() {
 
                 scoresMap[mapKey] = { score: scoreInput.value, covered_date: dbDate };
                 
-                const payload = {
-                    student_id: student.id,
-                    topic_id: col.id,
-                    subject_id: selectedSubject.id,
-                    score: scoreInput.value,
-                    covered_date: dbDate
-                };
-                if (window.currentSchoolId) payload.school_id = window.currentSchoolId;
+                if (isArchived) {
+                    // Update in memory archiveData
+                    if (archiveData) {
+                        if (!archiveData.scoresMap) archiveData.scoresMap = {};
+                        archiveData.scoresMap[mapKey] = scoresMap[mapKey];
+                    }
+                } else {
+                    const payload = {
+                        student_id: student.id,
+                        topic_id: col.id,
+                        subject_id: selectedSubject.id,
+                        score: scoreInput.value,
+                        covered_date: dbDate
+                    };
+                    if (window.currentSchoolId) payload.school_id = window.currentSchoolId;
 
-                const { error } = await supabaseClient.from('monitoring_scores').upsert(payload, { onConflict: 'student_id, topic_id' });
-                if (error) alert('Failed to save score/date: ' + error.message);
+                    const { error } = await supabaseClient.from('monitoring_scores').upsert(payload, { onConflict: 'student_id, topic_id' });
+                    if (error) alert('Failed to save score/date: ' + error.message);
+                }
             };
 
             scoreInput.addEventListener('change', saveScoreAndDate);
@@ -517,18 +652,42 @@ function renderTable() {
     });
 }
 
-// ── 10. Add Topic Column ──
+// ── 10. Add Topic (Column) ──
 addColBtn.addEventListener('click', async () => {
-    if (!selectedSubject) return;
-    const payload = { subject_id: selectedSubject.id, topic_name: 'New Topic', criteria: '' };
+    if (!selectedSubject) { alert('Please select a subject first.'); return; }
+    const tName = prompt(`Enter new topic name for ${selectedSubject.subject_name}:`);
+    if (!tName || !tName.trim()) return;
+
+    if (isArchived) {
+        const newTopic = {
+            id: 'arch-top-' + Date.now(),
+            subject_id: selectedSubject.id,
+            topic_name: tName.trim(),
+            criteria: ''
+        };
+        progressColumns.push(newTopic);
+        if (archiveData) {
+            if (!archiveData.progressColumns) archiveData.progressColumns = [];
+            archiveData.progressColumns.push(newTopic);
+        }
+        renderDropdownMenu();
+        renderTable();
+        return;
+    }
+
+    const payload = {
+        subject_id: selectedSubject.id,
+        topic_name: tName.trim()
+    };
     if (window.currentSchoolId) payload.school_id = window.currentSchoolId;
 
-    const { data: newCol, error } = await supabaseClient.from('monitoring_topics')
+    const { data: inserted, error } = await supabaseClient
+        .from('monitoring_topics')
         .insert(payload)
         .select();
 
     if (error) { alert('Failed to add topic: ' + error.message); return; }
-    progressColumns.push(newCol[0]);
+    progressColumns.push(inserted[0]);
     renderDropdownMenu();
     renderTable();
 });
@@ -615,6 +774,85 @@ thermalPrintBtn.addEventListener('click', () => {
     if (!targetCol) { alert(`Topic "${colSearch}" not found.`); return; }
 
     printDefaulters(targetCol);
+});
+
+// ── Save Session (Archive) Button ──
+saveSessionBtn.addEventListener('click', async () => {
+    if (!classSelect.value || !sessionSelect.value) return;
+
+    if (isArchived) {
+        // UPDATE existing archive
+        if (!confirm('Update the saved archive with your recent edits?')) return;
+        saveSessionBtn.disabled = true;
+        saveSessionBtn.innerHTML = 'Updating...';
+        try {
+            let archQuery = supabaseClient
+                .from('monitoring_archives')
+                .update({ archive_data: archiveData })
+                .eq('session_value', sessionSelect.value)
+                .eq('class_name', classSelect.value);
+            if (window.currentSchoolId) archQuery = archQuery.eq('school_id', window.currentSchoolId);
+
+            const { error } = await archQuery;
+            if (error) throw error;
+            alert('Archive successfully updated!');
+        } catch (err) {
+            alert('Failed to update archive: ' + err.message);
+        } finally {
+            saveSessionBtn.disabled = false;
+            saveSessionBtn.innerHTML = '💾 Update Archive';
+        }
+    } else {
+        // CREATE new archive
+        if (!confirm(`Are you sure you want to SAVE (Archive) the ${sessionSelect.value} data for ${classSelect.value}?\n\nThis will freeze all students, subjects, topics, and scores. If a student is promoted later, their historical data will remain intact in this session view.\n\nNote: You can still edit the archive later.`)) return;
+        
+        saveSessionBtn.disabled = true;
+        saveSessionBtn.innerHTML = 'Saving...';
+        
+        try {
+            const subjectIds = subjects.map(s => s.id);
+            
+            let allTopics = [];
+            let allScores = [];
+            
+            if (subjectIds.length > 0) {
+                const { data: tData } = await applySchoolScope(supabaseClient.from('monitoring_topics').select('*').in('subject_id', subjectIds));
+                const { data: sData } = await applySchoolScope(supabaseClient.from('monitoring_scores').select('*').in('subject_id', subjectIds));
+                allTopics = tData || [];
+                allScores = sData || [];
+            }
+            
+            const fullScoresMap = {};
+            allScores.forEach(row => {
+                fullScoresMap[`${row.student_id}_${row.topic_id}`] = row;
+            });
+            
+            const payload = {
+                session_value: sessionSelect.value,
+                class_name: classSelect.value,
+                archive_data: {
+                    students: students,
+                    subjects: subjects,
+                    progressColumns: allTopics,
+                    scoresMap: fullScoresMap
+                }
+            };
+            if (window.currentSchoolId) payload.school_id = window.currentSchoolId;
+            
+            const { error } = await supabaseClient.from('monitoring_archives').insert(payload);
+            if (error) {
+                if (error.code === '23505') throw new Error('An archive already exists for this Class and Session.');
+                throw error;
+            }
+            
+            alert('Session data successfully saved! This view is now archived.');
+            onFilterChange(); // Reload view as read-only/edit-archive mode
+        } catch (err) {
+            alert('Failed to save archive: ' + err.message);
+            saveSessionBtn.disabled = false;
+            saveSessionBtn.innerHTML = '💾 Save Session Data';
+        }
+    }
 });
 
 // ── Utility ──

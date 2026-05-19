@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zahid School - Fee Default Report</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="fee_default_report.css">
+    <style>
+        @media print { .nav-bar, .nav-dropdown { display: none !important; } }
+    </style>
+</head>
+<body>
+    <div class="page-wrap">
+
+        <!-- Header -->
+        <header class="top-head">
+            <div class="title-wrap">
+                <div class="icon">🚫</div>
+                <div>
+                    <h1>Fee Default Report</h1>
+                    <p>Monthly unpaid fee from withdrawn students</p>
+                </div>
+            </div>
+            <div class="nav-bar">
+                <a href="dashboard.html"><i class="fas fa-chart-line"></i> Dashboard</a>
+                <a href="collect_fee.html"><i class="fas fa-hand-holding-usd"></i> Collect Fee</a>
+                <div class="nav-dropdown">
+                    <span class="nav-dropdown-btn" tabindex="0">
+                        <i class="fas fa-file-invoice-dollar"></i> Fee Reports
+                        <i class="fas fa-chevron-down" style="font-size:.7rem"></i>
+                    </span>
+                    <div class="nav-dropdown-menu">
+                        <a href="fee_paid_log.html"><i class="fas fa-list-check"></i> Fee Paid Log</a>
+                        <a href="fee_register.html"><i class="fas fa-table"></i> Fee Register</a>
+                        <div class="nav-sep"></div>
+                        <a href="fee_type_report.html"><i class="fas fa-file-invoice"></i> Fee Type Report</a>
+                        <a href="head_wise_fee_report.html"><i class="fas fa-chart-bar"></i> Head Wise Collection</a>
+                        <a href="fee_unpaid_head_report.html"><i class="fas fa-exclamation-circle"></i> Fee Not Paid Head Wise</a>
+                        <a href="discount_report.html"><i class="fas fa-tag"></i> Discount Report</a>
+                        <div class="nav-sep"></div>
+                        <a href="fee_default_report.html" class="active-page"><i class="fas fa-user-slash"></i> Fee Default Report</a>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Filters -->
+        <section class="filters">
+            <div class="field">
+                <label for="fromMonth">From Month</label>
+                <select id="fromMonth"></select>
+            </div>
+            <div class="field">
+                <label for="fromYear">From Year</label>
+                <select id="fromYear"></select>
+            </div>
+            <div class="field">
+                <label for="toMonth">To Month</label>
+                <select id="toMonth"></select>
+            </div>
+            <div class="field">
+                <label for="toYear">To Year</label>
+                <select id="toYear"></select>
+            </div>
+            <div class="field slider-field">
+                <label for="fontSizeRange">Font Size <span id="fontSizeValue">8.5px</span></label>
+                <input type="range" id="fontSizeRange" min="7" max="20" step="0.5" value="8.5">
+            </div>
+            <div class="field slider-field">
+                <label for="compactnessRange">Compactness <span id="compactnessValue">80%</span></label>
+                <input type="range" id="compactnessRange" min="0" max="100" step="5" value="80">
+            </div>
+            <div class="actions">
+                <button id="loadBtn" class="btn-primary"><i class="fas fa-sync"></i> Load</button>
+                <button id="printBtn" class="btn-primary" style="background:#16a34a;"><i class="fas fa-print"></i> Print</button>
+            </div>
+        </section>
+
+        <!-- Summary -->
+        <section class="summary" id="summaryBar">
+            <div class="card">
+                <span class="lbl">Months Shown</span>
+                <strong id="sumMonths" style="color:#4f46e5;">0</strong>
+            </div>
+            <div class="card amber">
+                <span class="lbl">Total Withdrawn Students</span>
+                <strong id="sumWithdrawn" style="color:#b45309;">0</strong>
+            </div>
+            <div class="card danger">
+                <span class="lbl">Total Fee Default</span>
+                <strong id="sumDefault" style="color:#dc2626;">Rs 0</strong>
+            </div>
+        </section>
+
+        <!-- Table -->
+        <section class="table-wrap">
+            <div id="printDateHeader" class="print-date-header"></div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Month</th>
+                        <th>Withdrawn Students</th>
+                        <th class="right">Fee Default (Unpaid)</th>
+                    </tr>
+                </thead>
+                <tbody id="defaultBody">
+                    <tr>
+                        <td colspan="4" class="empty">
+                            Select a date range and click <strong>Load</strong>.
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+    </div>
+
+    <script src="auth.js"></script>
+    <script src="fee_default_report.js"></script>
+</body>
+</html>

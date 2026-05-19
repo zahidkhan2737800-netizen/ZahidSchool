@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>General Purpose Certificates</title>
+
+<style>
+  /* --- General Styling --- */
+  body { 
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+    background: #f3f6fb; 
+    padding: 20px; 
+    color: #1e293b;
+  }
+  .wrap { max-width: 1000px; margin: auto; }
+
+  /* --- Controls (Hidden when printing) --- */
+  .controls { 
+    display: flex; 
+    gap: 10px; 
+    flex-wrap: wrap; 
+    margin-bottom: 15px; 
+    background: white; 
+    padding: 15px; 
+    border-radius: 8px; 
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1); 
+  }
+
+  .control-group {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .control-group label {
+    font-weight: bold;
+    color: #333;
+  }
+
+  input[type="text"], input[type="file"], input[type="number"], select, textarea { 
+    padding: 10px 12px; 
+    border-radius: 6px; 
+    border: 1px solid #ccc; 
+    font-size: 14px;
+  }
+
+  textarea {
+    resize: vertical;
+    min-height: 50px;
+    width: 300px;
+  }
+
+  button { 
+    padding: 10px 20px; 
+    border: none; 
+    border-radius: 6px; 
+    background: #2563eb; 
+    color: white; 
+    cursor: pointer; 
+    font-weight: bold; 
+    font-size: 14px;
+  }
+
+  button.green { background: #27ae60; }
+  button.secondary { background: #475569; }
+  button:hover { opacity: 0.9; }
+
+  #note {
+    padding: 10px 15px;
+    background: #e3f2fd;
+    border-left: 4px solid #2196f3;
+    border-radius: 4px;
+    color: #1565c0;
+    margin: 10px 0;
+  }
+
+  /* --- Certificate Card Styling --- */
+  .certificate {
+    position: relative;
+    background: white;
+    padding: 15px 25px; 
+    border: 3px solid #8b4513; 
+    border-radius: 12px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+    box-sizing: border-box; 
+    overflow: hidden;
+  }
+
+  .certificate-inner {
+    border: 2px dashed #d4a574;
+    border-radius: 8px;
+    padding: 15px;
+    position: relative;
+    text-align: center;
+  }
+
+  .cert-header { 
+    margin-bottom: 10px; 
+  }
+
+  .cert-header img { 
+    height: 45px; 
+    width: auto; 
+    margin-bottom: 3px; 
+  }
+
+  .school-name {
+    margin: 3px 0;
+    color: #1e3a8a; 
+    font-size: 1em; 
+    text-transform: uppercase;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+  }
+
+  .school-contact {
+    font-size: 10px;
+    color: #666;
+    margin: 2px 0;
+  }
+
+  .cert-title {
+    font-size: 1.2em;
+    font-weight: bold;
+    color: #8b4513;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin: 12px 0 8px 0;
+    border-bottom: 2px solid #d4a574;
+    padding-bottom: 6px;
+  }
+
+  .cert-text {
+    font-size: 11px;
+    color: #333;
+    margin: 8px 0;
+    font-style: italic;
+    line-height: 1.3;
+  }
+
+  .cert-details-table {
+    width: 100%;
+    margin: 10px 0;
+    font-size: 12px;
+  }
+
+  .cert-details-table td {
+    padding: 2px 3px;
+    text-align: left;
+  }
+
+  .cert-details-table td:first-child {
+    font-weight: bold;
+    width: 45%;
+  }
+
+  .cert-footer {
+    margin-top: 10px;
+    font-size: 10px;
+    color: #666;
+  }
+
+  .signature-line {
+    margin-top: 12px;
+    text-align: center;
+    font-size: 11px;
+  }
+
+  .signature-line div {
+    border-top: 1px solid #333;
+    width: 100px;
+    margin: 0 auto;
+    padding-top: 1px;
+  }
+
+  .decoration {
+    color: #d4a574;
+    font-size: 14px;
+    margin: 3px 0;
+  }
+
+  .print-checkbox {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 30;
+    transform: scale(1.1);
+  }
+
+  /* --- PRINT SETTINGS --- */
+  @media print {
+    @page {
+      size: A4;
+      margin: 0; 
+    }
+    body { 
+      background: white; 
+      padding: 0; 
+      margin: 0; 
+      -webkit-print-color-adjust: exact; 
+      print-color-adjust: exact;
+    }
+    .controls, #note, h1.main-title { display: none !important; }
+    .wrap { max-width: none; width: 100%; }
+    
+    .certificate {
+      height: 148mm; 
+      margin: 0;
+      border-radius: 0; 
+      border: none; 
+      outline: none; 
+      page-break-inside: avoid;
+      padding: 10px 30px; 
+      border-bottom: 1px dashed #999;
+      float: left;
+      width: 50%;
+      box-sizing: border-box;
+      box-shadow: none;
+      break-inside: avoid;
+    }
+
+    .certificate-inner {
+      border: 3px solid #8b4513;
+      border-radius: 10px;
+      height: 96%; 
+      padding: 12px 15px; 
+      box-sizing: border-box;
+      position: relative;
+    }
+
+    .certificate {
+      display: none !important;
+    }
+    .certificate.printable {
+      display: block !important;
+    }
+
+    .print-checkbox { display: none !important; }
+  }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const schoolNameInput = document.getElementById("schoolName");
+    const mobileInput = document.getElementById("mobileInput");
+    const contactInput = document.getElementById("contactInput");
+    const certificateTitleInput = document.getElementById("certificateTitle");
+    const certificateTextInput = document.getElementById("certificateText");
+    const rollNumbersInput = document.getElementById("rollNumbers");
+    const logoInput = document.getElementById("logoInput");
+    const generateBtn = document.getElementById("generateBtn");
+    const printBtn = document.getElementById("printBtn");
+    const container = document.getElementById("certificatesContainer");
+    const noteEl = document.getElementById("note");
+
+    let currentLogoSrc = "https://via.placeholder.com/120x60?text=Logo";
+    let fetchedStudents = [];
+
+    logoInput.addEventListener('change', function() {
+        if (this.files && this.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) { currentLogoSrc = e.target.result; }
+            reader.readAsDataURL(this.files[0]);
+        }
+    });
+
+    const timer = setInterval(() => {
+        if (window.authReady && window.supabaseClient) {
+            clearInterval(timer);
+            init();
+        }
+    }, 100);
+
+    async function init() {
+        try {
+            // Just load school name from session if available
+            if (window.currentSchoolName) {
+                schoolNameInput.value = window.currentSchoolName;
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    generateBtn.addEventListener("click", async () => {
+        const schoolName = schoolNameInput.value.trim();
+        const mobile = mobileInput.value.trim();
+        const contact = contactInput.value.trim();
+        const certTitle = certificateTitleInput.value.trim() || "Certificate of Merit";
+        const certText = certificateTextInput.value.trim() || "This is to certify that the bearer has demonstrated exceptional qualities.";
+        const rollNumbersStr = rollNumbersInput.value.trim();
+
+        if (!rollNumbersStr) {
+            alert("Please enter roll numbers (e.g., 23,43,45)");
+            return;
+        }
+
+        const rollNumbers = rollNumbersStr.split(',').map(r => r.trim()).filter(r => r);
+        
+        container.innerHTML = "<p>Fetching student data...</p>";
+        noteEl.textContent = "";
+
+        try {
+            let q = window.supabaseClient.from('admissions').select('id, roll_number, full_name, applying_for_class, father_name, status');
+            if (window.currentSchoolId) q = q.eq('school_id', window.currentSchoolId);
+            q = q.eq('status', 'Active');
+            
+            const { data: allStudents, error } = await q;
+
+            if (error) {
+                console.error('Query error:', error);
+                container.innerHTML = "<p>Error fetching data: " + error.message + "</p>";
+                return;
+            }
+
+            if (!allStudents || allStudents.length === 0) {
+                container.innerHTML = "<p>No active student records found in database.</p>";
+                noteEl.textContent = "Make sure there are active students in the system.";
+                return;
+            }
+
+            // Filter students by roll numbers
+            fetchedStudents = allStudents.filter(student => {
+                const roll = String(student.roll_number || '').trim();
+                return rollNumbers.includes(roll);
+            });
+
+            if (fetchedStudents.length === 0) {
+                container.innerHTML = "<p>No matching students found for the given roll numbers.</p>";
+                noteEl.textContent = `Searched for roll numbers: ${rollNumbers.join(', ')}`;
+                return;
+            }
+
+            container.innerHTML = "";
+            noteEl.textContent = `Loaded ${fetchedStudents.length} students. Ready to print.`;
+
+            fetchedStudents.forEach((student, idx) => {
+                const roll = student.roll_number || '-';
+                const cls = student.applying_for_class || '-';
+                const fatherName = student.father_name || '-';
+
+                const certHTML = `
+                    <div class="certificate printable">
+                        <input type="checkbox" class="print-checkbox" checked title="Include in print" />
+                        <div class="certificate-inner">
+                            <div class="cert-header">
+                                <img src="${currentLogoSrc}" alt="School Logo">
+                                <div class="school-name">${escapeHtml(schoolName)}</div>
+                                <div class="school-contact">
+                                    ${mobile ? `Mobile: ${escapeHtml(mobile)}` : ''}
+                                    ${mobile && contact ? ' | ' : ''}
+                                    ${contact ? `Email: ${escapeHtml(contact)}` : ''}
+                                </div>
+                            </div>
+
+                            <div class="decoration">✦ ✦ ✦</div>
+
+                            <div class="cert-title">${escapeHtml(certTitle)}</div>
+
+                            <div class="cert-text">${escapeHtml(certText)}</div>
+
+                            <table class="cert-details-table">
+                                <tr>
+                                    <td>Name:</td>
+                                    <td>${escapeHtml(student.full_name || '-')}</td>
+                                </tr>
+                                <tr>
+                                    <td>Roll Number:</td>
+                                    <td>${escapeHtml(String(roll))}</td>
+                                </tr>
+                                <tr>
+                                    <td>Class:</td>
+                                    <td>${escapeHtml(cls)}</td>
+                                </tr>
+                                <tr>
+                                    <td>Father's Name:</td>
+                                    <td>${escapeHtml(fatherName)}</td>
+                                </tr>
+                            </table>
+
+                            <div class="decoration">✦ ✦ ✦</div>
+
+                            <div class="cert-footer">
+                                Date: ${new Date().toLocaleDateString()}
+                            </div>
+
+                            <div class="signature-line">
+                                <div></div>
+                                <small>Principal's Signature</small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                container.innerHTML += certHTML;
+            });
+
+        } catch (err) {
+            console.error(err);
+            container.innerHTML = "<p>Error fetching data: " + err.message + "</p>";
+        }
+    });
+
+    printBtn.addEventListener("click", () => {
+        const checkboxes = document.querySelectorAll(".print-checkbox");
+        checkboxes.forEach(cb => {
+            const cert = cb.closest('.certificate');
+            if (cb.checked) {
+                cert.classList.add('printable');
+            } else {
+                cert.classList.remove('printable');
+            }
+        });
+        window.print();
+    });
+});
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+</script>
+</head>
+
+<body>
+<div class="wrap">
+    <h1 class="main-title">General Purpose Certificates</h1>
+
+    <div class="controls">
+        <div class="control-group">
+            <label>School Name:</label>
+            <input type="text" id="schoolName" placeholder="Enter school name">
+        </div>
+        <div class="control-group">
+            <label>Mobile:</label>
+            <input type="text" id="mobileInput" placeholder="Enter mobile number">
+        </div>
+        <div class="control-group">
+            <label>Contact:</label>
+            <input type="text" id="contactInput" placeholder="Enter email or contact">
+        </div>
+    </div>
+
+    <div class="controls">
+        <div class="control-group">
+            <label>Certificate Title:</label>
+            <input type="text" id="certificateTitle" placeholder="e.g., Certificate of Merit" value="Certificate of Merit">
+        </div>
+    </div>
+
+    <div class="controls">
+        <div class="control-group">
+            <label>Certificate Text:</label>
+            <textarea id="certificateText" placeholder="Enter certificate text">This is to certify that the bearer has demonstrated exceptional qualities of discipline, cleanliness, and good conduct.</textarea>
+        </div>
+    </div>
+
+    <div class="controls">
+        <div class="control-group">
+            <label>Roll Numbers (comma-separated):</label>
+            <input type="text" id="rollNumbers" placeholder="e.g., 23,43,45" style="flex-grow: 1; max-width: 400px;">
+        </div>
+        <div class="control-group">
+            <label>Upload Logo:</label>
+            <input type="file" id="logoInput" accept="image/*">
+        </div>
+    </div>
+
+    <div class="controls">
+        <button class="green" id="generateBtn">Generate Certificates</button>
+        <button id="printBtn">Print Selected</button>
+    </div>
+
+    <div id="note"></div>
+
+    <div id="certificatesContainer"></div>
+</div>
+</body>
+</html>

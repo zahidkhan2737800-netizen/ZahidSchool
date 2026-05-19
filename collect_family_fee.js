@@ -33,8 +33,13 @@ const btnToggleHistory= document.getElementById('btnToggleHistory');
 const historyPanel    = document.getElementById('historyPanel');
 const historyBody     = document.getElementById('historyBody');
 
+const btnToggleDiscount = document.getElementById('btnToggleDiscount');
+const discountPanel     = document.getElementById('discountPanel');
+const discountBody      = document.getElementById('discountBody');
+
 const inputFine       = document.getElementById('inputFine');
 const inputDiscount   = document.getElementById('inputDiscount');
+const btnApplyDiscount = document.getElementById('btnApplyDiscount');
 const inputPaying     = document.getElementById('inputPaying');
 const inputMethod     = document.getElementById('inputMethod');
 const inputRef        = document.getElementById('inputRef');
@@ -147,12 +152,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    if(btnToggleDiscount) {
+        btnToggleDiscount.addEventListener('click', () => {
+            if(discountPanel.style.display === 'none') {
+                discountPanel.style.display = 'block';
+                btnToggleDiscount.textContent = '💰 Hide Discounts';
+            } else {
+                discountPanel.style.display = 'none';
+                btnToggleDiscount.textContent = '💰 Discounts';
+            }
+        });
+    }
+
     btnReprint.addEventListener('click', () => {
         if (receiptCache.length === 0) return;
         reprintFromHistory(receiptCache[0]);
     });
     
     if (btnBill) btnBill.addEventListener('click', printBill);
+
+    if (btnApplyDiscount) {
+        btnApplyDiscount.addEventListener('click', applyDiscountToChallans);
+    }
 
     btnPayAll.addEventListener('click', () => {
         if (pendingDues.length === 0) return;
@@ -319,6 +340,8 @@ async function openFamily(fam) {
     if(historyPanel) historyPanel.style.display = 'none';
     if(btnToggleHistory) btnToggleHistory.textContent = '📜 History';
     if(btnBill) btnBill.style.display = 'none';
+    if(discountPanel) discountPanel.style.display = 'none';
+    if(btnToggleDiscount) { btnToggleDiscount.textContent = '💰 Discounts'; btnToggleDiscount.style.display = 'inline-block'; }
 
     recalcCart();
 
@@ -337,7 +360,8 @@ async function openFamily(fam) {
     // Fetch multi-student data
     await Promise.all([
         loadHistory(fam.members),
-        loadFamilyDues(fam.members)
+        loadFamilyDues(fam.members),
+        loadDiscountHistory(fam.members)
     ]);
 }
 
@@ -518,6 +542,15 @@ window.printDaySummary = function(dateStr) {
     if(rowReceiptNo) rowReceiptNo.style.display = 'flex';
     const rowTotalPaid = document.getElementById('rowTotalPaid');
     if(rowTotalPaid) rowTotalPaid.style.display = 'flex';
+    
+    // Hide Fine & Discount for Day Summary
+    const rowFine = document.getElementById('rowFine');
+    if(rowFine) rowFine.style.display = 'none';
+    const rowDiscount = document.getElementById('rowDiscount');
+    if(rowDiscount) rowDiscount.style.display = 'none';
+    const dividerBeforeTotals = document.getElementById('dividerBeforeTotals');
+    if(dividerBeforeTotals) dividerBeforeTotals.style.display = 'none';
+    
     const rctFooter = document.getElementById('rctFooter');
     if(rctFooter) rctFooter.textContent = 'Thank you! — Zahid School System';
 
@@ -810,7 +843,11 @@ async function submitPayment() {
         }
 
         // Parallel update challans
-        await Promise.all(updateOps);
+        const updateResults = await Promise.all(updateOps);
+        const updateErrors = updateResults.filter(r => r.error).map(r => r.error.message);
+        if (updateErrors.length > 0) {
+            throw new Error("Challan update failed: " + updateErrors.join('; '));
+        }
         
         // Insert identical individual line records to transactions
         const { error: txErr } = await db.from('transactions').insert(txRecords);
@@ -883,7 +920,9 @@ async function submitPayment() {
         const remainingGlobal = Math.max(0, totalFamilyDues - paying);
 
         // Print combined physical receipt using UI grouping logic
-        printReceipt(baseReceipt, txRecords, paying, remainingGlobal);
+        const fine     = parseFloat(inputFine.value) || 0;
+        const discount = parseFloat(inputDiscount.value) || 0;
+        printReceipt(baseReceipt, txRecords, paying, remainingGlobal, fine, discount);
 
         // Reset & Refresh
         inputFine.value    = '0';
@@ -907,7 +946,7 @@ async function submitPayment() {
 }
 
 // ─── Receipt Print ────────────────────────────────────────────────────────────
-function printReceipt(receiptId, txRecords, totalPaid, remaining) {
+function printReceipt(receiptId, txRecords, totalPaid, remaining, fine = 0, discount = 0) {
     applyThermalSettings('collect_family_fee');
     document.getElementById('rctNo').textContent       = receiptId;
     document.getElementById('rctDate').textContent     = new Date().toLocaleString();
@@ -918,6 +957,34 @@ function printReceipt(receiptId, txRecords, totalPaid, remaining) {
     
     document.getElementById('rctTotal').textContent    = totalPaid.toLocaleString();
     document.getElementById('rctRemaining').textContent = remaining.toLocaleString();
+
+    // Display Fine if present
+    const rowFine = document.getElementById('rowFine');
+    const rctFine = document.getElementById('rctFine');
+    if (fine > 0) {
+        rctFine.textContent = fine.toLocaleString();
+        rowFine.style.display = 'flex';
+    } else {
+        rowFine.style.display = 'none';
+    }
+
+    // Display Discount if present
+    const rowDiscount = document.getElementById('rowDiscount');
+    const rctDiscount = document.getElementById('rctDiscount');
+    if (discount > 0) {
+        rctDiscount.textContent = discount.toLocaleString();
+        rowDiscount.style.display = 'flex';
+    } else {
+        rowDiscount.style.display = 'none';
+    }
+
+    // Show/hide divider before totals
+    const dividerBeforeTotals = document.getElementById('dividerBeforeTotals');
+    if (fine > 0 || discount > 0) {
+        dividerBeforeTotals.style.display = 'block';
+    } else {
+        dividerBeforeTotals.style.display = 'none';
+    }
 
     // Ensure visibility
     const rowReceiptNo = document.getElementById('rowReceiptNo');
@@ -975,6 +1042,14 @@ function printBill() {
     const rowTotalPaid = document.getElementById('rowTotalPaid');
     if(rowTotalPaid) rowTotalPaid.style.display = 'none';
     
+    // Hide Fine & Discount for Bill
+    const rowFine = document.getElementById('rowFine');
+    if(rowFine) rowFine.style.display = 'none';
+    const rowDiscount = document.getElementById('rowDiscount');
+    if(rowDiscount) rowDiscount.style.display = 'none';
+    const dividerBeforeTotals = document.getElementById('dividerBeforeTotals');
+    if(dividerBeforeTotals) dividerBeforeTotals.style.display = 'none';
+    
     const lblRemaining = document.getElementById('lblRemaining');
     if(lblRemaining) lblRemaining.textContent = "Remaining";
     document.getElementById('rctRemaining').textContent = totalRemaining.toLocaleString();
@@ -991,6 +1066,144 @@ function printBill() {
     }).join('');
 
     setTimeout(() => window.print(), 350);
+}
+
+// ─── Apply Discount to Challans ───────────────────────────────────────────────
+async function applyDiscountToChallans() {
+    if (!activeFamily || pendingDues.length === 0) {
+        return showAlert('No family selected or no pending dues.', true);
+    }
+
+    const discountAmt = parseFloat(inputDiscount.value) || 0;
+    if (discountAmt <= 0) {
+        return showAlert('Please enter a discount amount.', true);
+    }
+
+    btnApplyDiscount.innerHTML = 'Applying...';
+    btnApplyDiscount.disabled = true;
+
+    try {
+        let remainingDiscount = discountAmt;
+        const discountLogs = [];
+
+        // ── Single sequential loop: compute → update → log ────────────────────
+        // Sequential (not parallel) to avoid Supabase "Failed to fetch" on
+        // simultaneous connections.
+        for (const challan of pendingDues) {
+            if (remainingDiscount <= 0) break;
+
+            const outstanding = Math.max(0, parseFloat(challan.amount) - parseFloat(challan.paid_amount || 0));
+            const discountToApply = Math.min(remainingDiscount, outstanding);
+            if (discountToApply <= 0) continue;
+
+            const newPaidAmount = Math.round((parseFloat(challan.paid_amount || 0) + discountToApply) * 100) / 100;
+            const newStatus = newPaidAmount >= parseFloat(challan.amount) ? 'Paid' : 'Partially Paid';
+
+            // ── Await each update individually ─────────────────────────────────
+            const { error: updErr } = await db
+                .from('challans')
+                .update({ paid_amount: newPaidAmount, status: newStatus })
+                .eq('id', challan.id);
+
+            if (updErr) throw new Error('Could not update challan ' + challan.id + ': ' + (updErr.message || updErr));
+
+            // Build fee description for log
+            let feeDesc = challan.fee_type;
+            if (challan.fee_month && challan.fee_month !== 'N/A') feeDesc += ' (' + challan.fee_month + ')';
+            feeDesc = '[' + challan._studentName.split(' ')[0] + ' (' + challan._studentRoll + ')] ' + feeDesc;
+
+            discountLogs.push({
+                receipt_number:    'DISC-' + Date.now().toString().slice(-7) + '-' + discountLogs.length,
+                student_id:        challan.student_id,
+                roll_number:       challan._studentRoll,
+                challan_id:        challan.id,
+                fee_details:       feeDesc,
+                amount_paid:       0,
+                fine_amount:       0,
+                discount_amount:   discountToApply,
+                payment_method:    'Discount',
+                payment_reference: 'DISC-' + activeFamily.primaryName,
+                remarks:           inputRemarks.value.trim() || 'Direct discount applied'
+            });
+
+            remainingDiscount = Math.round((remainingDiscount - discountToApply) * 100) / 100;
+        }
+
+        // ── Log discounts to transactions table so history is queryable ────────
+        if (discountLogs.length > 0) {
+            const { error: logErr } = await db.from('transactions').insert(discountLogs);
+            if (logErr) console.warn('Discount log insert warning:', logErr.message);
+        }
+
+        showAlert('Discount of Rs ' + discountAmt + ' applied successfully!', false);
+
+        // Reset and refresh
+        inputDiscount.value = '0';
+        inputFine.value = '0';
+
+        await Promise.all([
+            loadHistory(activeFamily.members),
+            loadFamilyDues(activeFamily.members),
+            loadDiscountHistory(activeFamily.members)
+        ]);
+
+    } catch (e) {
+        console.error(e);
+        showAlert('Failed: ' + (e.message || 'Network error — please try again.'), true);
+
+    } finally {
+        btnApplyDiscount.innerHTML = 'Apply';
+        btnApplyDiscount.disabled = false;
+    }
+}
+
+// ─── Load Discount History ────────────────────────────────────────────────────
+async function loadDiscountHistory(famMembers) {
+    if (!famMembers || famMembers.length === 0) return;
+    if (!discountBody) return;
+
+    const studentIds = famMembers.map(m => m.id);
+    discountBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#94a3b8;">Loading discounts...</td></tr>';
+
+    try {
+        // Fetch from transactions where discount_amount > 0
+        const { data, error } = await db
+            .from('transactions')
+            .select('created_at, student_id, roll_number, discount_amount, fee_details, payment_reference, amount_paid')
+            .in('student_id', studentIds)
+            .gt('discount_amount', 0)
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        const rows = data || [];
+
+        if (rows.length === 0) {
+            discountBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#94a3b8;">No discounts have been applied to this family yet.</td></tr>';
+            return;
+        }
+
+        discountBody.innerHTML = rows.map(row => {
+            const stu = famMembers.find(m => m.id === row.student_id);
+            const stuName = stu ? stu.full_name.split(' ')[0] + ' (' + (stu.roll_number || row.roll_number || '?') + ')' : (row.roll_number || 'Unknown');
+            const dateStr = new Date(row.created_at).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' });
+            const timeStr = new Date(row.created_at).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' });
+            const reason  = row.fee_details || row.payment_reference || '—';
+            const rem     = typeof row.amount_paid === 'number' ? `Rs ${Number(row.amount_paid).toLocaleString()}` : '—';
+            return `
+            <tr>
+                <td><strong>${dateStr}</strong><br><span style="color:#94a3b8;font-size:0.78rem;">${timeStr}</span></td>
+                <td style="font-weight:700;color:#1e293b;">${stuName}</td>
+                <td style="font-weight:800;color:#7c3aed;font-size:1rem;">Rs ${Number(row.discount_amount).toLocaleString()}</td>
+                <td style="color:#64748b;font-size:0.82rem;">${reason}</td>
+                <td style="color:#16a34a;font-weight:600;">${rem}</td>
+            </tr>`;
+        }).join('');
+
+    } catch (e) {
+        console.warn('Discount history load error:', e.message);
+        if (discountBody) discountBody.innerHTML = `<tr><td colspan="5" style="color:red;text-align:center;">Error: ${e.message}</td></tr>`;
+    }
 }
 
 // ─── Alert Helper ─────────────────────────────────────────────────────────────

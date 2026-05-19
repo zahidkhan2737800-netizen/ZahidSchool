@@ -690,7 +690,11 @@ async function submitPayment() {
             wallet -= debit;
         }
 
-        await Promise.all(updateOps);
+        const updateResults = await Promise.all(updateOps);
+        const updateErrors = updateResults.filter(r => r.error).map(r => r.error.message);
+        if (updateErrors.length > 0) {
+            throw new Error("Challan update failed: " + updateErrors.join('; '));
+        }
         const { error: txErr } = await db.from('transactions').insert(txRecords);
         if (txErr) throw txErr;
 

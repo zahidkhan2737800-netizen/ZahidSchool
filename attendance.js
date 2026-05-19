@@ -62,6 +62,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+function getValidPhone(s) {
+    let w = String(s?.father_whatsapp || '').trim();
+    let m = String(s?.father_mobile || '').trim();
+    if (w.toLowerCase() === 'not provided' || w.toLowerCase() === 'n/a' || w === '-') w = '';
+    if (m.toLowerCase() === 'not provided' || m.toLowerCase() === 'n/a' || m === '-') m = '';
+    return w || m || '';
+}
+
 /** Single non-paginated query scoped to this school. Fast for small result sets. */
 async function scopedQuery(table, selectCols, extraFilters = []) {
     let q = window.supabaseClient.from(table).select(selectCols);
@@ -123,7 +131,7 @@ async function loadDatabase() {
             // 1 – Students (fetched once, never re-fetched)
             scopedQuery(
                 'admissions',
-                'id, roll_number, full_name, applying_for_class, father_name, father_mobile',
+                'id, roll_number, full_name, applying_for_class, father_name, father_mobile, father_whatsapp',
                 [['status', ['Active', 'active']]]
             ),
             // 2 – Only today's attendance records
@@ -341,7 +349,7 @@ function renderData() {
     let families = [];
 
     filteredList.forEach(s => {
-        const mob = (s.father_mobile || '').trim();
+        const mob = getValidPhone(s);
         // Phone numbers should be long enough to be valid
         if (mob && mob.length > 5) {
             if (!grouped[mob]) grouped[mob] = [];
@@ -502,15 +510,19 @@ window.applySelectedWaTemplate = function() {
     // Use first student for father's mobile (primary contact)
     let s = students[0];
     
-    // Validate that at least one student has a mobile number
-    const studentsWithMobile = students.filter(st => st.father_mobile && String(st.father_mobile).trim().length > 0);
+    // Validate that at least one student has a mobile/whatsapp number
+    const studentsWithMobile = students.filter(st => {
+        const m = getValidPhone(st);
+        return m && m.length > 0;
+    });
     if (studentsWithMobile.length === 0) {
-        showToast("No student has a registered mobile number", 'error');
+        showToast("No student has a registered WhatsApp or mobile number", 'error');
         return;
     }
     
-    // If primary student has no mobile, use the first one that does
-    if (!s.father_mobile || String(s.father_mobile).trim().length === 0) {
+    // If primary student has no contact, use the first one that does
+    const sContact = getValidPhone(s);
+    if (!sContact || sContact.length === 0) {
         s = studentsWithMobile[0];
     }
 
@@ -557,13 +569,14 @@ window.applySelectedWaTemplate = function() {
         }
         
         // Validate phone number exists
-        if(!s.father_mobile || String(s.father_mobile).trim().length === 0) {
-            showToast("This student has no mobile number registered.", 'error');
+        const targetPhone = getValidPhone(s);
+        if(!targetPhone || targetPhone.length === 0) {
+            showToast("This student has no WhatsApp or mobile number registered.", 'error');
             return;
         }
         
         // Process phone number - remove all non-numeric characters
-        let phone = String(s.father_mobile).trim().replace(/[^0-9+]/g, '');
+        let phone = String(targetPhone).trim().replace(/[^0-9+]/g, '');
         
         // Remove leading + if present
         if (phone.startsWith('+')) {

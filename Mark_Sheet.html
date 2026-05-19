@@ -318,20 +318,47 @@ document.addEventListener("DOMContentLoaded", () => {
         detectedSubjects.sort();
 
         container.innerHTML = "";
-        noteEl.textContent = "Data loaded! Please configure passing marks below.";
+        noteEl.textContent = "Loading saved subject settings...";
+
+        // Load saved config from Supabase (with localStorage fallback)
+        let savedConfig = {};
+        try {
+            let q = window.supabaseClient.from('mark_sheet_config')
+                .select('config_json')
+                .eq('class_name', cls);
+            if (window.currentSchoolId) q = q.eq('school_id', window.currentSchoolId);
+            const { data: cfgRow } = await q.maybeSingle();
+            if (cfgRow && cfgRow.config_json) {
+                savedConfig = cfgRow.config_json;
+                // Also cache locally for fast next load
+                localStorage.setItem(`ms_config_${cls}`, JSON.stringify(savedConfig));
+            } else {
+                // Fallback to localStorage if no Supabase record yet
+                const local = localStorage.getItem(`ms_config_${cls}`);
+                if (local) savedConfig = JSON.parse(local);
+            }
+        } catch(e) {
+            const local = localStorage.getItem(`ms_config_${cls}`);
+            try { if (local) savedConfig = JSON.parse(local); } catch(e2) {}
+        }
+
+        noteEl.textContent = "Data loaded! Saved subject settings restored for this class.";
         
         let configHTML = "";
         detectedSubjects.forEach(sub => {
+            const savedSub = savedConfig[sub] || {};
+            const totalVal = savedSub.total !== undefined ? savedSub.total : 100;
+            const passVal  = savedSub.pass  !== undefined ? savedSub.pass  : 33;
             configHTML += `
                 <div class="subject-row">
                     <label>${escape(sub)}</label>
                     <div style="display:flex; flex-direction:column; font-size:10px;">
                         <span>Total</span>
-                        <input type="number" class="sub-total" data-sub="${sub}" value="100" style="width:60px">
+                        <input type="number" class="sub-total" data-sub="${sub}" value="${totalVal}" style="width:60px">
                     </div>
                     <div style="display:flex; flex-direction:column; font-size:10px;">
                         <span>Pass</span>
-                        <input type="number" class="sub-pass" data-sub="${sub}" value="33" style="width:60px">
+                        <input type="number" class="sub-pass" data-sub="${sub}" value="${passVal}" style="width:60px">
                     </div>
                 </div>
             `;
@@ -341,7 +368,7 @@ document.addEventListener("DOMContentLoaded", () => {
         configPanel.style.display = "flex";
     });
 
-    generateBtn.addEventListener("click", () => {
+    generateBtn.addEventListener("click", async () => {
         const school = schoolInput.value.trim();
         const examName = examInput.options[examInput.selectedIndex]?.textContent || "Examination";
         const cls = classInput.value.trim();
@@ -356,6 +383,19 @@ document.addEventListener("DOMContentLoaded", () => {
             const s = input.getAttribute("data-sub");
             configMap[s].pass = Number(input.value);
         });
+
+        // Save config to Supabase (and localStorage as cache)
+        try {
+            localStorage.setItem(`ms_config_${cls}`, JSON.stringify(configMap));
+            const payload = {
+                class_name: cls,
+                config_json: configMap,
+                school_id: window.currentSchoolId || null,
+                updated_at: new Date().toISOString()
+            };
+            await window.supabaseClient.from('mark_sheet_config')
+                .upsert(payload, { onConflict: 'school_id,class_name' });
+        } catch(e) { console.warn('Config save failed:', e); }
 
         container.innerHTML = "";
 
@@ -372,25 +412,34 @@ document.addEventListener("DOMContentLoaded", () => {
                 const obtStr = String(obtRaw).trim();
                 if (obtStr === "") return;
 
-                const obtNum = Number(obtStr);
-                if (Number.isNaN(obtNum)) return;
-
                 const subTotal = configMap[sub]?.total || 100;
                 const subPass = configMap[sub]?.pass || 33;
+
+                let obtNum = Number(obtStr);
+                let displayObt = obtStr;
+                let status = "Fail";
+                let statusClass = "status-fail";
+
+                if (Number.isNaN(obtNum)) {
+                    obtNum = 0; // Add 0 to total
+                    status = "Absent"; // Clear status
+                } else {
+                    if (obtNum >= subPass) {
+                        status = "Pass";
+                        statusClass = "status-pass";
+                    }
+                }
 
                 grandTotalMax += subTotal;
                 grandTotalObt += obtNum;
                 printedCount += 1;
-
-                const status = (obtNum >= subPass ? "Pass" : "Fail");
-                const statusClass = status === "Pass" ? "status-pass" : "status-fail";
 
                 rows += `
                     <tr>
                         <td style="text-align:left;padding-left:8px">${escape(sub)}</td>
                         <td>${subTotal}</td>
                         <td>${subPass}</td>
-                        <td>${obtNum}</td>
+                        <td style="${Number.isNaN(Number(obtStr)) ? 'color:red;font-weight:bold;' : ''}">${escape(displayObt)}</td>
                         <td class="${statusClass}">${status}</td>
                     </tr>
                 `;

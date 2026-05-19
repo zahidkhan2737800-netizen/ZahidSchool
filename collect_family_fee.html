@@ -304,6 +304,8 @@
         .partial-btn:hover { background: #d97706; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2); }
         .show-history-btn { background: white; color: #7c3aed; border: 1.5px solid #7c3aed; padding: 0.5rem 1.1rem; border-radius: 8px; font-weight: 700; font-size: 0.85rem; cursor: pointer; transition: all 0.2s; }
         .show-history-btn:hover { background: #f3e8ff; }
+        .discount-btn { background: #7c3aed; color: white; border: none; padding: 0.5rem 1.1rem; border-radius: 8px; font-weight: 700; font-size: 0.85rem; cursor: pointer; transition: all 0.2s; }
+        .discount-btn:hover { background: #6d28d9; box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25); }
         .reprint-btn { background: #6366f1; color: white; border: none; padding: 0.5rem 1.1rem; border-radius: 8px; font-weight: 700; font-size: 0.85rem; cursor: pointer; transition: all 0.2s; }
         .reprint-btn:hover { background: #4f46e5; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25); }
         .print-row-btn { background: #6366f1; color: white; border: none; padding: 0.25rem 0.6rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; transition: background 0.2s; }
@@ -416,6 +418,7 @@
                         <button id="btnReprint" class="reprint-btn" style="display:none;">🖨️ Reprint Last</button>
                         <button id="btnToggleHistory" class="show-history-btn">📜 History</button>
                         <button id="btnBill" class="show-history-btn" style="display:none;">🧾 Bill</button>
+                        <button id="btnToggleDiscount" class="discount-btn">💰 Discounts</button>
                     </div>
                 </div>
             </div>
@@ -438,6 +441,27 @@
                         </thead>
                         <tbody id="historyBody">
                             <tr><td colspan="7" style="text-align:center;color:#94a3b8;">No recorded transactions yet.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Discount History -->
+            <div class="section-panel" id="discountPanel" style="display:none;">
+                <h2>🎟️ Family Discount History</h2>
+                <div style="overflow-x:auto;">
+                    <table class="history-table">
+                        <thead>
+                            <tr>
+                                <th>Date &amp; Time</th>
+                                <th>Student</th>
+                                <th style="color:#7c3aed;">Discount Given</th>
+                                <th>Fee Details</th>
+                                <th style="color:#16a34a;">Amount Paid</th>
+                            </tr>
+                        </thead>
+                        <tbody id="discountBody">
+                            <tr><td colspan="5" style="text-align:center;color:#94a3b8;">No discounts applied yet.</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -471,7 +495,10 @@
                     </div>
                     <div>
                         <label class="cf-label">Global Discount (Rs)</label>
-                        <input type="number" id="inputDiscount" class="cf-input" value="0" style="margin-bottom:0;">
+                        <div style="display:flex;gap:0.5rem;">
+                            <input type="number" id="inputDiscount" class="cf-input" value="0" style="margin-bottom:0;flex:1;">
+                            <button id="btnApplyDiscount" class="partial-btn" style="padding:0.85rem 1rem;white-space:nowrap;margin-top:0;">Apply</button>
+                        </div>
                     </div>
                 </div>
                 <hr class="checkout-divider">
@@ -721,6 +748,15 @@
         <!-- Itemised Fee Lines (Grouped) -->
         <div id="rctBody"></div>
         <hr class="th-divider">
+
+        <!-- Fine & Discount -->
+        <div class="th-row" id="rowFine" style="display:none;">
+            <span class="th-label">Fine (Rs)</span><span class="th-value" id="rctFine">0</span>
+        </div>
+        <div class="th-row" id="rowDiscount" style="display:none;">
+            <span class="th-label">Discount (Rs)</span><span class="th-value" id="rctDiscount">0</span>
+        </div>
+        <hr class="th-divider" id="dividerBeforeTotals" style="display:none;">
 
         <!-- Totals -->
         <div class="th-total-row" id="rowTotalPaid">

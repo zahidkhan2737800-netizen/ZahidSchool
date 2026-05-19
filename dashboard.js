@@ -50,6 +50,8 @@ var NAV_CATEGORIES = [
       { href: 'fee_type_report.html', label: 'Fee Type Report', icon: 'fas fa-file-invoice', key: 'collect_fee' },
       { href: 'head_wise_fee_report.html', label: 'Head Wise Collection', icon: 'fas fa-chart-bar', key: 'collect_fee' },
       { href: 'fee_unpaid_head_report.html', label: 'Fee Not Paid Head Wise', icon: 'fas fa-exclamation-circle', key: 'collect_fee' },
+      { href: 'discount_report.html', label: 'Discount Report', icon: 'fas fa-tag', key: 'collect_fee' },
+      { href: 'fee_default_report.html', label: 'Fee Default Report', icon: 'fas fa-user-slash', key: 'collect_fee' },
     ]
   },
     {
@@ -289,6 +291,17 @@ async function loadCashFlowStats() {
         const { data: todayFeeData } = await todayFeeQ;
         const todayFeeRevenue = (todayFeeData || []).reduce((s, r) => s + Number(r.amount_paid || 0), 0);
 
+        // 1B. Discount given this month (sum of discount_amount from transactions)
+        let discMonthQ = window.supabaseClient
+            .from('transactions')
+            .select('discount_amount')
+            .gt('discount_amount', 0)
+            .gte('created_at', firstDay + 'T00:00:00')
+            .lte('created_at', lastDay + 'T23:59:59');
+        if (schoolId) discMonthQ = discMonthQ.eq('school_id', schoolId);
+        const { data: discMonthData } = await discMonthQ;
+        const totalDiscountMonth = (discMonthData || []).reduce((s, r) => s + Number(r.discount_amount || 0), 0);
+
         // 2. Other Revenue this month (scoped to school)
         let revQ = window.supabaseClient
             .from('other_revenue')
@@ -338,6 +351,32 @@ async function loadCashFlowStats() {
         if (schoolId) unpaidQ = unpaidQ.eq('school_id', schoolId);
         const { data: unpaidData } = await unpaidQ;
 
+        // 5. Monthly Fee Default: unpaid challan balances for students withdrawn this month
+        //    Step A — get IDs of students withdrawn this month
+        let withdrawnQ = window.supabaseClient
+            .from('admissions')
+            .select('id')
+            .eq('status', 'Withdrawn')
+            .gte('updated_at', firstDay + 'T00:00:00')
+            .lte('updated_at', lastDay + 'T23:59:59');
+        if (schoolId) withdrawnQ = withdrawnQ.eq('school_id', schoolId);
+        const { data: withdrawnStudents } = await withdrawnQ;
+
+        let feeDefaultAmount = 0;
+        if (withdrawnStudents && withdrawnStudents.length > 0) {
+            const withdrawnIds = withdrawnStudents.map(s => s.id);
+            //    Step B — get all unpaid/partially-paid challans for those students
+            let defaultQ = window.supabaseClient
+                .from('challans')
+                .select('amount, paid_amount')
+                .in('student_id', withdrawnIds)
+                .in('status', ['Unpaid', 'Partially Paid']);
+            if (schoolId) defaultQ = defaultQ.eq('school_id', schoolId);
+            const { data: defaultChallans } = await defaultQ;
+            feeDefaultAmount = (defaultChallans || []).reduce((s, c) =>
+                s + Math.max(0, (Number(c.amount) || 0) - (Number(c.paid_amount) || 0)), 0);
+        }
+
         const todayRevenue = todayFeeRevenue + todayOtherRevenue;
         const totalRevenue = feeRevenue + otherRevenue;
         const netProfit = totalRevenue - totalExpenses;
@@ -350,6 +389,8 @@ async function loadCashFlowStats() {
         if (el('statTotalExpenses')) el('statTotalExpenses').textContent = fmt(totalExpenses);
         if (el('statSalariesPaid')) el('statSalariesPaid').textContent = fmt(salariesPaid);
         if (el('statUnpaidSalaries')) el('statUnpaidSalaries').textContent = (unpaidData || []).length;
+        if (el('statDiscountMonth')) el('statDiscountMonth').textContent = fmt(totalDiscountMonth);
+        if (el('statFeeDefault'))    el('statFeeDefault').textContent    = fmt(feeDefaultAmount);
 
         const profitEl = el('statNetProfit');
         const profitIconEl = el('profitIcon');
@@ -484,7 +525,7 @@ async function loadStats() {
         // Helper: add school_id filter only when available
         const sc = (q) => sid ? q.eq('school_id', sid) : q;
 
-        const [activeRes, withdrawnRes, feesRes, challansRes, unpaidChallansRes, dailyFeesRes, balanceRes, attendanceRes, admittedRes] = await Promise.all([
+        const [activeRes, withdrawnRes, feesRes, challansRes, unpaidChallansRes, dailyFeesRes, balanceRes, attendanceRes, admittedRes, dailyDiscountRes] = await Promise.all([
             sc(window.supabaseClient.from('admissions')
                 .select('*', { count: 'exact', head: true }).eq('status', 'Active')),
             sc(window.supabaseClient.from('admissions')
@@ -512,7 +553,12 @@ async function loadStats() {
             sc(window.supabaseClient.from('admissions')
                 .select('*', { count: 'exact', head: true })
                 .gte('admission_date', fmtDate(monthStartDate))
-                .lt('admission_date', fmtDate(monthEndDate)))
+                .lt('admission_date', fmtDate(monthEndDate))),
+            // Discount given today (sum of discount_amount from transactions)
+            sc(window.supabaseClient.from('transactions')
+                .select('discount_amount')
+                .gt('discount_amount', 0)
+                .gte('created_at', todayStart).lt('created_at', todayEnd))
         ]);
 
         const activeCount    = activeRes.count || 0;
@@ -522,6 +568,7 @@ async function loadStats() {
         const totalFees      = (feesRes.data || []).reduce((s, r) => s + (Number(r.amount_paid) || 0), 0);
         const dailyFees      = (dailyFeesRes.data || []).reduce((s, r) => s + (Number(r.amount_paid) || 0), 0);
         const totalBalance   = (balanceRes.data || []).reduce((s, r) => s + ((Number(r.amount) || 0) - (Number(r.paid_amount) || 0)), 0);
+        const dailyDiscount  = (dailyDiscountRes.data || []).reduce((s, r) => s + (Number(r.discount_amount) || 0), 0);
 
         const attendanceData = attendanceRes.data || [];
         const presentCount   = attendanceData.filter(r => r.status === 'Present').length;
@@ -540,6 +587,9 @@ async function loadStats() {
         document.getElementById('statPresent').textContent        = presentCount.toLocaleString();
         document.getElementById('statAbsent').textContent         = absentCount.toLocaleString();
         document.getElementById('statAdmittedMonth').textContent  = admittedCount.toLocaleString();
+        // Discount today
+        const discTodayEl = document.getElementById('statDiscountToday');
+        if (discTodayEl) discTodayEl.textContent = dailyDiscount > 0 ? fmt(dailyDiscount) : 'Rs 0';
 
     } catch (e) {
         console.error('Failed to load dashboard stats', e);

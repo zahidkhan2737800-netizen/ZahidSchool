@@ -152,8 +152,27 @@
     fromMonthSel.value = "Jan";
     toMonthSel.value   = months[CURRENT_MONTH_IDX];
 
+    // ── Restore persisted filter values ──────────────────────────────────────
+    (function restoreFilters() {
+      try {
+        const saved = JSON.parse(localStorage.getItem('absentDaysFilters') || '{}');
+        if (saved.fromMonth && months.includes(saved.fromMonth)) fromMonthSel.value = saved.fromMonth;
+        if (saved.fromYear  && fromYearSel.querySelector(`option[value="${saved.fromYear}"]`)) fromYearSel.value = saved.fromYear;
+        if (saved.toMonth   && months.includes(saved.toMonth))   toMonthSel.value   = saved.toMonth;
+        if (saved.toYear    && toYearSel.querySelector(`option[value="${saved.toYear}"]`))   toYearSel.value   = saved.toYear;
+      } catch(e) { /* ignore */ }
+    })();
+
     // ── Helpers ───────────────────────────────────────────────────────────────
     
+    function getValidPhone(s) {
+      let w = String(s?.father_whatsapp || '').trim();
+      let m = String(s?.father_mobile || '').trim();
+      if (w.toLowerCase() === 'not provided' || w.toLowerCase() === 'n/a' || w === '-') w = '';
+      if (m.toLowerCase() === 'not provided' || m.toLowerCase() === 'n/a' || m === '-') m = '';
+      return w || m || '';
+    }
+
     function showToast(msg, type = 'success') {
       // Create a toast container if it doesn't exist
       let toastContainer = document.getElementById('toastContainer');
@@ -187,6 +206,7 @@
     }
 
     // ── getVisibleCols ────────────────────────────────────────────────────────
+    function getVisibleCols() {
       const fm = months.indexOf(fromMonthSel.value), fy = +fromYearSel.value;
       const tm = months.indexOf(toMonthSel.value),   ty = +toYearSel.value;
       const cols = []; let cy = fy, cm = fm, iter = 0;
@@ -264,7 +284,7 @@
       // 1. Load admissions — fetch all, filter Active in JS to handle any status casing
       let q = client
         .from("admissions")
-        .select("id,roll_number,full_name,father_name,father_mobile,applying_for_class,status")
+        .select("id,roll_number,full_name,father_name,father_mobile,father_whatsapp,applying_for_class,status")
         .order("roll_number", { ascending: true });
       if (schoolId) q = q.eq("school_id", schoolId);
 
@@ -318,6 +338,7 @@
           name:         adm.full_name   || "",
           father:       adm.father_name || "",
           father_mobile:adm.father_mobile || "",
+          father_whatsapp:adm.father_whatsapp || "",
           rawMonths:    (ab && ab.months) || {},
           current_class: cc, previous_class: pc,
           promoted: !!(pc && cc && pc !== cc && ab && hasAnyMonthValue(ab.months))
@@ -330,6 +351,15 @@
 
       console.log("[AbsentDays] allStudents:", allStudents.length);
       buildClassOptions();
+
+      // Restore saved class filter after class options are built
+      try {
+        const saved = JSON.parse(localStorage.getItem('absentDaysFilters') || '{}');
+        if (saved.classFilter && [...classFilter.options].some(o => o.value === saved.classFilter)) {
+          classFilter.value = saved.classFilter;
+        }
+      } catch(e) { /* ignore */ }
+
       renderTable();
 
       // 5. Background sync: insert missing absent_days rows
@@ -487,8 +517,9 @@
       if (!s) return;
       
       // Validate mobile number exists
-      if (!s.father_mobile || String(s.father_mobile).trim().length === 0) {
-        showToast("This student has no mobile number registered.", 'error');
+      const phone = getValidPhone(s);
+      if (!phone || phone.length === 0) {
+        showToast("This student has no WhatsApp or mobile number registered.", 'error');
         return;
       }
       
@@ -519,13 +550,14 @@
         }
         
         // Validate phone number exists
-        if(!s.father_mobile || String(s.father_mobile).trim().length === 0) {
-          showToast("This student has no mobile number registered.", 'error');
+        const targetPhone = getValidPhone(s);
+        if(!targetPhone || targetPhone.length === 0) {
+          showToast("This student has no WhatsApp or mobile number registered.", 'error');
           return;
         }
         
         // Process phone number - remove all non-numeric characters
-        let ph = String(s.father_mobile).trim().replace(/[^0-9+]/g, '');
+        let ph = targetPhone.replace(/[^0-9+]/g, '');
         
         // Remove leading + if present
         if (ph.startsWith('+')) {
@@ -583,11 +615,24 @@
     window.applySelectedWaTemplate = applySelectedWaTemplate;
     window.closeWaModal          = closeWaModal;
 
+    // ── Save filter state to localStorage ────────────────────────────────────
+    function saveFilters() {
+      try {
+        localStorage.setItem('absentDaysFilters', JSON.stringify({
+          fromMonth: fromMonthSel.value,
+          fromYear:  fromYearSel.value,
+          toMonth:   toMonthSel.value,
+          toYear:    toYearSel.value,
+          classFilter: classFilter.value
+        }));
+      } catch(e) { /* ignore */ }
+    }
+
     // ── Event listeners ───────────────────────────────────────────────────────
     [fromMonthSel, fromYearSel, toMonthSel, toYearSel].forEach(sel => {
-      sel.addEventListener("change", () => { ensureMonthHeaders(); renderTable(); });
+      sel.addEventListener("change", () => { saveFilters(); ensureMonthHeaders(); renderTable(); });
     });
-    classFilter.addEventListener("change", () => { if (!globalSearch.value.trim()) renderTable(); });
+    classFilter.addEventListener("change", () => { saveFilters(); if (!globalSearch.value.trim()) renderTable(); });
     globalSearch.addEventListener("input", renderTable);
 
     // ── Boot ──────────────────────────────────────────────────────────────────

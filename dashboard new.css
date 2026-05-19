@@ -221,6 +221,7 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f1f5f9; min-
 .stat-icon.purple { background: #f3e8ff; color: #7c3aed; }
 .stat-icon.red { background: #fef2f2; color: #dc2626; }
 .stat-icon.sky { background: #ecfeff; color: #0e7490; }
+.stat-icon.gold { background: #fef3c7; color: #d97706; }
 .stat-info .stat-val { font-size: 1.5rem; font-weight: 800; color: #1e293b; line-height: 1; }
 .stat-info .stat-label { font-size: 0.78rem; color: #64748b; font-weight: 600; margin-top: 3px; }
 

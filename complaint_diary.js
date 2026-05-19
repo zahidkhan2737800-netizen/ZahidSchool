@@ -58,6 +58,15 @@ function setDefaults() {
     document.getElementById('searchDate').value = today;
 }
 
+// ─── Helpers ──────────────────────────────────────────────────
+function getValidPhone(w, m) {
+    let strW = String(w || '').trim();
+    let strM = String(m || '').trim();
+    if (strW.toLowerCase() === 'not provided' || strW.toLowerCase() === 'n/a' || strW === '-') strW = '';
+    if (strM.toLowerCase() === 'not provided' || strM.toLowerCase() === 'n/a' || strM === '-') strM = '';
+    return strW || strM || '';
+}
+
 // ─── Load WA Templates ─────────────────────────────────────────
 async function loadWaTemplates() {
     try {
@@ -96,7 +105,7 @@ async function loadStudents() {
                 name: s.full_name || '', 
                 className: s.applying_for_class || '',
                 fatherName: s.father_name || '',
-                mobile: s.father_whatsapp || s.father_mobile || ''
+                mobile: getValidPhone(s.father_whatsapp, s.father_mobile)
             };
         });
     } catch (e) {

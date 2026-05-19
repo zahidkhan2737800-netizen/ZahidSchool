@@ -45,8 +45,6 @@
       const loadBtn = document.getElementById("loadExam");
       const subjectsContainer = document.getElementById("subjectsContainer");
       const tableWrap = document.getElementById("tableWrap");
-      const saveAllBtn = document.getElementById("saveAll");
-      const exportCsvBtn = document.getElementById("exportCsv");
       const notice = document.getElementById("notice");
 
       // Replace examName input with select
@@ -199,7 +197,6 @@
           const th = document.createElement("th"); th.textContent = s; hRow.appendChild(th);
         });
         const thTotal = document.createElement("th"); thTotal.textContent = "Total"; hRow.appendChild(thTotal);
-        const thAct = document.createElement("th"); thAct.textContent = "Actions"; hRow.appendChild(thAct);
         thead.appendChild(hRow);
 
         tbody.innerHTML = "";
@@ -212,41 +209,36 @@
           const keyByRoll = student.rollNumber ? `roll:${student.rollNumber}` : null;
           const existing = marksMap[keyById] || (keyByRoll ? marksMap[keyByRoll] : null);
 
+          let debounceTimer;
           subjects.forEach((s, si) => {
             const td = document.createElement("td");
             const inp = document.createElement("input");
-            inp.type = "number";
-            inp.min = 0;
-            inp.max = 1000;
+            inp.type = "text";
             inp.className = "mark";
             inp.dataset.sub = s;
             inp.dataset.sid = student.id;
             if (existing && existing.marks && typeof existing.marks[s] !== "undefined") inp.value = existing.marks[s];
             td.appendChild(inp);
             tr.appendChild(td);
-            inp.addEventListener("input", () => recalcRowTotal(tr));
+            
+            inp.addEventListener("input", () => {
+              recalcRowTotal(tr);
+              inp.style.backgroundColor = '#fffbeb'; // yellow for saving
+              
+              clearTimeout(debounceTimer);
+              debounceTimer = setTimeout(async () => {
+                await saveStudentMarks(student, tr);
+                inp.style.backgroundColor = '#d1fae5'; // green for saved
+                setTimeout(() => { inp.style.backgroundColor = ''; }, 1500);
+              }, 800);
+            });
           });
 
           const totalTd = document.createElement("td");
           totalTd.className = "right";
           totalTd.textContent = "0";
+          
           tr.appendChild(totalTd);
-
-          const actTd = document.createElement("td");
-          actTd.className = "actions";
-          const saveBtn = document.createElement("button");
-          saveBtn.textContent = "Save";
-          saveBtn.className = "secondary";
-          saveBtn.addEventListener("click", async () => {
-            saveBtn.disabled = true;
-            await saveStudentMarks(student, tr);
-            saveBtn.disabled = false;
-            const s = document.createElement("span"); s.className = "saved"; s.textContent = "Saved";
-            actTd.appendChild(s);
-            setTimeout(() => s.remove(), 2000);
-          });
-          actTd.appendChild(saveBtn);
-          tr.appendChild(actTd);
 
           tbody.appendChild(tr);
           recalcRowTotal(tr);
@@ -292,7 +284,15 @@
         
         const inputs = tr.querySelectorAll("input.mark");
         const marksObj = {};
-        inputs.forEach(inp => marksObj[inp.dataset.sub] = inp.value === "" ? null : Number(inp.value));
+        inputs.forEach(inp => {
+          const val = inp.value.trim();
+          if (val === "") {
+            marksObj[inp.dataset.sub] = null;
+          } else {
+            const num = Number(val);
+            marksObj[inp.dataset.sub] = isNaN(num) ? val : num;
+          }
+        });
         const total = Number(tr.querySelectorAll("td")[2 + subjects.length].textContent) || 0;
         
         const payload = {
@@ -338,50 +338,9 @@
         }
       }
 
-      saveAllBtn.addEventListener("click", async () => {
-        if (!confirm("Save marks for all students shown?")) return;
-        const cls = classSelect.value;
-        if (!cls) { alert("Choose class first."); return; }
-        const tbody = document.getElementById("marksTable").querySelector("tbody");
-        const rows = Array.from(tbody.querySelectorAll("tr"));
-        saveAllBtn.disabled = true;
-        saveAllBtn.textContent = "Saving...";
-        for (const r of rows) {
-          const sid = currentStudents[rows.indexOf(r)]?.id;
-          if (!sid) continue;
-          await saveStudentMarks(currentStudents[rows.indexOf(r)], r);
-        }
-        saveAllBtn.disabled = false;
-        saveAllBtn.textContent = "Save All";
-        alert("All marks saved.");
-      });
 
-      exportCsvBtn.addEventListener("click", () => {
-        const examNameStr = examNameSelect.value ? examNameSelect.options[examNameSelect.selectedIndex].textContent : "";
-        const cls = classSelect.value;
-        if (!cls) { alert("Select class to export."); return; }
-        const rows = [];
-        const header = ["Roll", "Name", ...subjects, "Total"];
-        rows.push(header.join(","));
-        const tbody = document.getElementById("marksTable").querySelector("tbody");
-        Array.from(tbody.querySelectorAll("tr")).forEach((r) => {
-          const cells = r.querySelectorAll("td");
-          const roll = cells[0].textContent.replace(/,/g," ");
-          const name = cells[1].textContent.replace(/,/g," ");
-          const marks = [];
-          for (let i=0;i<subjects.length;i++){
-            const inp = cells[2+i].querySelector("input");
-            marks.push(inp && inp.value !== "" ? inp.value : "");
-          }
-          const total = cells[2+subjects.length].textContent || "";
-          rows.push([roll, name, ...marks, total].map(v => `"${String(v).replace(/"/g,'""')}"`).join(","));
-        });
-        const csv = rows.join("\n");
-        const blob = new Blob([csv], { type: "text/csv" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a"); a.href = url; a.download = `${examNameStr || "exam"}_${cls}_marks.csv`;
-        document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-      });
+
+
 
       function escapeHtml(s){ return (s||"").toString().replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
     });
@@ -401,8 +360,6 @@
       <button id="loadExam">Load Exam / Students</button>
 
       <div style="margin-left:auto" class="actions">
-        <button id="saveAll">Save All</button>
-        <button id="exportCsv" class="secondary">Export CSV</button>
       </div>
     </div>
 

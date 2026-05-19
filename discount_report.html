@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zahid School - Discount Report</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* ── Variables ── */
+        :root {
+            --bg: #f1f5f9;
+            --panel: #ffffff;
+            --line: #e2e8f0;
+            --ink: #0f172a;
+            --muted: #64748b;
+            --brand: #7c3aed;
+            --brand-dark: #5b21b6;
+            --brand-light: #ede9fe;
+            --ok: #16a34a;
+            --table-font-size: 8.5px;
+            --table-td-pad: 4px 6px;
+            --table-th-pad: 5px 6px;
+            --print-font-size: 7.5px;
+            --print-td-pad: 1.5px 3px;
+            --print-th-pad: 2px 3px;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(140deg, #f5f3ff 0%, #f8fafc 45%, #ede9fe 100%);
+            color: var(--ink);
+        }
+
+        .page-wrap { max-width: 1500px; margin: 0 auto; padding: 1.25rem; }
+
+        /* ── Header ── */
+        .top-head {
+            display: flex; justify-content: space-between; align-items: center;
+            gap: 1rem; background: var(--panel); border: 1px solid var(--line);
+            border-radius: 14px; padding: 1rem 1.2rem;
+        }
+        .title-wrap { display: flex; align-items: center; gap: 0.8rem; }
+        .title-wrap .icon {
+            width: 46px; height: 46px; border-radius: 12px;
+            display: grid; place-items: center;
+            background: var(--brand-light); font-size: 1.35rem;
+        }
+        .title-wrap h1 { margin: 0; font-size: 1.35rem; color: var(--brand-dark); }
+        .title-wrap p { margin: 0.2rem 0 0; color: var(--muted); font-size: 0.9rem; }
+
+        /* ── Nav ── */
+        .nav-bar { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+        .nav-bar > a {
+            text-decoration: none; color: var(--brand-dark); font-weight: 600;
+            font-size: .85rem; border: 1px solid #ddd6fe; background: var(--brand-light);
+            padding: .4rem .65rem; border-radius: 8px; white-space: nowrap;
+        }
+        .nav-bar > a:hover { background: #ddd6fe; }
+        .nav-dropdown { position: relative; }
+        .nav-dropdown-btn {
+            display: flex; align-items: center; gap: .4rem; color: var(--brand-dark);
+            font-weight: 700; font-size: .85rem; border: 1px solid #ddd6fe;
+            background: #ddd6fe; padding: .4rem .75rem; border-radius: 8px;
+            cursor: pointer; white-space: nowrap; user-select: none;
+        }
+        .nav-dropdown-btn:hover { background: #c4b5fd; }
+        .nav-dropdown-menu {
+            display: none; position: absolute; top: calc(100% + 6px); right: 0;
+            background: #fff; border: 1px solid #ddd6fe; border-radius: 10px;
+            box-shadow: 0 8px 24px rgba(124,58,237,.12); z-index: 999;
+            min-width: 230px; padding: .4rem 0;
+        }
+        .nav-dropdown:hover .nav-dropdown-menu { display: block; }
+        .nav-dropdown-menu a {
+            display: flex; align-items: center; gap: .5rem;
+            padding: .48rem 1rem; font-size: .84rem; font-weight: 600;
+            color: #334155; text-decoration: none;
+        }
+        .nav-dropdown-menu a:hover { background: var(--brand-light); color: var(--brand); }
+        .nav-dropdown-menu a.active-page {
+            background: var(--brand-light); color: var(--brand);
+            border-left: 3px solid var(--brand); padding-left: calc(1rem - 3px);
+        }
+        .nav-dropdown-menu a i { width: 16px; text-align: center; }
+        .nav-sep { height: 1px; background: #e2e8f0; margin: .3rem 0; }
+
+        /* ── Filters ── */
+        .filters {
+            margin-top: 1rem;
+            background: var(--panel); border: 1px solid var(--line);
+            border-radius: 14px; padding: 1rem 1.1rem;
+        }
+        .filter-row {
+            display: grid;
+            grid-template-columns: 160px 160px 160px 160px 1fr auto;
+            gap: 0.8rem; align-items: end;
+        }
+        .filter-row-2 {
+            display: grid;
+            grid-template-columns: 170px 170px 1fr;
+            gap: 0.8rem; align-items: end; margin-top: 0.7rem;
+        }
+        .field label {
+            display: block; font-size: 0.82rem;
+            color: var(--muted); margin-bottom: 0.25rem; font-weight: 600;
+        }
+        .field input, .field select {
+            width: 100%; border: 1px solid #cbd5e1; border-radius: 8px;
+            padding: 0.58rem 0.7rem; font-size: 0.9rem; background: #fff;
+        }
+        .field input:focus, .field select:focus {
+            outline: none; border-color: var(--brand);
+            box-shadow: 0 0 0 3px rgba(124,58,237,0.1);
+        }
+        .slider-field label { display: flex; justify-content: space-between; align-items: center; }
+        .slider-field input[type="range"] { padding: 0; height: 28px; }
+        .actions { display: flex; gap: 0.45rem; }
+        .btn-primary {
+            border: none; border-radius: 8px; background: var(--brand);
+            color: #fff; font-weight: 700; padding: 0.68rem 1rem; cursor: pointer;
+            display: flex; align-items: center; gap: 0.4rem; white-space: nowrap;
+        }
+        .btn-primary:hover { background: var(--brand-dark); }
+        .btn-outline {
+            border: 1.5px solid var(--brand); border-radius: 8px; background: #fff;
+            color: var(--brand); font-weight: 700; padding: 0.65rem 1rem; cursor: pointer;
+            display: flex; align-items: center; gap: 0.4rem; white-space: nowrap;
+        }
+        .btn-outline:hover { background: var(--brand-light); }
+        .mode-tabs {
+            display: flex; gap: 0.4rem; margin-bottom: 0.8rem;
+        }
+        .mode-tab {
+            border: 1.5px solid #ddd6fe; border-radius: 8px; background: #fff;
+            color: var(--brand-dark); font-weight: 700; font-size: 0.85rem;
+            padding: 0.4rem 0.9rem; cursor: pointer; transition: all 0.15s;
+        }
+        .mode-tab.active { background: var(--brand); color: #fff; border-color: var(--brand); }
+        .mode-tab:hover:not(.active) { background: var(--brand-light); }
+
+        /* ── Summary Bar ── */
+        .summary {
+            margin-top: 1rem; display: flex; gap: 0.8rem; flex-wrap: wrap;
+        }
+        .summary .card {
+            background: var(--panel); border: 1px solid var(--line);
+            border-radius: 12px; padding: 0.7rem 1.1rem; min-width: 180px;
+        }
+        .summary .lbl { display: block; color: var(--muted); font-size: 0.8rem; margin-bottom: 0.2rem; }
+        .summary strong { color: var(--brand); font-size: 1.08rem; }
+        .summary .card.total strong { color: #dc2626; }
+
+        /* ── Table ── */
+        .table-wrap {
+            margin-top: 1rem; background: var(--panel);
+            border: 1px solid var(--line); border-radius: 14px; overflow: auto;
+        }
+        .print-header { display: none; }
+        table { width: 100%; border-collapse: collapse; min-width: 900px; }
+        thead th {
+            text-align: left; padding: var(--table-th-pad);
+            font-size: var(--table-font-size); color: #334155;
+            border-bottom: 2px solid var(--line); background: #faf5ff;
+            position: sticky; top: 0; font-weight: 700;
+        }
+        thead th.disc-col { color: var(--brand); }
+        tbody td {
+            padding: var(--table-td-pad); border-bottom: 1px solid #f1f5f9;
+            font-size: var(--table-font-size);
+        }
+        tbody tr:hover { background: #faf5ff; }
+        .day-header-row td {
+            background: #ede9fe; color: var(--brand-dark); font-weight: 800;
+            font-size: calc(var(--table-font-size) + 1px);
+            padding: 5px 6px; border-bottom: 1px solid #ddd6fe;
+        }
+        .month-header-row td {
+            background: var(--brand); color: #fff; font-weight: 800;
+            font-size: calc(var(--table-font-size) + 2px);
+            padding: 6px 8px;
+        }
+        .subtotal-row td {
+            background: #f5f3ff; font-weight: 700;
+            color: var(--brand-dark); font-size: var(--table-font-size);
+            border-top: 1px solid #ddd6fe;
+        }
+        .disc-amt { color: var(--brand); font-weight: 800; }
+        .empty { text-align: center; color: var(--muted); padding: 2rem; }
+        .mono { font-family: Consolas, "Courier New", monospace; }
+        .badge {
+            display: inline-block; font-size: 0.65rem; font-weight: 700;
+            padding: 1px 5px; border-radius: 4px; vertical-align: middle;
+        }
+        .badge-disc { background: #ede9fe; color: var(--brand); }
+        .badge-pay  { background: #dcfce7; color: #15803d; }
+
+        /* ── Print ── */
+        @media print {
+            @page { size: A4 portrait; margin: 6mm; }
+            body {
+                background: #fff; color: #000;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            .top-head, .filters, .summary { display: none !important; }
+            .page-wrap { max-width: none; margin: 0; padding: 0; }
+            .table-wrap { margin-top: 0; border: none; border-radius: 0; overflow: visible; }
+            .print-header { display: block; margin-bottom: 4px; }
+            .print-header h2 { margin: 0; font-size: 13px; font-weight: 900; }
+            .print-header p { margin: 0; font-size: 9px; color: #555; }
+            .print-header hr { border: none; border-top: 1.5px solid #000; margin: 3px 0 5px; }
+            table { min-width: 0; width: 100%; }
+            thead th {
+                position: static; font-size: var(--print-font-size);
+                padding: var(--print-th-pad); border: 1px solid #000;
+                color: #000; background: #e9d5ff;
+            }
+            thead th.disc-col { background: #c4b5fd; }
+            tbody td {
+                font-size: var(--print-font-size); padding: var(--print-td-pad);
+                border: 1px solid #999; color: #000;
+            }
+            tbody tr:hover { background: transparent; }
+            .day-header-row td { background: #f3e8ff; color: #000; border: 1px solid #000; }
+            .month-header-row td { background: #e9d5ff; color: #000; border: 1px solid #000; }
+            .subtotal-row td { background: #f5f3ff; border: 1px solid #000; }
+            .nav-bar, .nav-dropdown { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+<div class="page-wrap">
+
+    <!-- Header -->
+    <header class="top-head">
+        <div class="title-wrap">
+            <div class="icon">🏷️</div>
+            <div>
+                <h1>Discount Report</h1>
+                <p>Student-wise discount log — day, month, and date-range views</p>
+            </div>
+        </div>
+        <div class="nav-bar">
+            <a href="dashboard.html"><i class="fas fa-chart-line"></i> Dashboard</a>
+            <a href="collect_fee.html"><i class="fas fa-hand-holding-usd"></i> Collect Fee</a>
+            <a href="collect_family_fee.html"><i class="fas fa-users"></i> Family Fee</a>
+            <div class="nav-dropdown">
+                <span class="nav-dropdown-btn" tabindex="0">
+                    <i class="fas fa-file-invoice-dollar"></i> Fee Reports
+                    <i class="fas fa-chevron-down" style="font-size:.7rem"></i>
+                </span>
+                <div class="nav-dropdown-menu">
+                    <a href="fee_paid_log.html"><i class="fas fa-list-check"></i> Fee Paid Log</a>
+                    <a href="fee_register.html"><i class="fas fa-table"></i> Fee Register</a>
+                    <div class="nav-sep"></div>
+                    <a href="fee_type_report.html"><i class="fas fa-file-invoice"></i> Fee Type Report</a>
+                    <a href="head_wise_fee_report.html"><i class="fas fa-chart-bar"></i> Head Wise Collection</a>
+                    <a href="fee_unpaid_head_report.html"><i class="fas fa-exclamation-circle"></i> Fee Not Paid Head Wise</a>
+                    <div class="nav-sep"></div>
+                    <a href="discount_report.html" class="active-page"><i class="fas fa-tag"></i> Discount Report</a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Filters -->
+    <section class="filters">
+        <!-- Mode selector -->
+        <div class="mode-tabs">
+            <button class="mode-tab active" id="tabDay" onclick="setMode('day')">📅 Day</button>
+            <button class="mode-tab" id="tabMonth" onclick="setMode('month')">🗓️ Month</button>
+            <button class="mode-tab" id="tabRange" onclick="setMode('range')">📆 Date Range</button>
+        </div>
+
+        <!-- Filter inputs -->
+        <div class="filter-row" id="filterRow">
+            <!-- Day mode -->
+            <div class="field" id="fldDay">
+                <label for="inputDay">Select Date</label>
+                <input type="date" id="inputDay">
+            </div>
+            <!-- Month mode -->
+            <div class="field" id="fldMonth" style="display:none;">
+                <label for="inputMonth">Select Month</label>
+                <input type="month" id="inputMonth">
+            </div>
+            <!-- Range mode -->
+            <div class="field" id="fldFrom" style="display:none;">
+                <label for="inputFrom">From Date</label>
+                <input type="date" id="inputFrom">
+            </div>
+            <div class="field" id="fldTo" style="display:none;">
+                <label for="inputTo">To Date</label>
+                <input type="date" id="inputTo">
+            </div>
+
+            <!-- Search -->
+            <div class="field" id="fldSearch" style="grid-column: span 2;">
+                <label for="searchText">Search Student / Roll / Father</label>
+                <input type="text" id="searchText" placeholder="Type name, roll number, or father name…">
+            </div>
+
+            <!-- Font size -->
+            <div class="field slider-field">
+                <label for="fontSizeRange">Font Size <span id="fontSizeValue">8.5px</span></label>
+                <input type="range" id="fontSizeRange" min="7" max="20" step="0.5" value="8.5">
+            </div>
+
+            <!-- Actions -->
+            <div class="actions">
+                <button class="btn-primary" id="loadBtn" onclick="loadReport()">
+                    <i class="fas fa-sync"></i> Load
+                </button>
+                <button class="btn-outline" onclick="window.print()">
+                    <i class="fas fa-print"></i> Print
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Summary -->
+    <section class="summary" id="summaryBar">
+        <div class="card">
+            <span class="lbl">Discount Entries</span>
+            <strong id="sumEntries">0</strong>
+        </div>
+        <div class="card">
+            <span class="lbl">Students Covered</span>
+            <strong id="sumStudents">0</strong>
+        </div>
+        <div class="card total">
+            <span class="lbl">Total Discount Given</span>
+            <strong id="sumTotal">Rs 0</strong>
+        </div>
+        <div class="card">
+            <span class="lbl">Period</span>
+            <strong id="sumPeriod">—</strong>
+        </div>
+    </section>
+
+    <!-- Table -->
+    <section class="table-wrap">
+        <div class="print-header" id="printHeader">
+            <h2>🏷️ Discount Report — <span id="printPeriodLabel"></span></h2>
+            <p>Zahid School &nbsp;|&nbsp; Generated: <span id="printGenTime"></span></p>
+            <hr>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width:70px;">Date</th>
+                    <th style="width:52px;">Time</th>
+                    <th style="width:46px;">Roll #</th>
+                    <th>Student Name</th>
+                    <th>Father Name</th>
+                    <th style="width:52px;">Class</th>
+                    <th>Fee Head / Details</th>
+                    <th style="width:58px;">Type</th>
+                    <th class="disc-col" style="width:72px;">Discount Rs</th>
+                    <th style="width:72px;">Paid Rs</th>
+                </tr>
+            </thead>
+            <tbody id="reportBody">
+                <tr><td colspan="10" class="empty">Select a period and click Load.</td></tr>
+            </tbody>
+        </table>
+    </section>
+</div>
+
+<script src="auth.js"></script>
+<script src="discount_report.js"></script>
+</body>
+</html>

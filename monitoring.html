@@ -28,7 +28,12 @@
 
   <!-- Class Selector + Search -->
   <div class="toolbar" id="classToolbar">
-    <label><b>Select Class:</b></label>
+    <label><b>Select Session:</b></label>
+    <select id="sessionSelect">
+      <option value="">Loading sessions...</option>
+    </select>
+
+    <label style="margin-left: 1rem;"><b>Select Class:</b></label>
     <select id="classSelect">
       <option value="">Loading classes...</option>
     </select>
@@ -43,14 +48,16 @@
   </div>
 
   <!-- Actions Toolbar -->
-  <div class="toolbar" id="actionsToolbar" style="display:none;">
+  <div class="toolbar" id="actionsToolbar" style="display:none; flex-wrap: wrap; gap: 10px; align-items: center;">
     <span id="currentSubjectLabel" style="font-size:14px; font-weight:bold; color:#0056b3; margin-right:auto;"></span>
+    <span id="archiveBadge" style="display:none; background: #fee2e2; color: #b91c1c; padding: 4px 8px; border-radius: 6px; font-weight: 600; font-size: 13px; border: 1px solid #fca5a5;">🔒 Archived (Read Only)</span>
     <div class="menu-wrapper">
       <button id="toggleColsBtn" class="btn btn-warning">👁️ Show/Hide Topics</button>
       <div id="colToggleMenu" class="dropdown-menu"></div>
     </div>
     <button id="addColBtn" class="btn">+ Add Topic (Column)</button>
     <button id="thermalPrintBtn" class="btn btn-print">🖨️ Thermal Print Trace</button>
+    <button id="saveSessionBtn" class="btn" style="background:#10b981; color:white; font-weight:bold;">💾 Save Session Data</button>
   </div>
 
   <!-- Data Table -->

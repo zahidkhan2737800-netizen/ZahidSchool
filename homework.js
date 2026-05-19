@@ -167,16 +167,40 @@ async function loadStudentsForClass(cls) {
             </div>`;
         }).join('');
 
+        // Per-student save lock: ensures only one DB operation runs at a time per student.
+        // If a save is in progress, the latest subject state is queued and runs immediately after.
+        if (!window._saveLocks) window._saveLocks = {};
+        if (!window._saveQueue) window._saveQueue = {};
+
+        async function enqueueSave(roll, name, className, subjects) {
+            // Always store the latest desired state
+            window._saveQueue[roll] = { roll, name, className, subjects };
+
+            // If a save is already running for this student, let it finish — it will pick up the queued state
+            if (window._saveLocks[roll]) return;
+
+            window._saveLocks[roll] = true;
+            try {
+                while (window._saveQueue[roll]) {
+                    const job = window._saveQueue[roll];
+                    delete window._saveQueue[roll]; // consume it
+                    await upsertHomework(
+                        { roll: job.roll, name: job.name, className: job.className },
+                        job.subjects
+                    );
+                }
+            } finally {
+                window._saveLocks[roll] = false;
+            }
+        }
+
         // Attach subject button handlers
         studentsContainer.querySelectorAll('.student-row').forEach(rowEl => {
             rowEl.querySelectorAll('.subject-btn').forEach(btn => {
-                btn.addEventListener('click', async () => {
+                btn.addEventListener('click', () => {
                     btn.classList.toggle('active');
                     const activeSubjects = Array.from(rowEl.querySelectorAll('.subject-btn.active')).map(b => b.dataset.subject);
-                    await upsertHomework(
-                        { roll: rowEl.dataset.roll, name: rowEl.dataset.name, className: rowEl.dataset.class },
-                        activeSubjects
-                    );
+                    enqueueSave(rowEl.dataset.roll, rowEl.dataset.name, rowEl.dataset.class, activeSubjects);
                 });
             });
         });
