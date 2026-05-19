@@ -779,6 +779,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     return val === '' ? null : val;
                 };
 
+                const getMobileVal = (id) => {
+                    const val = getVal(id);
+                    return val ? val.replace(/[\s\-]/g, '') : null;
+                };
+
                 // Prepare data object based on SQL schema
                 const formData = {
                     student_id: studentIdInput.value,
@@ -795,17 +800,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     father_name: getVal('fatherName'),
                     father_cnic: getVal('fatherCnic'),
                     father_occ: getVal('fatherOcc'),
-                    father_mobile: getVal('fatherMobile'),
-                    father_whatsapp: getVal('fatherWhatsapp'),
+                    father_mobile: getMobileVal('fatherMobile'),
+                    father_whatsapp: getMobileVal('fatherWhatsapp'),
                     
                     mother_name: getVal('motherName'),
                     mother_cnic: getVal('motherCnic'),
                     mother_occ: getVal('motherOcc'),
-                    mother_mobile: getVal('motherMobile'),
+                    mother_mobile: getMobileVal('motherMobile'),
                     
                     guardian_name: getVal('guardianName'),
                     guardian_rel: getVal('guardianRel'),
-                    guardian_contact: getVal('guardianContact'),
+                    guardian_contact: getMobileVal('guardianContact'),
                     
                     last_school: getVal('lastSchool'),
                     class_passed: getVal('classPassed'),

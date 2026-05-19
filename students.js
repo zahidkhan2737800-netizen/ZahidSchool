@@ -187,10 +187,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
 
             cell.addEventListener('blur', async function() {
-                const currentText = this.innerText.trim();
+                let currentText = this.innerText.trim();
                 const originalText = this.dataset.original;
                 const studentId = this.getAttribute('data-id');
                 const colName = this.getAttribute('data-col');
+
+                // Normalize mobile numbers
+                if (colName === 'father_mobile' || colName === 'father_whatsapp') {
+                    currentText = currentText.replace(/[\s\-]/g, '');
+                    this.innerText = currentText; // Update UI to reflect normalization
+                }
 
                 // Only update if it actually changed
                 if (currentText !== originalText) {

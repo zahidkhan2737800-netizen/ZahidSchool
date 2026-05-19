@@ -51,8 +51,11 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Group by mobile number
         students.forEach(s => {
-            const mob = (s.father_mobile || '').trim();
+            const mob = (s.father_mobile || '').replace(/[\s\-]/g, '').trim();
             if(!mob) return; // Skip those with no mobile
+            
+            // Reassign normalized mobile so child components don't misbehave
+            s.father_mobile = mob;
             
             if(!groups[mob]) {
                 groups[mob] = [];
