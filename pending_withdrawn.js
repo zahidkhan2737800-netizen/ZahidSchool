@@ -3,17 +3,37 @@
 document.addEventListener('DOMContentLoaded', () => {
     const inactiveBody = document.getElementById('inactiveBody');
     const statusFilter = document.getElementById('statusFilter');
+    const yearFilter = document.getElementById('yearFilter');
+    const monthFilter = document.getElementById('monthFilter');
+
+    // Load saved filters from localStorage
+    const savedStatus = localStorage.getItem('pw_statusFilter');
+    const savedYear = localStorage.getItem('pw_yearFilter');
+    const savedMonth = localStorage.getItem('pw_monthFilter');
+
+    if (savedStatus) statusFilter.value = savedStatus;
+    if (savedYear) yearFilter.value = savedYear;
+    if (savedMonth) monthFilter.value = savedMonth;
+
+    const handleFilterChange = (key, el) => {
+        localStorage.setItem(key, el.value);
+        fetchRecords();
+    };
+
+    statusFilter.addEventListener('change', () => handleFilterChange('pw_statusFilter', statusFilter));
+    yearFilter.addEventListener('change', () => handleFilterChange('pw_yearFilter', yearFilter));
+    monthFilter.addEventListener('change', () => handleFilterChange('pw_monthFilter', monthFilter));
 
     // Fetch instantly on load
     fetchRecords();
-
-    statusFilter.addEventListener('change', fetchRecords);
 
     async function fetchRecords() {
         inactiveBody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:2rem;">🔄 Fetching records...</td></tr>';
         
         try {
             const filterValue = statusFilter.value;
+            const selectedYear = yearFilter.value;
+            const selectedMonth = monthFilter.value;
             
             let query = supabaseClient
                 .from('admissions')
@@ -32,7 +52,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (error) throw error;
 
-            if (data.length === 0) {
+            let filteredData = data;
+            
+            if (selectedYear !== 'All' || selectedMonth !== 'All') {
+                filteredData = data.filter(student => {
+                    let dateStr = student.updated_at || student.admission_date;
+                    if (!dateStr) return false;
+                    
+                    let d = new Date(dateStr);
+                    if (isNaN(d.getTime())) return false;
+                    
+                    let matchYear = true;
+                    let matchMonth = true;
+                    
+                    if (selectedYear !== 'All') {
+                        matchYear = (d.getFullYear().toString() === selectedYear);
+                    }
+                    if (selectedMonth !== 'All') {
+                        matchMonth = ((d.getMonth() + 1).toString() === selectedMonth);
+                    }
+                    
+                    return matchYear && matchMonth;
+                });
+            }
+
+            if (filteredData.length === 0) {
                 inactiveBody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:2rem; color:var(--text-muted);">No records found.</td></tr>';
                 return;
             }
@@ -40,7 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Clear table
             inactiveBody.innerHTML = '';
             
-            data.forEach(student => {
+            filteredData.forEach(student => {
                 const tr = document.createElement('tr');
                 
                 // If updated_at is null, fallback to admission_date or simply "Unknown"

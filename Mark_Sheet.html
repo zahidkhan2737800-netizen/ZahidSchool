@@ -304,10 +304,37 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
+        // Fetch up-to-date names from admissions table based on roll numbers in marks
+        const rollNumbers = snap.map(s => String(s.roll_number || s.rollNumber)).filter(Boolean);
+        let studentNameMap = {};
+        if (rollNumbers.length > 0) {
+            let admQ = window.supabaseClient.from('admissions')
+                .select('roll_number, full_name')
+                .in('roll_number', rollNumbers);
+            if (window.currentSchoolId) admQ = admQ.eq('school_id', window.currentSchoolId);
+            
+            try {
+                const { data: admissionsData } = await admQ;
+                if (admissionsData) {
+                    admissionsData.forEach(adm => {
+                        studentNameMap[String(adm.roll_number)] = adm.full_name;
+                    });
+                }
+            } catch (err) {
+                console.warn('Could not fetch up-to-date names from admissions:', err);
+            }
+        }
+
         detectedSubjects = [];
         fetchedDocs = [];
 
         snap.forEach(data => {
+            // Update name from admissions if available
+            const rNo = String(data.roll_number || data.rollNumber);
+            if (studentNameMap[rNo]) {
+                data.name = studentNameMap[rNo];
+            }
+            
             fetchedDocs.push(data);
             if (data.marks && typeof data.marks === "object") {
                 for (const s in data.marks) {
