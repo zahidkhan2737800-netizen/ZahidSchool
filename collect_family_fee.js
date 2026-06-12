@@ -117,12 +117,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnClose = document.getElementById('btnCloseWorkspace');
     if (btnClose) btnClose.addEventListener('click', closeWorkspace);
 
-    workspace.addEventListener('click', (e) => {
-        if (e.target === workspace) closeWorkspace();
-    });
+    if(workspace) {
+        workspace.addEventListener('click', (e) => {
+            if (e.target === workspace) closeWorkspace();
+        });
+    }
 
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && workspace.classList.contains('is-open')) closeWorkspace();
+        if (e.key === 'Escape' && workspace && workspace.classList.contains('is-open')) closeWorkspace();
     });
 
     // Wire single search input — debounced
@@ -134,11 +136,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    inputMethod.addEventListener('change', () => {
-        refGroup.style.display = inputMethod.value !== 'Cash' ? 'block' : 'none';
-    });
+    if(inputMethod) {
+        inputMethod.addEventListener('change', () => {
+            if(refGroup) refGroup.style.display = inputMethod.value !== 'Cash' ? 'block' : 'none';
+        });
+    }
 
-    [inputFine, inputDiscount, inputPaying].forEach(el => el.addEventListener('input', recalcCart));
+    [inputFine, inputDiscount, inputPaying].forEach(el => {
+        if(el) el.addEventListener('input', recalcCart);
+    });
 
     if(btnToggleHistory) {
         btnToggleHistory.addEventListener('click', () => {
@@ -164,10 +170,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    btnReprint.addEventListener('click', () => {
-        if (receiptCache.length === 0) return;
-        reprintFromHistory(receiptCache[0]);
-    });
+    if(btnReprint) {
+        btnReprint.addEventListener('click', () => {
+            if (receiptCache.length === 0) return;
+            reprintFromHistory(receiptCache[0]);
+        });
+    }
     
     if (btnBill) btnBill.addEventListener('click', printBill);
 
@@ -175,7 +183,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnApplyDiscount.addEventListener('click', applyDiscountToChallans);
     }
 
-    btnPayAll.addEventListener('click', () => {
+    if(btnPayAll) btnPayAll.addEventListener('click', () => {
         if (pendingDues.length === 0) return;
         pendingDues.forEach(c => selectedIds.add(c.id));
         document.querySelectorAll('.challan-item input[type="checkbox"]').forEach(cb => {
@@ -183,16 +191,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             cb.closest('.challan-item').classList.add('selected');
         });
         recalcCart();
-        inputPaying.value = grandTotal;
+        if(inputPaying) inputPaying.value = grandTotal;
         recalcCart();
-        inputPaying.style.transition = 'background 0.3s';
-        inputPaying.style.background = '#d1fae5';
-        setTimeout(() => inputPaying.style.background = 'white', 600);
+        if(inputPaying) inputPaying.style.transition = 'background 0.3s';
+        if(inputPaying) inputPaying.style.background = '#d1fae5';
+        setTimeout(() => { if(inputPaying) inputPaying.style.background = 'white'; }, 600);
         const checkoutPanel = document.getElementById('checkoutPanel');
         if (checkoutPanel) checkoutPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
 
-    btnPartial.addEventListener('click', () => {
+    if(btnPartial) btnPartial.addEventListener('click', () => {
         if (pendingDues.length === 0) return;
         pendingDues.forEach(c => selectedIds.add(c.id));
         document.querySelectorAll('.challan-item input[type="checkbox"]').forEach(cb => {
@@ -200,29 +208,29 @@ document.addEventListener('DOMContentLoaded', async () => {
             cb.closest('.challan-item').classList.add('selected');
         });
         recalcCart();
-        inputPaying.value = '';
+        if(inputPaying) inputPaying.value = '';
         recalcCart();
-        inputPaying.style.transition = 'background 0.3s';
-        inputPaying.style.background = '#fef3c7';
-        setTimeout(() => inputPaying.style.background = 'white', 800);
+        if(inputPaying) inputPaying.style.transition = 'background 0.3s';
+        if(inputPaying) inputPaying.style.background = '#fef3c7';
+        setTimeout(() => { if(inputPaying) inputPaying.style.background = 'white'; }, 800);
         const checkoutPanel = document.getElementById('checkoutPanel');
         if (checkoutPanel) checkoutPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        inputPaying.focus();
+        if(inputPaying) inputPaying.focus();
     });
 
-    btnSubmit.addEventListener('click', submitPayment);
+    if(btnSubmit) btnSubmit.addEventListener('click', submitPayment);
 });
 
 // ─── Close Workspace (global so onclick attribute works) ──────────────────────────
 window.closeWorkspace = function() {
-    workspace.classList.remove('is-open');
+    if(workspace) workspace.classList.remove('is-open');
     document.body.classList.remove('workspace-open');
     renderFamilyList();
 };
 
 // ─── Load all active students and group into families ─────────────────────────
 async function loadFamiliesData() {
-    searchStatus.textContent = '⏳ Loading database...';
+    if(searchStatus) searchStatus.textContent = '⏳ Loading database...';
     try {
         const { data, error } = await db
             .from('admissions')
@@ -234,11 +242,11 @@ async function loadFamiliesData() {
         
         processFamilies(allStudents);
 
-        searchStatus.textContent = `✅ ${familiesData.length} valid families loaded. Add multiple students under the same Mobile # in Family Management to use this feature.`;
-        familyListSection.style.display = 'block';
+        if(searchStatus) searchStatus.textContent = `✅ ${familiesData.length} valid families loaded. Add multiple students under the same Mobile # in Family Management to use this feature.`;
+        if(familyListSection) familyListSection.style.display = 'block';
         renderFamilyList();
     } catch (e) {
-        searchStatus.textContent = '❌ Failed to load students: ' + e.message;
+        if(searchStatus) searchStatus.textContent = '❌ Failed to load students: ' + e.message;
     }
 }
 
@@ -283,11 +291,11 @@ function renderFamilyList() {
         );
     });
 
-    resultCount.textContent = filtered.length;
-    familyList.innerHTML = '';
+    if(resultCount) resultCount.textContent = filtered.length;
+    if(familyList) familyList.innerHTML = '';
 
     if (filtered.length === 0) {
-        familyList.innerHTML = '<p style="color:#94a3b8; text-align:center; padding:1rem;">No families match your search.</p>';
+        if(familyList) familyList.innerHTML = '<p style="color:#94a3b8; text-align:center; padding:1rem;">No families match your search.</p>';
         return;
     }
 
@@ -305,8 +313,9 @@ function renderFamilyList() {
                 ${isActive ? '✔ Opened' : 'Open Family'}
             </button>
         `;
-        card.querySelector('.open-btn').addEventListener('click', () => openFamily(fam));
-        familyList.appendChild(card);
+        const btn = card.querySelector('.open-btn');
+        if(btn) btn.addEventListener('click', () => openFamily(fam));
+        if(familyList) familyList.appendChild(card);
     });
 }
 
@@ -316,9 +325,9 @@ async function openFamily(fam) {
     selectedIds.clear();
     receiptCache = [];
 
-    wsAvatar.textContent  = fam.primaryName.charAt(0).toUpperCase();
-    wsName.textContent    = fam.primaryName;
-    wsContact.textContent = fam.mobile;
+    if(wsAvatar) wsAvatar.textContent  = fam.primaryName.charAt(0).toUpperCase();
+    if(wsName) wsName.textContent    = fam.primaryName;
+    if(wsContact) wsContact.textContent = fam.mobile;
     const wsFamilyNoEl = document.getElementById('wsFamilyNo');
     if(wsFamilyNoEl) wsFamilyNoEl.textContent = fam.familyNo || 'N/A';
 
@@ -332,10 +341,10 @@ async function openFamily(fam) {
     if(wsTotalFeeEl) wsTotalFeeEl.textContent = 'Loading…';
 
     // Reset checkout
-    inputFine.value = '0';
-    inputDiscount.value = '0';
-    inputPaying.value = '';
-    btnReprint.style.display = 'none';
+    if(inputFine) inputFine.value = '0';
+    if(inputDiscount) inputDiscount.value = '0';
+    if(inputPaying) inputPaying.value = '';
+    if(btnReprint) btnReprint.style.display = 'none';
     
     if(historyPanel) historyPanel.style.display = 'none';
     if(btnToggleHistory) btnToggleHistory.textContent = '📜 History';
@@ -346,14 +355,16 @@ async function openFamily(fam) {
     recalcCart();
 
     // Open as popup modal (class-based — allows close button to work)
-    workspace.style.display = ''; // clear any leftover inline style
-    workspace.classList.remove('workspace-pop');
-    void workspace.offsetWidth; // force reflow for animation restart
-    workspace.classList.add('is-open');
-    workspace.classList.add('workspace-pop');
-    document.body.classList.add('workspace-open');
-    workspace.scrollTo(0, 0);
-    setTimeout(() => workspace.classList.remove('workspace-pop'), 550);
+    if(workspace) {
+        workspace.style.display = ''; // clear any leftover inline style
+        workspace.classList.remove('workspace-pop');
+        void workspace.offsetWidth; // force reflow for animation restart
+        workspace.classList.add('is-open');
+        workspace.classList.add('workspace-pop');
+        document.body.classList.add('workspace-open');
+        workspace.scrollTo(0, 0);
+        setTimeout(() => { if(workspace) workspace.classList.remove('workspace-pop'); }, 550);
+    }
 
     renderFamilyList();
 
@@ -425,9 +436,9 @@ async function loadHistory(famMembers) {
         receiptCache = historyArray;
 
         if (receiptCache.length > 0) {
-            btnReprint.style.display = 'inline-block';
+            if(btnReprint) btnReprint.style.display = 'inline-block';
         } else {
-            btnReprint.style.display = 'none';
+            if(btnReprint) btnReprint.style.display = 'none';
         }
 
         if (!historyBody) return;
@@ -566,7 +577,7 @@ window.printDaySummary = function(dateStr) {
 
 // ─── Load Pending Dues for ALL members ────────────────────────────────────────
 async function loadFamilyDues(members) {
-    challansList.innerHTML = '<p style="color:#94a3b8;">Loading family pending dues...</p>';
+    if(challansList) challansList.innerHTML = '<p style="color:#94a3b8;">Loading family pending dues...</p>';
     selectedIds.clear();
     pendingDues = [];
     
@@ -595,10 +606,10 @@ async function loadFamilyDues(members) {
         });
 
         if (pendingDues.length === 0) {
-            btnPayAll.style.display = 'none';
-            btnPartial.style.display = 'none';
+            if(btnPayAll) btnPayAll.style.display = 'none';
+            if(btnPartial) btnPartial.style.display = 'none';
             if(btnBill) btnBill.style.display = 'none';
-            challansList.innerHTML = `
+            if(challansList) challansList.innerHTML = `
                 <div style="text-align:center; padding:2rem; background:#f0fdf4; border-radius:12px;">
                     <span style="font-size:2.5rem;">🎉</span>
                     <p style="color:#16a34a; font-weight:700; margin:0.5rem 0 0 0;">Zero Balance!</p>
@@ -609,13 +620,13 @@ async function loadFamilyDues(members) {
             return;
         }
 
-        btnPayAll.style.display = 'block';
-        btnPartial.style.display = 'block';
+        if(btnPayAll) btnPayAll.style.display = 'block';
+        if(btnPartial) btnPartial.style.display = 'block';
         if(btnBill) btnBill.style.display = 'inline-block';
         renderDues();
         updateFamilyBalanceSummary();
     } catch (e) {
-        challansList.innerHTML = `<p style="color:red;">Error loading dues: ${e.message}</p>`;
+        if(challansList) challansList.innerHTML = `<p style="color:red;">Error loading dues: ${e.message}</p>`;
     }
 }
 
@@ -652,7 +663,7 @@ function updateFamilyBalanceSummary() {
 }
 
 function renderDues() {
-    challansList.innerHTML = '';
+    if(challansList) challansList.innerHTML = '';
     const today = new Date();
 
     pendingDues.forEach(c => {
@@ -692,17 +703,17 @@ function renderDues() {
             toggleSelect();
         });
 
-        challansList.appendChild(div);
+        if(challansList) challansList.appendChild(div);
     });
 }
 
 // ─── Cart Recalculation ───────────────────────────────────────────────────────
 function recalcCart() {
     if (selectedIds.size === 0) {
-        sumSubtotal.textContent = 'Rs 0';
-        sumGrandTotal.textContent = 'Rs 0';
-        sumRemaining.textContent = 'Rs 0';
-        btnSubmit.disabled = true;
+        if(sumSubtotal) sumSubtotal.textContent = 'Rs 0';
+        if(sumGrandTotal) sumGrandTotal.textContent = 'Rs 0';
+        if(sumRemaining) sumRemaining.textContent = 'Rs 0';
+        if(btnSubmit) btnSubmit.disabled = true;
         grandTotal = 0;
         return;
     }
@@ -714,15 +725,15 @@ function recalcCart() {
     });
     subtotal = Math.round(subtotal * 100) / 100;
 
-    const fine     = Math.round((parseFloat(inputFine.value)     || 0) * 100) / 100;
-    const discount = Math.round((parseFloat(inputDiscount.value) || 0) * 100) / 100;
+    const fine     = Math.round((parseFloat(inputFine?.value)     || 0) * 100) / 100;
+    const discount = Math.round((parseFloat(inputDiscount?.value) || 0) * 100) / 100;
     grandTotal = Math.round(Math.max(0, subtotal + fine - discount) * 100) / 100;
 
-    sumSubtotal.textContent   = `Rs ${subtotal}`;
-    sumGrandTotal.textContent = `Rs ${grandTotal}`;
+    if(sumSubtotal) sumSubtotal.textContent   = `Rs ${subtotal}`;
+    if(sumGrandTotal) sumGrandTotal.textContent = `Rs ${grandTotal}`;
 
-    const paying = Math.round((parseFloat(inputPaying.value) || 0) * 100) / 100;
-    sumRemaining.textContent  = `Rs ${Math.round(Math.max(0, grandTotal - paying) * 100) / 100}`;
+    const paying = Math.round((parseFloat(inputPaying?.value) || 0) * 100) / 100;
+    if(sumRemaining) sumRemaining.textContent  = `Rs ${Math.round(Math.max(0, grandTotal - paying) * 100) / 100}`;
 
     // Build Live Allocation Preview
     const previewDiv = document.getElementById('allocationPreview');
@@ -765,25 +776,25 @@ function recalcCart() {
                      </div>`;
         }
         html += '</div>';
-        previewDiv.innerHTML = allocatedCount > 0 || wallet > 0 ? html : '';
+        if(previewDiv) previewDiv.innerHTML = allocatedCount > 0 || wallet > 0 ? html : '';
     } else {
-        previewDiv.innerHTML = '';
+        if(previewDiv) previewDiv.innerHTML = '';
     }
 
-    btnSubmit.disabled = paying <= 0;
+    if(btnSubmit) btnSubmit.disabled = paying <= 0;
 }
 
 // ─── Payment Submission ───────────────────────────────────────────────────────
 async function submitPayment() {
     if (!activeFamily || selectedIds.size === 0) return;
 
-    const paying   = parseFloat(inputPaying.value) || 0;
-    const fine     = parseFloat(inputFine.value)   || 0;
-    const discount = parseFloat(inputDiscount.value)|| 0;
-    const method   = inputMethod.value;
-    const refRaw   = inputRef.value.trim();
+    const paying   = parseFloat(inputPaying?.value) || 0;
+    const fine     = parseFloat(inputFine?.value)   || 0;
+    const discount = parseFloat(inputDiscount?.value)|| 0;
+    const method   = inputMethod?.value || 'Cash';
+    const refRaw   = inputRef?.value?.trim() || '';
     // Use raw input if available, else blank.
-    const remarks  = inputRemarks.value.trim();
+    const remarks  = inputRemarks?.value?.trim() || '';
 
     if (paying <= 0) return alert('Enter a valid amount.');
     if (paying > grandTotal) return alert(`Cannot exceed Grand Total of Rs ${grandTotal}.`);
@@ -920,14 +931,12 @@ async function submitPayment() {
         const remainingGlobal = Math.max(0, totalFamilyDues - paying);
 
         // Print combined physical receipt using UI grouping logic
-        const fine     = parseFloat(inputFine.value) || 0;
-        const discount = parseFloat(inputDiscount.value) || 0;
         printReceipt(baseReceipt, txRecords, paying, remainingGlobal, fine, discount);
 
         // Reset & Refresh
-        inputFine.value    = '0';
-        inputDiscount.value= '0';
-        inputPaying.value  = '';
+        if(inputFine) inputFine.value    = '0';
+        if(inputDiscount) inputDiscount.value= '0';
+        if(inputPaying) inputPaying.value  = '';
         inputRef.value     = '';
         inputRemarks.value = '';
         selectedIds.clear();
@@ -1074,7 +1083,7 @@ async function applyDiscountToChallans() {
         return showAlert('No family selected or no pending dues.', true);
     }
 
-    const discountAmt = parseFloat(inputDiscount.value) || 0;
+    const discountAmt = parseFloat(inputDiscount?.value) || 0;
     if (discountAmt <= 0) {
         return showAlert('Please enter a discount amount.', true);
     }
@@ -1138,8 +1147,8 @@ async function applyDiscountToChallans() {
         showAlert('Discount of Rs ' + discountAmt + ' applied successfully!', false);
 
         // Reset and refresh
-        inputDiscount.value = '0';
-        inputFine.value = '0';
+        if(inputDiscount) inputDiscount.value = '0';
+        if(inputFine) inputFine.value = '0';
 
         await Promise.all([
             loadHistory(activeFamily.members),
