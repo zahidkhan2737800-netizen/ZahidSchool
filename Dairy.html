@@ -246,30 +246,6 @@ function setTodayInputs(){
 setTodayInputs();
 
 let todosCache = [];
-let dashboardPinnedIds = new Set();
-
-function getDashboardPinsKey(){
-  const suffix = currentSchoolId ? String(currentSchoolId) : 'global';
-  return `dashboard_pinned_todos_${suffix}`;
-}
-
-function loadDashboardPins(){
-  try {
-    const raw = localStorage.getItem(getDashboardPinsKey());
-    const arr = raw ? JSON.parse(raw) : [];
-    dashboardPinnedIds = new Set(Array.isArray(arr) ? arr : []);
-  } catch (e) {
-    dashboardPinnedIds = new Set();
-  }
-}
-
-function saveDashboardPins(){
-  try {
-    localStorage.setItem(getDashboardPinsKey(), JSON.stringify(Array.from(dashboardPinnedIds)));
-  } catch (e) {
-    console.warn('saveDashboardPins failed', e);
-  }
-}
 
 /* Cache keys */
 function getCacheKey(){
@@ -491,6 +467,7 @@ addTodoBtn.addEventListener('click', async ()=>{
       status: 'Pending',
       category: category,
       pinned: false,
+      dashboard_pinned: false,
       deleted: false
     };
 
@@ -553,7 +530,7 @@ function renderTodos(){
     if(t.pinned) tr.classList.add('pinned');
     const isDone = t.status === 'Done';
     const days = computeDaysOpen(t);
-    const isDashPinned = dashboardPinnedIds.has(t.id);
+    const isDashPinned = t.dashboard_pinned === true;
 
     tr.innerHTML = `
       <td style="width:32px">${idx+1}</td>
@@ -634,10 +611,19 @@ function renderTodos(){
       } else if(action === 'edit'){
         startInlineEdit(id);
       } else if(action === 'dash'){
-        if (dashboardPinnedIds.has(id)) dashboardPinnedIds.delete(id);
-        else dashboardPinnedIds.add(id);
-        saveDashboardPins();
-        renderTodos();
+        try {
+          const tdoc = todosCache.find(x=>x.id===id) || {};
+          const newDashPinned = !(tdoc && tdoc.dashboard_pinned);
+          if(tdoc) tdoc.dashboard_pinned = newDashPinned;
+          renderTodos();
+          let uq = db().from('todos').update({ dashboard_pinned: newDashPinned }).eq('id', id);
+          if (currentSchoolId) uq = uq.eq('school_id', currentSchoolId);
+          const { error } = await uq;
+          if (error) throw error;
+        } catch(err){
+          console.error('dash pin toggle failed', err);
+          alert('Dashboard pin update failed: ' + (err.message||err));
+        }
       } else if(action === 'pin'){
         try {
           const tdoc = todosCache.find(x=>x.id===id) || {};
@@ -790,7 +776,6 @@ setInterval(() => {
 /* ---------- init ---------- */
 (async function init(){
   await waitForAuthContext();
-  loadDashboardPins();
   const hadCache = loadCacheFromLocal();
   const metaRaw = localStorage.getItem(getCacheMetaKey());
   const meta = metaRaw ? JSON.parse(metaRaw) : null;

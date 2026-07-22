@@ -171,28 +171,11 @@ async function loadDashboardDiaryTasks() {
     const host = document.getElementById('dashboardDiaryNotes');
     if (!host) return;
 
-    const sid = window.currentSchoolId ? String(window.currentSchoolId) : 'global';
-    const pinKey = `dashboard_pinned_todos_${sid}`;
-
-    let pinnedIds = [];
-    try {
-        const raw = localStorage.getItem(pinKey);
-        const parsed = raw ? JSON.parse(raw) : [];
-        pinnedIds = Array.isArray(parsed) ? parsed : [];
-    } catch (e) {
-        pinnedIds = [];
-    }
-
-    if (!pinnedIds.length) {
-        host.innerHTML = '<div class="diary-note-empty">No pinned diary tasks yet. Use the 🗒 button in Dairy / Tasks.</div>';
-        return;
-    }
-
     try {
         let q = window.supabaseClient
             .from('todos')
             .select('id, text, date, status, category, deleted, created_at')
-            .in('id', pinnedIds)
+            .eq('dashboard_pinned', true)
             .eq('deleted', false)
             .eq('status', 'Pending');
         if (window.currentSchoolId) q = q.eq('school_id', window.currentSchoolId);
@@ -200,11 +183,11 @@ async function loadDashboardDiaryTasks() {
         if (error) throw error;
 
         const rows = (data || [])
-            .sort((a, b) => pinnedIds.indexOf(a.id) - pinnedIds.indexOf(b.id))
+            .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
             .slice(0, 4);
 
         if (!rows.length) {
-            host.innerHTML = '<div class="diary-note-empty">No pending pinned diary tasks found.</div>';
+            host.innerHTML = '<div class="diary-note-empty">No pinned diary tasks yet. Use the 🗒 button in Dairy / Tasks.</div>';
             return;
         }
 
@@ -227,22 +210,11 @@ async function markDashboardDiaryDone(todoId) {
     try {
         let uq = window.supabaseClient
             .from('todos')
-            .update({ status: 'Done', completed_at: new Date().toISOString() })
+            .update({ status: 'Done', completed_at: new Date().toISOString(), dashboard_pinned: false })
             .eq('id', todoId);
         if (window.currentSchoolId) uq = uq.eq('school_id', window.currentSchoolId);
         const { error } = await uq;
         if (error) throw error;
-
-        const sid = window.currentSchoolId ? String(window.currentSchoolId) : 'global';
-        const pinKey = `dashboard_pinned_todos_${sid}`;
-        try {
-            const raw = localStorage.getItem(pinKey);
-            const parsed = raw ? JSON.parse(raw) : [];
-            const next = (Array.isArray(parsed) ? parsed : []).filter(id => id !== todoId);
-            localStorage.setItem(pinKey, JSON.stringify(next));
-        } catch (e) {
-            console.warn('Failed to update dashboard pin cache', e);
-        }
 
         await loadDashboardDiaryTasks();
     } catch (e) {

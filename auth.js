@@ -210,43 +210,40 @@ window.hasPermission = hasPermission;
 
 // ─── Inject User Profile into Sidebar ──────────────────────────────────────────
 function injectUserProfile() {
-    if (document.getElementById('userAvatar')) return; // Skip if new dashboard layout handles it natively
-    
-    const sidebar = document.querySelector('.sidebar');
-    if (!sidebar) return;
+    try {
+        if (document.getElementById('userAvatar')) return; // Skip if new dashboard layout handles it natively
+        
+        const sidebar = document.querySelector('.sidebar');
+        if (!sidebar) return;
 
-    // Remove existing profile if re-injected
-    const existing = sidebar.querySelector('.user-profile-section');
-    if (existing) existing.remove();
+        // Remove existing profile if re-injected
+        const existing = sidebar.querySelector('.user-profile-section');
+        if (existing) existing.remove();
 
-    const roleBadgeColor = {
-        'admin': '#2563eb',
-        'teacher': '#16a34a',
-        'staff': '#d97706'
-    };
+        // Inject School Name if present
+        if (window.currentSchoolName) {
+            const schoolLabel = document.createElement('div');
+            schoolLabel.style.cssText = 'padding: 0.5rem 1.5rem; font-size: 0.75rem; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; background: #f8fafc; border-bottom: 1px solid #f1f5f9;';
+            schoolLabel.textContent = `🏫 ${window.currentSchoolName}`;
+            sidebar.prepend(schoolLabel);
+        }
 
-    // Inject School Name if present
-    if (window.currentSchoolName) {
-        const schoolLabel = document.createElement('div');
-        schoolLabel.style.cssText = 'padding: 0.5rem 1.5rem; font-size: 0.75rem; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; background: #f8fafc; border-bottom: 1px solid #f1f5f9;';
-        schoolLabel.textContent = `🏫 ${window.currentSchoolName}`;
-        sidebar.prepend(schoolLabel);
+        // Inject SaaS Console link for Super Admins
+        if (userRoleName === 'super_admin') {
+            const saasLink = document.createElement('div');
+            saasLink.innerHTML = `
+                <a href="saas_master_console.html" style="
+                    display: flex; align-items: center; gap: 0.8rem; padding: 0.8rem 1.5rem;
+                    background: #0f172a; color: #38bdf8; text-decoration: none; font-weight: 800; font-size: 0.9rem;
+                    border-left: 4px solid #38bdf8; margin: 0.5rem 0;
+                ">👑 SAAS MASTER CONSOLE</a>
+            `;
+            sidebar.prepend(saasLink);
+        }
+    } catch (err) {
+        // Profile injection must NEVER crash the auth guard
+        console.warn('injectUserProfile error (non-fatal):', err);
     }
-
-    // Inject SaaS Console link for Super Admins
-    if (userRoleName === 'super_admin') {
-        const saasLink = document.createElement('div');
-        saasLink.innerHTML = `
-            <a href="saas_master_console.html" style="
-                display: flex; align-items: center; gap: 0.8rem; padding: 0.8rem 1.5rem;
-                background: #0f172a; color: #38bdf8; text-decoration: none; font-weight: 800; font-size: 0.9rem;
-                border-left: 4px solid #38bdf8; margin: 0.5rem 0;
-            ">👑 SAAS MASTER CONSOLE</a>
-        `;
-        sidebar.prepend(saasLink);
-    }
-
-    sidebar.appendChild(profileSection);
 }
 
 // ─── Filter Sidebar Nav Based on Permissions ───────────────────────────────────
