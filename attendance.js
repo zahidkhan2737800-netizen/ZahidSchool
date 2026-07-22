@@ -29,8 +29,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     await waitForAuthContext();
 
     const picker = document.getElementById('globalDate');
-    picker.valueAsDate = new Date();
-    selectedDate = picker.value;
+    // Use local date (not UTC) to avoid timezone issues — valueAsDate uses UTC which
+    // can show yesterday's date in UTC+5 timezone (Pakistan)
+    const now = new Date();
+    const localDateStr = now.getFullYear() + '-' +
+        String(now.getMonth() + 1).padStart(2, '0') + '-' +
+        String(now.getDate()).padStart(2, '0');
+    picker.value = localDateStr;
+    selectedDate = localDateStr;
     document.getElementById('tableDateDisplay').textContent =
         new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-GB');
 
