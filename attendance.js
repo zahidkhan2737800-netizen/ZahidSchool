@@ -24,19 +24,65 @@ async function waitForAuthContext(timeoutMs = 10000) {
     }
 }
 
+// ─── Real Time Date Helper ───────────────────────────────────────────────────
+async function getRealDate() {
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        
+        const res = await fetch('https://worldtimeapi.org/api/timezone/Asia/Karachi', {
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        
+        if (res.ok) {
+            const json = await res.json();
+            if (json && json.datetime) {
+                return json.datetime.slice(0, 10); // "YYYY-MM-DD"
+            }
+        }
+    } catch (e) {
+        console.warn('Primary Time API failed, trying backup:', e);
+    }
+    
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        
+        const res = await fetch('https://timeapi.io/api/Time/current/zone?timeZone=Asia/Karachi', {
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        
+        if (res.ok) {
+            const json = await res.json();
+            if (json && json.date) {
+                const parts = json.date.split('/');
+                if (parts.length === 3) {
+                    return `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
+                }
+                return json.date;
+            }
+        }
+    } catch (e) {
+        console.warn('Backup Time API failed, falling back to computer clock:', e);
+    }
+    
+    // Fallback to computer local clock
+    const now = new Date();
+    return now.getFullYear() + '-' +
+        String(now.getMonth() + 1).padStart(2, '0') + '-' +
+        String(now.getDate()).padStart(2, '0');
+}
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
     await waitForAuthContext();
 
     const picker = document.getElementById('globalDate');
-    // Use local date (not UTC) to avoid timezone issues — valueAsDate uses UTC which
-    // can show yesterday's date in UTC+5 timezone (Pakistan)
-    const now = new Date();
-    const localDateStr = now.getFullYear() + '-' +
-        String(now.getMonth() + 1).padStart(2, '0') + '-' +
-        String(now.getDate()).padStart(2, '0');
-    picker.value = localDateStr;
-    selectedDate = localDateStr;
+    const realDateStr = await getRealDate();
+    picker.value = realDateStr;
+    selectedDate = realDateStr;
     document.getElementById('tableDateDisplay').textContent =
         new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-GB');
 
