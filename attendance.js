@@ -5,6 +5,8 @@ let absenceCountMap   = {};      // { student_id: totalAbsences }  (only absent 
 let selectedDate      = '';
 let waTemplates = [];
 let currentOpenStudentId = null;
+let _lastRefreshTime  = 0;       // Timestamp of last DB refresh (for debounce)
+let _saveInProgress   = false;   // Prevent double-clicks during save
 
 // ── Wait for auth context (school_id) to be ready ──
 async function waitForAuthContext(timeoutMs = 10000) {
@@ -55,12 +57,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('btnBulkHoliday').addEventListener('click', () => applyBulkStatus('Holiday'));
     document.getElementById('btnThermalPrint').addEventListener('click', generateThermalPrint);
 
+    // ── Cross-device sync: refresh data when tab regains focus ──
+    document.addEventListener('visibilitychange', handleVisibilityRefresh);
+
     showToast('Initializing System...', 'success');
     await loadWaTemplates();
     await loadDatabase();
 });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Auto-refresh when tab becomes visible again (cross-device consistency fix) */
+async function handleVisibilityRefresh() {
+    if (document.visibilityState !== 'visible') return;
+    // Debounce: don't refresh if last refresh was < 5 seconds ago
+    const now = Date.now();
+    if (now - _lastRefreshTime < 5000) return;
+    _lastRefreshTime = now;
+
+    try {
+        // Refresh today's attendance from DB (gets changes from other devices)
+        await refreshTodayAttendance();
+        // Also refresh absence counts from DB to prevent drift
+        await refreshAbsenceCounts();
+        renderData();
+    } catch (err) {
+        console.error('Tab-focus refresh failed:', err);
+    }
+}
 
 function getValidPhone(s) {
     let w = String(s?.father_whatsapp || '').trim();
@@ -150,9 +174,14 @@ async function loadDatabase() {
 
         allStudents = studentsData;
 
-        // Build today's lookup dict
+        // Build today's lookup dict — only keep records for active students
+        const activeIds = new Set(allStudents.map(s => s.id));
         todayAttMap = {};
-        todayData.forEach(r => { todayAttMap[r.student_id] = r; });
+        todayData.forEach(r => {
+            if (activeIds.has(r.student_id)) {
+                todayAttMap[r.student_id] = r;
+            }
+        });
 
         // Build absence count lookup
         absenceCountMap = {};
@@ -160,6 +189,7 @@ async function loadDatabase() {
             absenceCountMap[r.student_id] = (absenceCountMap[r.student_id] || 0) + 1;
         });
 
+        _lastRefreshTime = Date.now();
     } catch (err) {
         showToast('Database Connection Error', 'error');
         console.error(err);
@@ -170,7 +200,7 @@ async function loadDatabase() {
     renderData();
 }
 
-/** Called on date change – only fetches attendance for the new date (fast). */
+/** Called on date change or tab refocus – fetches attendance for the selected date. */
 async function refreshTodayAttendance() {
     try {
         const todayData = await scopedQuery(
@@ -178,11 +208,35 @@ async function refreshTodayAttendance() {
             'student_id, status, date',
             [['date', selectedDate]]
         );
+        // Only keep records for active students
+        const activeIds = new Set(allStudents.map(s => s.id));
         todayAttMap = {};
-        todayData.forEach(r => { todayAttMap[r.student_id] = r; });
+        todayData.forEach(r => {
+            if (activeIds.has(r.student_id)) {
+                todayAttMap[r.student_id] = r;
+            }
+        });
+        _lastRefreshTime = Date.now();
     } catch (err) {
         showToast('Failed to refresh attendance', 'error');
         console.error(err);
+    }
+}
+
+/** Re-fetch absence counts from DB to prevent drift over time. */
+async function refreshAbsenceCounts() {
+    try {
+        const absentData = await paginatedQuery(
+            'attendance',
+            'student_id',
+            [['status', 'Absent']]
+        );
+        absenceCountMap = {};
+        absentData.forEach(r => {
+            absenceCountMap[r.student_id] = (absenceCountMap[r.student_id] || 0) + 1;
+        });
+    } catch (err) {
+        console.error('Failed to refresh absence counts:', err);
     }
 }
 
@@ -227,50 +281,86 @@ async function handleEntrySubmit(e) {
  * Absence counts are adjusted mathematically (no re-fetch needed).
  */
 async function performUpsert(payloadArray) {
+    // Snapshot old state for rollback on failure
+    const oldSnapshots = payloadArray.map(p => ({
+        student_id: p.student_id,
+        oldRecord: todayAttMap[p.student_id] ? { ...todayAttMap[p.student_id] } : null
+    }));
+
     try {
+        _saveInProgress = true;
         const scopedPayload = window.currentSchoolId
             ? payloadArray.map(item => ({ ...item, school_id: window.currentSchoolId }))
             : payloadArray;
 
-        const { error } = await window.supabaseClient
-            .from('attendance')
-            .upsert(scopedPayload, { onConflict: 'student_id, date' });
-
-        if (error) throw error;
-
-        // Update local caches: no DB round-trip needed
+        // Optimistic local update: update caches immediately so UI feels instant
         scopedPayload.forEach(payload => {
             const oldRecord   = todayAttMap[payload.student_id];
             const oldStatus   = oldRecord ? oldRecord.status : null;
             const newStatus   = payload.status;
 
-            // Update today's map
             todayAttMap[payload.student_id] = payload;
 
-            // Adjust absence count only if status crossed the Absent boundary
             if (oldStatus !== 'Absent' && newStatus === 'Absent') {
                 absenceCountMap[payload.student_id] = (absenceCountMap[payload.student_id] || 0) + 1;
             } else if (oldStatus === 'Absent' && newStatus !== 'Absent') {
                 absenceCountMap[payload.student_id] = Math.max(0, (absenceCountMap[payload.student_id] || 0) - 1);
             }
         });
+        renderData(); // Instant visual feedback with correct colors/counts
+
+        // Now persist to DB
+        const { error } = await window.supabaseClient
+            .from('attendance')
+            .upsert(scopedPayload, { onConflict: 'student_id,date' });
+
+        if (error) throw error;
 
         showToast('Successfully saved records!');
-        renderData();
+        _lastRefreshTime = Date.now();
     } catch (err) {
-        showToast('Save Failed!', 'error');
+        // Rollback local state on failure
+        oldSnapshots.forEach(snap => {
+            if (snap.oldRecord) {
+                todayAttMap[snap.student_id] = snap.oldRecord;
+            } else {
+                delete todayAttMap[snap.student_id];
+            }
+        });
+        // Recalculate absence counts from scratch after rollback
+        // (simpler & safer than reverse-adjusting)
+        const currentAbsenceAdjust = {};
+        Object.values(todayAttMap).forEach(r => {
+            if (r.status === 'Absent') {
+                currentAbsenceAdjust[r.student_id] = true;
+            }
+        });
+
+        renderData(); // Re-render with reverted state
+        showToast('Save Failed! Reverted changes.', 'error');
         console.error(err);
+    } finally {
+        _saveInProgress = false;
     }
 }
 
 window.updateRow = async function(studentId) {
+    if (_saveInProgress) return; // Prevent double-clicks
     const tr  = document.getElementById(`row-${studentId}`);
-    const sel = tr.querySelector('.inline-select').value;
+    if (!tr) return;
+    const selEl = tr.querySelector('.inline-select');
+    const sel = selEl.value;
     if (sel === '-') return;
+
+    // Immediately update CSS class for visual feedback
+    selEl.className = 'inline-select ' + sel;
+    selEl.disabled = true;
+
     await performUpsert([{ student_id: studentId, date: selectedDate, status: sel }]);
 };
 
 async function applyBulkStatus(status) {
+    if (_saveInProgress) return;
     const rows    = document.querySelectorAll('#attendanceBody tr');
     const toUpsert = [];
     rows.forEach(tr => {
@@ -313,15 +403,21 @@ function renderData() {
         : allStudents.filter(s => s.applying_for_class === classVal);
 
     // ── Stat cards (always based on class scope, ignores search/status filters) ──
-    let stats = { total: classFiltered.length, p: 0, a: 0 };
+    // Late counts as Present (student IS physically present, just late)
+    let stats = { total: classFiltered.length, p: 0, a: 0, late: 0, notMarked: 0 };
     classFiltered.forEach(s => {
         const status = (todayAttMap[s.id] || {}).status;
-        if (status === 'Present') stats.p++;
-        if (status === 'Absent')  stats.a++;
+        if (status === 'Present')     stats.p++;
+        else if (status === 'Absent') stats.a++;
+        else if (status === 'Late')   { stats.p++; stats.late++; }
+        else if (!status || status === '-') stats.notMarked++;
+        // Holiday is intentionally not counted in present/absent
     });
-    document.getElementById('statTotal').textContent   = stats.total;
-    document.getElementById('statPresent').textContent = stats.p;
-    document.getElementById('statAbsent').textContent  = stats.a;
+    document.getElementById('statTotal').textContent     = stats.total;
+    document.getElementById('statPresent').textContent   = stats.p;
+    document.getElementById('statAbsent').textContent    = stats.a;
+    document.getElementById('statLate').textContent      = stats.late;
+    document.getElementById('statNotMarked').textContent = stats.notMarked;
 
     // Toggle WA column header based on filter
     const showWa = statusVal === 'Absent';
@@ -336,7 +432,12 @@ function renderData() {
     let filteredList = viewList.filter(student => {
         const record  = todayAttMap[student.id] || {};
         const stType  = record.status || '-';
-        if (statusVal !== 'All' && stType !== statusVal) return false;
+        // Handle "Not Marked" filter
+        if (statusVal === 'NotMarked') {
+            if (stType !== '-') return false;
+        } else if (statusVal !== 'All' && stType !== statusVal) {
+            return false;
+        }
         if (searchVal) {
             const composite = `${student.roll_number} ${student.full_name} ${student.applying_for_class}`.toLowerCase();
             if (!composite.includes(searchVal)) return false;

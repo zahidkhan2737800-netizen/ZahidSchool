@@ -525,6 +525,13 @@ async function loadStats() {
         // Helper: add school_id filter only when available
         const sc = (q) => sid ? q.eq('school_id', sid) : q;
 
+        // First, get active student IDs so we can filter attendance to active students only
+        // This ensures dashboard counts match the attendance page (which only shows active students)
+        const activeStudentsRes = await sc(window.supabaseClient.from('admissions')
+            .select('id')
+            .in('status', ['Active', 'active']));
+        const activeStudentIds = new Set((activeStudentsRes.data || []).map(s => s.id));
+
         const [activeRes, withdrawnRes, feesRes, challansRes, unpaidChallansRes, dailyFeesRes, balanceRes, attendanceRes, admittedRes, dailyDiscountRes] = await Promise.all([
             sc(window.supabaseClient.from('admissions')
                 .select('*', { count: 'exact', head: true }).eq('status', 'Active')),
@@ -547,8 +554,9 @@ async function loadStats() {
             sc(window.supabaseClient.from('challans')
                 .select('amount, paid_amount')
                 .in('status', ['Unpaid', 'Partially Paid'])),
+            // Fetch student_id + status so we can filter to active students only
             sc(window.supabaseClient.from('attendance')
-                .select('status')
+                .select('student_id, status')
                 .eq('date', todayStr)),
             sc(window.supabaseClient.from('admissions')
                 .select('*', { count: 'exact', head: true })
@@ -570,8 +578,9 @@ async function loadStats() {
         const totalBalance   = (balanceRes.data || []).reduce((s, r) => s + ((Number(r.amount) || 0) - (Number(r.paid_amount) || 0)), 0);
         const dailyDiscount  = (dailyDiscountRes.data || []).reduce((s, r) => s + (Number(r.discount_amount) || 0), 0);
 
-        const attendanceData = attendanceRes.data || [];
-        const presentCount   = attendanceData.filter(r => r.status === 'Present').length;
+        // Filter attendance to active students only, count Late as Present (consistent with attendance page)
+        const attendanceData = (attendanceRes.data || []).filter(r => activeStudentIds.has(r.student_id));
+        const presentCount   = attendanceData.filter(r => r.status === 'Present' || r.status === 'Late').length;
         const absentCount    = attendanceData.filter(r => r.status === 'Absent').length;
         const admittedCount  = admittedRes.count || 0;
 
