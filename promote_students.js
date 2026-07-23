@@ -28,15 +28,42 @@ function showAlert(msg, isError = false) {
 
 async function loadClasses() {
     try {
-        const { data, error } = await applySchoolScope(db
-            .from('admissions')
-            .select('applying_for_class')
-            .eq('status', 'Active'));
-        if (error) throw error;
+        // Load from the classes table (permanent list) so classes never disappear
+        // after promotion empties them of students.
+        let q = db
+            .from('classes')
+            .select('class_name, section')
+            .order('class_name', { ascending: true })
+            .order('section', { ascending: true });
 
-        const classes = [...new Set((data || []).map(d => d.applying_for_class).filter(Boolean))].sort();
-        const optionsHtml = classes.map(c => `<option value="${c}">${c}</option>`).join('');
-        
+        // classes table may or may not have school_id depending on setup;
+        // try school-scoped first, fall back to unscoped if empty.
+        const { data: classData, error: classError } = await (window.currentSchoolId
+            ? q.eq('school_id', window.currentSchoolId)
+            : q);
+
+        let classes = [];
+
+        if (!classError && classData && classData.length > 0) {
+            // Build display labels: "ClassName - Section" if section differs from class_name
+            classes = classData.map(c => {
+                const label = c.section && c.section !== c.class_name
+                    ? `${c.class_name} - ${c.section}`
+                    : c.class_name;
+                return { value: label, label };
+            });
+        } else {
+            // Fallback: derive from admissions (all statuses, not just Active)
+            // so we still see KG even after all KG students are promoted.
+            const { data: admData, error: admError } = await applySchoolScope(
+                db.from('admissions').select('applying_for_class')
+            );
+            if (admError) throw admError;
+            const unique = [...new Set((admData || []).map(d => d.applying_for_class).filter(Boolean))].sort();
+            classes = unique.map(c => ({ value: c, label: c }));
+        }
+
+        const optionsHtml = classes.map(c => `<option value="${c.value}">${c.label}</option>`).join('');
         fromClassSelect.innerHTML = '<option value="">-- Select Source Class --</option>' + optionsHtml;
         toClassSelect.innerHTML = '<option value="">-- Select Target Class --</option>' + optionsHtml;
     } catch (e) {
@@ -137,7 +164,14 @@ async function promoteStudents() {
 
         showAlert(`Successfully promoted ${selectedIds.length} students to ${toClass}!`);
         
-        // Refresh student list
+        // Reload classes first (so both dropdowns remain correct),
+        // then reload the student list for the current from-class.
+        const prevFrom = fromClassSelect.value;
+        const prevTo   = toClassSelect.value;
+        await loadClasses();
+        // Restore selections after reload
+        fromClassSelect.value = prevFrom;
+        toClassSelect.value   = prevTo;
         loadStudents();
     } catch (e) {
         console.error(e);
