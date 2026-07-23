@@ -28,9 +28,10 @@ function showAlert(msg, isError = false) {
 
 async function loadClasses() {
     try {
-        // The 'classes' table has no school_id column — it is the global master
-        // list of classes you created in Manage Classes. Query it directly so
-        // classes never vanish just because they have zero active students.
+        // The 'classes' table is the master list you created in Manage Classes.
+        // The admission form stores applying_for_class as "class_name section"
+        // (plain space, e.g. "One B") — we must use the exact same format here
+        // so that querying students by class actually finds them.
         const { data: classData, error: classError } = await db
             .from('classes')
             .select('class_name, section')
@@ -40,16 +41,13 @@ async function loadClasses() {
         let classes = [];
 
         if (!classError && classData && classData.length > 0) {
-            // Build display labels: "ClassName - Section" if section differs from class_name
             classes = classData.map(c => {
-                const label = c.section && c.section !== c.class_name
-                    ? `${c.class_name} - ${c.section}`
-                    : c.class_name;
-                return { value: label, label };
+                // Match the exact format used by the admission form: "ClassName Section"
+                const val = `${c.class_name} ${c.section}`;
+                return { value: val, label: val };
             });
         } else {
-            // Fallback: read from admissions (all statuses) so KG is still visible
-            // even after all its students were promoted.
+            // Fallback: read from admissions (all statuses) — exact stored values
             const { data: admData, error: admError } = await applySchoolScope(
                 db.from('admissions').select('applying_for_class')
             );
