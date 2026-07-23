@@ -28,19 +28,14 @@ function showAlert(msg, isError = false) {
 
 async function loadClasses() {
     try {
-        // Load from the classes table (permanent list) so classes never disappear
-        // after promotion empties them of students.
-        let q = db
+        // The 'classes' table has no school_id column — it is the global master
+        // list of classes you created in Manage Classes. Query it directly so
+        // classes never vanish just because they have zero active students.
+        const { data: classData, error: classError } = await db
             .from('classes')
             .select('class_name, section')
             .order('class_name', { ascending: true })
             .order('section', { ascending: true });
-
-        // classes table may or may not have school_id depending on setup;
-        // try school-scoped first, fall back to unscoped if empty.
-        const { data: classData, error: classError } = await (window.currentSchoolId
-            ? q.eq('school_id', window.currentSchoolId)
-            : q);
 
         let classes = [];
 
@@ -53,8 +48,8 @@ async function loadClasses() {
                 return { value: label, label };
             });
         } else {
-            // Fallback: derive from admissions (all statuses, not just Active)
-            // so we still see KG even after all KG students are promoted.
+            // Fallback: read from admissions (all statuses) so KG is still visible
+            // even after all its students were promoted.
             const { data: admData, error: admError } = await applySchoolScope(
                 db.from('admissions').select('applying_for_class')
             );
