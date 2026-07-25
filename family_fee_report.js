@@ -1,4 +1,4 @@
-﻿// ═══════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 // family_fee_report.js  –  Family Fee Balance Report
 // Data sources:
 //   - admissions     : family members (grouped by father_mobile)
@@ -242,23 +242,23 @@ function renderTable() {
             `<span class="member-row">• <b>${m.roll_number}</b> ${esc(m.full_name)} <small style="color:#94a3b8;">(${m.applying_for_class || ''})</small></span>`
         ).join('');
 
-        const statusBadge  = isSolved
-            ? '<span class="badge b-solved">Solved</span>'
-            : '<span class="badge b-pending">Pending</span>';
-        const pinBadge     = isPinned ? '<span class="badge b-pin">📌 Pinned</span>' : '—';
+        const statusLbl = isSolved
+            ? '<span class="status-lbl solved">Solved</span>'
+            : '<span class="status-lbl pending">Pending</span>';
+        const pinLbl = isPinned ? '<span class="pin-lbl">📌 Pin</span>' : '—';
 
         return `<tr class="${rowCls}">
-            <td style="text-align:center;font-weight:700;color:#475569;">${esc(fam.familyNo) || '—'}</td>
+            <td style="text-align:center;font-weight:700;">${esc(fam.familyNo) || '—'}</td>
             <td>
-                <strong style="color:#0f172a;">${esc(fam.primaryName)}</strong>
+                <strong>${esc(fam.primaryName)}</strong>
             </td>
             <td>
-                <span style="font-weight:700;color:#7c3aed;display:block;margin-bottom:3px;">${esc(fam.mobile)}</span>
+                <span style="font-weight:700;display:block;margin-bottom:3px;">${esc(fam.mobile)}</span>
                 ${membersHtml}
             </td>
             <td class="bal-cell${bal === 0 ? ' zero' : ''}">Rs ${fmt(bal)}</td>
-            <td style="text-align:center;">${statusBadge}</td>
-            <td style="text-align:center;">${pinBadge}</td>
+            <td style="text-align:center;">${statusLbl}</td>
+            <td style="text-align:center;">${pinLbl}</td>
             <td class="notes-cell">${esc(d.commitment_notes || '')}</td>
         </tr>`;
     }).join('');

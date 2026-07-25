@@ -18,7 +18,7 @@
         body{margin:0;font-family:"Segoe UI",Tahoma,Geneva,Verdana,sans-serif;background:linear-gradient(140deg,#f5f3ff 0%,#f8fafc 50%,#ede9fe 100%);color:var(--ink);}
         .page-wrap{max-width:1500px;margin:0 auto;padding:1.25rem;}
 
-        /* Header */
+        /* ── Header ── */
         .top-head{display:flex;justify-content:space-between;align-items:center;gap:1rem;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:1rem 1.2rem;}
         .title-wrap{display:flex;align-items:center;gap:.8rem;}
         .title-wrap .icon{width:46px;height:46px;border-radius:12px;display:grid;place-items:center;background:var(--brand-light);font-size:1.35rem;}
@@ -29,7 +29,7 @@
         .nav-bar a:hover{background:var(--brand);color:#fff;border-color:var(--brand);}
         .nav-bar a.active-page{background:var(--brand);color:#fff;border-color:var(--brand);}
 
-        /* Summary cards */
+        /* ── Summary cards ── */
         .sum-cards{display:flex;gap:.8rem;flex-wrap:wrap;margin-top:1rem;}
         .s-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:.7rem 1.1rem;min-width:150px;flex:1;}
         .s-card .lbl{display:block;color:var(--muted);font-size:.75rem;margin-bottom:.15rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;}
@@ -40,7 +40,7 @@
         .s-card.c-warn strong{color:var(--warn);}
         .s-card.c-brand strong{color:var(--brand);}
 
-        /* Filters */
+        /* ── Filters ── */
         .filters{margin-top:1rem;display:flex;flex-wrap:wrap;gap:.8rem;align-items:flex-end;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:.9rem 1rem;}
         .field{display:flex;flex-direction:column;gap:.2rem;}
         .field label{font-size:.8rem;color:var(--muted);font-weight:600;}
@@ -54,47 +54,70 @@
         .btn-outline{border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:var(--ink);font-weight:600;padding:.6rem 1rem;cursor:pointer;font-size:.9rem;display:flex;align-items:center;gap:.35rem;}
         .btn-outline:hover{background:#f8fafc;}
 
-        /* Table */
+        /* ── Table — BLACK & WHITE like fee_paid_log ── */
         .table-wrap{margin-top:1rem;background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:auto;}
-        .print-header{display:none;font-weight:700;font-size:12px;margin:0 0 4px;color:#000;}
-        table{width:100%;border-collapse:collapse;min-width:900px;}
-        thead th{background:var(--brand);color:#fff;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:var(--thp);font-size:var(--tf);border:1px solid var(--brand-dark);position:sticky;top:0;z-index:5;white-space:nowrap;}
-        tbody td{padding:var(--tdp);border-bottom:1px solid #f1f5f9;font-size:var(--tf);vertical-align:top;}
-        tbody tr:hover td{background:#faf5ff;}
-        tbody tr.row-pinned td{background:#f3e8ff !important;border-left:3px solid var(--brand);}
-        tbody tr.row-pinned:hover td{background:#ede9fe !important;}
-        tbody tr.row-solved td{opacity:.45;}
+        .print-header{display:none;font-weight:700;font-size:12px;margin:0 0 6px;color:#000;}
 
-        /* Badges */
-        .badge{display:inline-block;padding:2px 7px;border-radius:99px;font-size:.8em;font-weight:800;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap;}
-        .b-pending{background:#fef2f2;color:var(--danger);border:1px solid #fca5a5;}
-        .b-solved{background:#ecfdf5;color:var(--ok);border:1px solid #6ee7b7;}
-        .b-pin{background:var(--brand-light);color:var(--brand);border:1px solid #d8b4fe;}
-        .bal-cell{font-weight:800;color:var(--danger);text-align:right;}
+        table{width:100%;border-collapse:collapse;min-width:900px;}
+
+        thead th {
+            text-align:left;
+            padding:var(--thp);
+            font-size:var(--tf);
+            color:#334155;
+            border-bottom:1px solid var(--line);
+            background:#f8fafc;
+            position:sticky;
+            top:0;
+            z-index:5;
+            white-space:nowrap;
+            font-weight:700;
+        }
+
+        tbody td {
+            padding:var(--tdp);
+            border-bottom:1px solid #f1f5f9;
+            font-size:var(--tf);
+            vertical-align:top;
+        }
+
+        tbody tr:hover td{background:#f8fafc;}
+
+        /* Pinned: subtle left border only, no color fill */
+        tbody tr.row-pinned td{border-left:3px solid #334155;}
+        tbody tr.row-pinned td:first-child{border-left:3px solid #334155;}
+
+        /* Solved: dimmed */
+        tbody tr.row-solved td{opacity:.4;}
+
+        /* Text labels instead of colored badges */
+        .status-lbl{font-weight:700;font-size:.85em;text-transform:uppercase;}
+        .status-lbl.pending{color:var(--danger);}
+        .status-lbl.solved {color:var(--ok);}
+        .pin-lbl{font-weight:700;font-size:.85em;color:#334155;}
+
+        .bal-cell{font-weight:800;color:#0f172a;text-align:right;}
         .bal-cell.zero{color:var(--ok);}
-        .member-row{font-size:.85em;color:#475569;padding:1px 0;display:block;}
+        .member-row{font-size:.9em;color:#475569;padding:1px 0;display:block;}
         .member-row b{color:#0f172a;}
         .notes-cell{font-style:italic;color:#475569;max-width:200px;word-break:break-word;}
         .empty{text-align:center;color:var(--muted);padding:2rem;}
         #loader{text-align:center;padding:2rem;color:var(--muted);font-size:1.1rem;}
 
-        /* Print */
+        /* ── Print — same pattern as fee_paid_log ── */
         @media print{
             @page{size:A4 portrait;margin:6mm;}
-            body{background:#fff;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact;font-size:var(--pf);}
+            body{background:#fff;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
             .top-head,.sum-cards,.filters,#loader{display:none !important;}
             .page-wrap{max-width:none;margin:0;padding:0;}
             .table-wrap{margin-top:0;border:none;border-radius:0;overflow:visible;}
             .print-header{display:block;}
             table{min-width:0;width:100%;}
-            thead th{position:static;font-size:var(--pf);padding:var(--php);border:1px solid #000;color:#000;background:#e5e7eb !important;}
+            thead th{position:static;font-size:var(--pf);padding:var(--php);border:1px solid #000;color:#000;background:#fff;}
             tbody td{font-size:var(--pf);padding:var(--pdp);border:1px solid #000;color:#000;}
-            tbody tr.row-pinned td{background:#f3e0ff !important;border-left:2px solid #7c3aed;}
-            tbody tr.row-solved td{opacity:.5;}
             tbody tr:hover td{background:transparent;}
-            .b-pending{background:#fee2e2 !important;color:#991b1b !important;}
-            .b-solved{background:#d1fae5 !important;color:#065f46 !important;}
-            .b-pin{background:#ede9fe !important;color:#5b21b6 !important;}
+            tbody tr.row-pinned td{border-left:2px solid #000;}
+            tbody tr.row-solved td{opacity:.45;}
         }
         @media(max-width:860px){.top-head,.filters,.sum-cards{flex-direction:column;align-items:flex-start;}}
     </style>
@@ -186,12 +209,12 @@
             <thead>
                 <tr>
                     <th style="width:50px;text-align:center;">Fam #</th>
-                    <th style="min-width:180px;text-align:left;">Father / Family</th>
-                    <th style="min-width:160px;text-align:left;">Members &amp; Mobile</th>
+                    <th style="min-width:180px;">Father / Family</th>
+                    <th style="min-width:160px;">Members &amp; Mobile</th>
                     <th style="width:100px;text-align:right;">Balance</th>
-                    <th style="width:80px;text-align:center;">Status</th>
-                    <th style="width:55px;text-align:center;">Pin</th>
-                    <th style="min-width:180px;text-align:left;">Commitment / Notes</th>
+                    <th style="width:70px;text-align:center;">Status</th>
+                    <th style="width:50px;text-align:center;">Pin</th>
+                    <th style="min-width:180px;">Commitment / Notes</th>
                 </tr>
             </thead>
             <tbody id="reportBody">
