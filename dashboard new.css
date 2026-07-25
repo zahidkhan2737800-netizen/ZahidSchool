@@ -127,7 +127,7 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f1f5f9; min-
 
 .diary-notes-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(170px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 14px;
   margin-bottom: 22px;
 }
@@ -159,10 +159,7 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f1f5f9; min-
   line-height: 1.35;
   color: #111827;
   font-weight: 600;
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  word-break: break-word;
 }
 
 .diary-note-foot {

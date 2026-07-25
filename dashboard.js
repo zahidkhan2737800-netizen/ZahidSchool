@@ -183,8 +183,7 @@ async function loadDashboardDiaryTasks() {
         if (error) throw error;
 
         const rows = (data || [])
-            .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
-            .slice(0, 4);
+            .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
 
         if (!rows.length) {
             host.innerHTML = '<div class="diary-note-empty">No pinned diary tasks yet. Use the 🗒 button in Dairy / Tasks.</div>';
