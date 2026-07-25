@@ -435,7 +435,8 @@ function buildSidebar() {
 
         visibleItems.forEach(function (item) {
             let activeClass = item.href === 'dashboard.html' ? ' active' : ''; // Dashboard specific
-            html += '<a href="' + item.href + '" class="nav-item' + activeClass + '"><i class="' + item.icon + '"></i> ' + item.label + '</a>';
+            let target = item.href === 'dashboard.html' ? '' : ' target="_blank"';
+            html += '<a href="' + item.href + '"' + target + ' class="nav-item' + activeClass + '"><i class="' + item.icon + '"></i> ' + item.label + '</a>';
         });
 
         html += '</div></div>';
