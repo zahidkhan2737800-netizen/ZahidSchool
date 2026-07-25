@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Thermal Print — By Family# (With Saved Batch)</title>
+  <style>
+    body{font-family:Inter,Arial,Helvetica,sans-serif;padding:18px;background:#f5f7fb;color:#111}
+    .card{background:#fff;padding:16px;border-radius:10px;max-width:920px;margin:18px auto;box-shadow:0 8px 20px rgba(0,0,0,0.05)}
+    input,button,select{padding:8px;border-radius:8px;border:1px solid #d1d5db;font-size:14px}
+    .row{display:flex;gap:8px;align-items:center}
+    .muted{color:#6b7280;font-size:13px}
+    .example{font-size:13px;margin-top:8px}
+    .list{margin-top:12px;border:1px dashed #e5e7eb;padding:10px;border-radius:8px;max-height:240px;overflow:auto}
+    .list-item{display:flex;justify-content:space-between;align-items:center;padding:6px;border-bottom:1px solid #f3f4f6}
+    .list-item:last-child{border-bottom:none}
+    .small{font-size:12px}
+    label{cursor:pointer}
+
+    /* === New / adjusted styles for thermal receipts === */
+    .thermal-receipt { width:320px; padding:6px; font-family:monospace; font-size:14px; color:#000; }
+    .thermal-receipt .store-name { text-align:center; font-weight:700; font-size:16px; }
+    .thermal-receipt .note { text-align:center; font-size:12px; margin-top:2px; }
+    .thermal-receipt .family-label { text-align:center; font-size:13px; margin-top:6px; }
+    .thermal-receipt .family-mobile { text-align:center; font-size:12px; margin-top:2px; }
+
+    .receipt-row { display:flex; justify-content:space-between; align-items:center; margin:4px 0; gap:6px; }
+    .receipt-left { flex:1 1 auto; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .receipt-amt { flex:0 0 96px; /* fixed area for amounts */ text-align:right; font-weight:700; font-size:13px; white-space:nowrap; }
+
+    .receipt-total { display:flex; justify-content:space-between; align-items:center; margin-top:6px; font-weight:700; font-size:14px; }
+    hr.condensed { border: none; border-top: 1px solid #ddd; margin:6px 0; }
+
+    /* make sure print uses readable size */
+    @media print {
+      .thermal-receipt { font-size:14px; }
+      .receipt-amt { flex:0 0 96px; }
+      body { -webkit-print-color-adjust: exact; }
+      @page { margin: 6mm; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Thermal Print — Print Combined (by Family#)</h2>
+    <div class="muted">Enter a Family# and click <strong>Print Thermal</strong>. You can now save family numbers to Firestore and print many receipts at once using <strong>Print Selected</strong> or <strong>Print All</strong>.</div>
+
+    <div style="margin-top:12px" class="row">
+      <input id="familyNo" type="search" placeholder="Enter Family# (e.g. FAM-0001)" style="flex:1" />
+      <button id="btnPrint" style="background:#0d6efd;color:#fff;border:none">Print Thermal</button>
+      <button id="btnSave" style="background:#10b981;color:#fff;border:none">Save Family</button>
+    </div>
+
+    <div class="muted small" style="margin-top:8px">Saved families are stored in Firestore collection: <strong>savedFamilies</strong></div>
+
+    <div style="margin-top:12px" class="row">
+      <button id="btnPrintSelected" style="background:#ef4444;color:#fff;border:none">Print Selected</button>
+      <button id="btnPrintAll" style="background:#065f46;color:#fff;border:none">Print All</button>
+      <button id="btnRefreshList" style="background:#6b7280;color:#fff;border:none">Refresh List</button>
+      <div style="flex:1" />
+      <label class="small"><input id="chkSelectAll" type="checkbox" /> Select all</label>
+    </div>
+
+    <div class="list" id="savedList" aria-live="polite"></div>
+
+    <div style="margin-top:14px" class="muted small">Status: <span id="status">idle</span></div>
+  </div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getFirestore, collection, query, where, getDocs, doc, getDoc, setDoc, addDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  // --- IMPORTANT: This file intentionally uses the same firebaseConfig as your main FC.html.
+  const firebaseConfig = {
+    apiKey: "AIzaSyDLMYKxUgCOZbb3EZvjD8btGVWVBWWaXrc",
+    authDomain: "atte-c81bd.firebaseapp.com",
+    projectId: "atte-c81bd",
+    storageBucket: "atte-c81bd.firebasestorage.app",
+    messagingSenderId: "608788631971",
+    appId: "1:608788631971:web:cdc3168f18385f7cfc4a16",
+    measurementId: "G-GD5VBXE7DH"
+  };
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  const familyNoInput = document.getElementById('familyNo');
+  const btn = document.getElementById('btnPrint');
+  const btnSave = document.getElementById('btnSave');
+  const statusEl = document.getElementById('status');
+  const savedListEl = document.getElementById('savedList');
+  const btnPrintSelected = document.getElementById('btnPrintSelected');
+  const btnPrintAll = document.getElementById('btnPrintAll');
+  const btnRefreshList = document.getElementById('btnRefreshList');
+  const chkSelectAll = document.getElementById('chkSelectAll');
+
+  function setStatus(s){ statusEl.textContent = s; }
+
+  // derive month display (YYYY-MM -> Month Year)
+  function deriveMonthName(monthCode){
+    try{
+      if(!monthCode) return '';
+      const m = String(monthCode).trim();
+      if(/^\d{4}-\d{2}$/.test(m)){
+        const parts = m.split('-'); const y = Number(parts[0]), mm = Number(parts[1]) - 1;
+        const d = new Date(Date.UTC(y, mm, 1));
+        return d.toLocaleDateString('en-GB',{ month:'long', year:'numeric' });
+      }
+      return m;
+    }catch(e){ return String(monthCode||''); }
+  }
+
+  // fetch family by familyNo (try exact match on familyNo then id)
+  async function fetchFamilyByNo(fNo){
+    const famQ = query(collection(db,'families'), where('familyNo','==', String(fNo)));
+    const snap = await getDocs(famQ);
+    if(!snap.empty){
+      const d = snap.docs[0]; return { id: d.id, ...d.data() };
+    }
+    // fallback: try document id
+    try{
+      const docRef = doc(db,'families', String(fNo));
+      const docSnap = await getDoc(docRef);
+      if(docSnap.exists()) return { id: docSnap.id, ...docSnap.data() };
+    }catch(e){}
+    return null;
+  }
+
+  // fetch challans for a given member object (tries rollNumber -> roll -> studentName)
+  async function fetchChallansForMember(member){
+    const roll = (member?.roll || member?.rollNumber || '').toString();
+    const results = [];
+    if(roll){
+      try{
+        const q1 = query(collection(db,'challans'), where('rollNumber','==', String(roll)));
+        const s1 = await getDocs(q1); s1.forEach(d=> results.push({ id:d.id, ...d.data() }));
+      }catch(e){ console.warn('rollNumber query error', e); }
+      if(results.length) return results;
+      try{
+        const q2 = query(collection(db,'challans'), where('roll','==', String(roll)));
+        const s2 = await getDocs(q2); s2.forEach(d=> results.push({ id:d.id, ...d.data() }));
+      }catch(e){ console.warn('roll query error', e); }
+      if(results.length) return results;
+    }
+    // fallback: studentName exact
+    if(member?.name){
+      try{
+        const qn = query(collection(db,'challans'), where('studentName','==', member.name));
+        const sn = await getDocs(qn); sn.forEach(d=> results.push({ id:d.id, ...d.data() }));
+      }catch(e){ console.warn('studentName query error', e); }
+    }
+    return results;
+  }
+
+  // build combined outstanding lines similar to A4 combined
+  async function buildCombinedLines(family){
+    const lines = [];
+    const members = Array.isArray(family.members) ? family.members.map((m,idx)=>{
+      if(!m) return { id:'m'+idx, name:'(unknown)' };
+      if(typeof m === 'string') return { id:m, name:m };
+      const id = m.id || m.memberId || m.roll || ('m'+idx);
+      return { ...m, id };
+    }) : [];
+
+    for(const m of members){
+      const chs = await fetchChallansForMember(m);
+      if(!chs || chs.length === 0) continue;
+      chs.sort((a,b)=>{ const ta = a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0; const tb = b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0; return ta - tb; });
+      for(const ch of chs){
+        const amt = Number(ch.amount || 0); const paid = Number(ch.paidAmount || 0); const remaining = Math.max(0, amt - paid);
+        if(remaining <= 0) continue;
+        let monthCode = ch.month || ch.monthCode || ch.month_code || '';
+        if(typeof monthCode === 'object' && monthCode?.toDate) {
+          const d = monthCode.toDate(); monthCode = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+        }
+        if(typeof monthCode === 'number') monthCode = String(monthCode);
+        const monthName = ch.monthName || ch.month_name || deriveMonthName(monthCode) || '';
+        const feeHead = ch.feeHead || ch.fee || ch.title || ch.challan || '';
+        lines.push({ memberName: m.name || '', roll: m.roll || m.rollNumber || '', feeHead, monthName, monthCode, remaining });
+      }
+    }
+    return lines;
+  }
+
+  // print thermal receipt single
+  function createReceiptHtmlForFamily(meta){
+    const rows = meta.lines || [];
+    const familyLabel = meta.familyLabel || '';
+    const familyMobile = meta.familyMobile || '';
+    const generatedAt = new Date();
+
+    // Build HTML using classes so CSS controls truncation and font sizes.
+    let html = `<div class="thermal-receipt">
+      <div class="store-name">Zahid School (03337502737)</div>
+      <div class="note">Bill (ھي بل آھي ھن رسيد ۾ ڪا بي رقم مليل نہ آھي)</div>
+      <div class="family-label">${escapeHtml(familyLabel)}</div>
+      <div class="family-mobile">${escapeHtml(familyMobile)}</div>
+      <hr class="condensed" />`;
+
+    rows.forEach(r=>{
+      // left text: "StudentName (roll) - MonthName — FeeHead" (feeHead appended only if present)
+      let leftParts = [];
+      if(r.memberName) leftParts.push(r.memberName);
+      if(r.roll) leftParts.push('('+r.roll+')');
+      let left = leftParts.join(' ');
+      const monthPart = (r.monthName || r.monthCode) ? ' - ' + (r.monthName || r.monthCode) : '';
+      if(r.feeHead) {
+        left += monthPart + ' — ' + r.feeHead;
+      } else {
+        left += monthPart;
+      }
+
+      // robust amount formatting (handles strings, numbers, NaN)
+      const amtNum = Number(r.remaining);
+      const amt = isFinite(amtNum) ? ('Rs ' + amtNum.toLocaleString()) : ('Rs ' + String(r.remaining || '0'));
+
+      html += `<div class="receipt-row"><div class="receipt-left">${escapeHtml(left)}</div><div class="receipt-amt">${escapeHtml(amt)}</div></div>`;
+    });
+
+    const total = rows.reduce((s,x)=> s + (Number(x.remaining) || 0), 0);
+    html += `<hr class="condensed" /><div class="receipt-total"><div>TOTAL</div><div>Rs ${Number(total).toLocaleString()}</div></div>`;
+    html += `<div style="font-size:11px;margin-top:8px">Generated: ${generatedAt.toLocaleString()}</div>`;
+    html += '</div><div style="height:16px"></div>'; // small spacer
+    return html;
+  }
+
+  // batch print: combine multiple receipts into one popup and call print once
+  function printBatchReceipts(batchMeta){
+    if(!batchMeta || batchMeta.length === 0) { alert('No receipts to print'); return; }
+    const popup = window.open('', '_blank', 'toolbar=0,location=0,menubar=0,status=0,scrollbars=1,resizable=1,width=420,height=800');
+    if(!popup){ alert('Popup blocked — allow popups for this site to print.'); return; }
+    let bodyHtml = `<!doctype html><html><head><meta charset="utf-8"><title>Thermal Batch Print</title>
+      <style>body{background:#fff;margin:8px;} @media print{div{page-break-inside:avoid}}</style>
+      </head><body>`;
+    batchMeta.forEach(m => { bodyHtml += createReceiptHtmlForFamily(m) + '<hr/>'; });
+    bodyHtml += `</body></html>`;
+    popup.document.open(); popup.document.write(bodyHtml); popup.document.close();
+    setTimeout(()=>{ popup.focus(); popup.print(); }, 500);
+  }
+
+  function escapeHtml(s){ return (s==null) ? '' : String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+
+  // --- Firestore helpers for saved families
+  const savedCollection = collection(db,'savedFamilies');
+
+  async function saveFamilyRecord(fNo){
+    // try to fetch family first to show label
+    const family = await fetchFamilyByNo(fNo);
+    if(!family) throw new Error('Family not found');
+    // check duplicate by querying savedFamilies where familyNo == fNo
+    const q = query(savedCollection, where('familyNo','==', String(fNo)));
+    const snap = await getDocs(q);
+    if(!snap.empty) return { exists: true, docId: snap.docs[0].id };
+    // add new doc
+    const payload = { familyNo: String(fNo), familyLabel: (family.familyNo || family.id) + ' — ' + (family.familyName || ''), mobile: family.mobile || '', createdAt: new Date().toISOString() };
+    const added = await addDoc(savedCollection, payload);
+    return { exists: false, docId: added.id };
+  }
+
+  async function loadSavedList(){
+    setStatus('Loading saved families...');
+    savedListEl.innerHTML = '';
+    try{
+      const s = await getDocs(savedCollection);
+      if(s.empty){ savedListEl.innerHTML = '<div class="muted small">No saved families yet.</div>'; setStatus('idle'); return; }
+      s.forEach(d=>{
+        const data = d.data();
+        const el = document.createElement('div'); el.className = 'list-item';
+        el.innerHTML = `<label style="display:flex;gap:8px;align-items:center"><input type=\"checkbox\" data-docid=\"${d.id}\" data-fno=\"${escapeHtml(data.familyNo)}\" /> <div><strong>${escapeHtml(data.familyLabel || data.familyNo)}</strong><div class=\"small muted\">${escapeHtml(data.mobile || '')}</div></div></label>
+          <div style=\"display:flex;gap:6px;align-items:center\"><button data-delete=\"${d.id}\" style=\"padding:6px;border-radius:6px;background:#ef4444;color:#fff;border:none\">Remove</button></div>`;
+        savedListEl.appendChild(el);
+      });
+      setStatus('loaded');
+    }catch(err){ console.error(err); setStatus('error'); savedListEl.innerHTML = '<div class="muted small">Failed to load saved families (see console).</div>'; }
+  }
+
+  // delete saved family
+  async function deleteSaved(docId){
+    try{ await deleteDoc(doc(db,'savedFamilies',docId)); }catch(e){ console.error(e); }
+    await loadSavedList();
+  }
+
+  // gather selected saved family docs into array of familyNo strings
+  function getSelectedSaved(){
+    const checks = Array.from(savedListEl.querySelectorAll('input[type=checkbox]'));
+    return checks.filter(c=>c.checked).map(c=> c.getAttribute('data-fno'));
+  }
+
+  // high-level: for a list of familyNos, fetch each family, build lines and return batch meta
+  async function buildBatchMetaForFamilyNos(familyNos){
+    const batch = [];
+    for(const fno of familyNos){
+      try{
+        const family = await fetchFamilyByNo(fno);
+        if(!family) continue;
+        const lines = await buildCombinedLines(family);
+        if(!lines || lines.length === 0) continue;
+        batch.push({ familyLabel: (family.familyNo || family.id) + ' — ' + (family.familyName || ''), familyMobile: family.mobile || '', lines });
+      }catch(e){ console.warn('build error', fno, e); }
+    }
+    return batch;
+  }
+
+  // --- event handlers
+  btn.addEventListener('click', async ()=>{
+    try{
+      const fno = (familyNoInput.value || '').trim(); if(!fno) return alert('Enter a Family#');
+      setStatus('Finding family...');
+      const family = await fetchFamilyByNo(fno);
+      if(!family){ setStatus('Family not found'); return alert('Family not found — check Family#'); }
+      setStatus('Building combined data...');
+      const lines = await buildCombinedLines(family);
+      if(!lines || lines.length === 0){ setStatus('No outstanding challans'); return alert('No outstanding (remaining) challans found for this family.'); }
+      setStatus('Opening thermal print preview...');
+      printBatchReceipts([{ familyLabel: (family.familyNo || family.id) + ' — ' + (family.familyName || ''), familyMobile: family.mobile || '', lines }]);
+      setStatus('Printed');
+    }catch(err){ console.error(err); alert('Failed to print thermal — see console'); setStatus('error'); }
+  });
+
+  btnSave.addEventListener('click', async ()=>{
+    try{
+      const fno = (familyNoInput.value || '').trim(); if(!fno) return alert('Enter a Family# to save');
+      setStatus('Saving...');
+      const res = await saveFamilyRecord(fno);
+      if(res.exists) { alert('Family already saved'); setStatus('already saved'); }
+      else { alert('Family saved'); setStatus('saved'); }
+      await loadSavedList();
+    }catch(err){ console.error(err); alert('Failed to save family — see console'); setStatus('error'); }
+  });
+
+  btnRefreshList.addEventListener('click', async ()=>{ await loadSavedList(); });
+
+  savedListEl.addEventListener('click', async (ev)=>{
+    const del = ev.target.getAttribute('data-delete');
+    if(del){ if(confirm('Remove saved family?')){ await deleteSaved(del); } }
+  });
+
+  chkSelectAll.addEventListener('change', ()=>{
+    const checks = Array.from(savedListEl.querySelectorAll('input[type=checkbox]'));
+    checks.forEach(c=> c.checked = chkSelectAll.checked);
+  });
+
+  btnPrintSelected.addEventListener('click', async ()=>{
+    try{
+      const selected = getSelectedSaved();
+      if(!selected || selected.length === 0) return alert('Select at least one saved family');
+      setStatus('Building receipts...');
+      const batch = await buildBatchMetaForFamilyNos(selected);
+      if(!batch || batch.length === 0) { setStatus('no receipts'); return alert('No outstanding receipts found for selected families'); }
+      setStatus('Opening batch print...');
+      printBatchReceipts(batch);
+      setStatus('Printed batch');
+    }catch(e){ console.error(e); setStatus('error'); alert('Failed to print selected — see console'); }
+  });
+
+  btnPrintAll.addEventListener('click', async ()=>{
+    try{
+      setStatus('Loading saved list...');
+      const s = await getDocs(savedCollection);
+      if(s.empty) return alert('No saved families to print');
+      const familyNos = s.docs.map(d=> d.data().familyNo).filter(Boolean);
+      setStatus('Building receipts for all...');
+      const batch = await buildBatchMetaForFamilyNos(familyNos);
+      if(!batch || batch.length === 0) { setStatus('no receipts'); return alert('No outstanding receipts found for saved families'); }
+      setStatus('Opening batch print...');
+      printBatchReceipts(batch);
+      setStatus('Printed all');
+    }catch(e){ console.error(e); setStatus('error'); alert('Failed to print all — see console'); }
+  });
+
+  // initial load
+  loadSavedList();
+
+</script>
+</body>
+</html>

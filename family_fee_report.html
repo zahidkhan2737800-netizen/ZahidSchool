@@ -1,0 +1,207 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zahid School - Family Fee Balance Report</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --bg:#f1f5f9;--panel:#ffffff;--line:#e2e8f0;--ink:#0f172a;--muted:#64748b;
+            --brand:#7c3aed;--brand-dark:#5b21b6;--brand-light:#f3e8ff;
+            --ok:#059669;--danger:#b91c1c;--warn:#d97706;
+            --tf:9px;--tdp:4px 6px;--thp:5px 6px;
+            --pf:8px;--pdp:1.5px 3px;--php:2px 3px;
+        }
+        *{box-sizing:border-box;}
+        body{margin:0;font-family:"Segoe UI",Tahoma,Geneva,Verdana,sans-serif;background:linear-gradient(140deg,#f5f3ff 0%,#f8fafc 50%,#ede9fe 100%);color:var(--ink);}
+        .page-wrap{max-width:1500px;margin:0 auto;padding:1.25rem;}
+
+        /* Header */
+        .top-head{display:flex;justify-content:space-between;align-items:center;gap:1rem;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:1rem 1.2rem;}
+        .title-wrap{display:flex;align-items:center;gap:.8rem;}
+        .title-wrap .icon{width:46px;height:46px;border-radius:12px;display:grid;place-items:center;background:var(--brand-light);font-size:1.35rem;}
+        .title-wrap h1{margin:0;font-size:1.35rem;}
+        .title-wrap p{margin:.2rem 0 0;color:var(--muted);font-size:.9rem;}
+        .nav-bar{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;}
+        .nav-bar a{text-decoration:none;color:var(--brand-dark);font-weight:600;font-size:.85rem;border:1px solid #d8b4fe;background:var(--brand-light);padding:.4rem .65rem;border-radius:8px;white-space:nowrap;display:inline-flex;align-items:center;gap:.35rem;}
+        .nav-bar a:hover{background:var(--brand);color:#fff;border-color:var(--brand);}
+        .nav-bar a.active-page{background:var(--brand);color:#fff;border-color:var(--brand);}
+
+        /* Summary cards */
+        .sum-cards{display:flex;gap:.8rem;flex-wrap:wrap;margin-top:1rem;}
+        .s-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:.7rem 1.1rem;min-width:150px;flex:1;}
+        .s-card .lbl{display:block;color:var(--muted);font-size:.75rem;margin-bottom:.15rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;}
+        .s-card strong{font-size:1.15rem;font-weight:800;color:var(--ink);}
+        .s-card small{display:block;color:var(--muted);font-size:.78rem;margin-top:.2rem;}
+        .s-card.c-danger strong{color:var(--danger);}
+        .s-card.c-ok strong{color:var(--ok);}
+        .s-card.c-warn strong{color:var(--warn);}
+        .s-card.c-brand strong{color:var(--brand);}
+
+        /* Filters */
+        .filters{margin-top:1rem;display:flex;flex-wrap:wrap;gap:.8rem;align-items:flex-end;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:.9rem 1rem;}
+        .field{display:flex;flex-direction:column;gap:.2rem;}
+        .field label{font-size:.8rem;color:var(--muted);font-weight:600;}
+        .field input,.field select{border:1px solid #cbd5e1;border-radius:8px;padding:.55rem .7rem;font-size:.9rem;background:#fff;font-family:inherit;outline:none;min-width:130px;}
+        .field input:focus,.field select:focus{border-color:var(--brand);}
+        .slider-field label{display:flex;justify-content:space-between;align-items:center;gap:.5rem;}
+        .slider-field input[type=range]{padding:0;height:28px;}
+        .actions{display:flex;gap:.45rem;align-items:flex-end;}
+        .btn-primary{border:none;border-radius:8px;background:var(--brand);color:#fff;font-weight:700;padding:.6rem 1rem;cursor:pointer;font-size:.9rem;display:flex;align-items:center;gap:.35rem;}
+        .btn-primary:hover{background:var(--brand-dark);}
+        .btn-outline{border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:var(--ink);font-weight:600;padding:.6rem 1rem;cursor:pointer;font-size:.9rem;display:flex;align-items:center;gap:.35rem;}
+        .btn-outline:hover{background:#f8fafc;}
+
+        /* Table */
+        .table-wrap{margin-top:1rem;background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:auto;}
+        .print-header{display:none;font-weight:700;font-size:12px;margin:0 0 4px;color:#000;}
+        table{width:100%;border-collapse:collapse;min-width:900px;}
+        thead th{background:var(--brand);color:#fff;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:var(--thp);font-size:var(--tf);border:1px solid var(--brand-dark);position:sticky;top:0;z-index:5;white-space:nowrap;}
+        tbody td{padding:var(--tdp);border-bottom:1px solid #f1f5f9;font-size:var(--tf);vertical-align:top;}
+        tbody tr:hover td{background:#faf5ff;}
+        tbody tr.row-pinned td{background:#f3e8ff !important;border-left:3px solid var(--brand);}
+        tbody tr.row-pinned:hover td{background:#ede9fe !important;}
+        tbody tr.row-solved td{opacity:.45;}
+
+        /* Badges */
+        .badge{display:inline-block;padding:2px 7px;border-radius:99px;font-size:.8em;font-weight:800;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap;}
+        .b-pending{background:#fef2f2;color:var(--danger);border:1px solid #fca5a5;}
+        .b-solved{background:#ecfdf5;color:var(--ok);border:1px solid #6ee7b7;}
+        .b-pin{background:var(--brand-light);color:var(--brand);border:1px solid #d8b4fe;}
+        .bal-cell{font-weight:800;color:var(--danger);text-align:right;}
+        .bal-cell.zero{color:var(--ok);}
+        .member-row{font-size:.85em;color:#475569;padding:1px 0;display:block;}
+        .member-row b{color:#0f172a;}
+        .notes-cell{font-style:italic;color:#475569;max-width:200px;word-break:break-word;}
+        .empty{text-align:center;color:var(--muted);padding:2rem;}
+        #loader{text-align:center;padding:2rem;color:var(--muted);font-size:1.1rem;}
+
+        /* Print */
+        @media print{
+            @page{size:A4 portrait;margin:6mm;}
+            body{background:#fff;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact;font-size:var(--pf);}
+            .top-head,.sum-cards,.filters,#loader{display:none !important;}
+            .page-wrap{max-width:none;margin:0;padding:0;}
+            .table-wrap{margin-top:0;border:none;border-radius:0;overflow:visible;}
+            .print-header{display:block;}
+            table{min-width:0;width:100%;}
+            thead th{position:static;font-size:var(--pf);padding:var(--php);border:1px solid #000;color:#000;background:#e5e7eb !important;}
+            tbody td{font-size:var(--pf);padding:var(--pdp);border:1px solid #000;color:#000;}
+            tbody tr.row-pinned td{background:#f3e0ff !important;border-left:2px solid #7c3aed;}
+            tbody tr.row-solved td{opacity:.5;}
+            tbody tr:hover td{background:transparent;}
+            .b-pending{background:#fee2e2 !important;color:#991b1b !important;}
+            .b-solved{background:#d1fae5 !important;color:#065f46 !important;}
+            .b-pin{background:#ede9fe !important;color:#5b21b6 !important;}
+        }
+        @media(max-width:860px){.top-head,.filters,.sum-cards{flex-direction:column;align-items:flex-start;}}
+    </style>
+</head>
+<body>
+<div class="page-wrap">
+
+    <header class="top-head">
+        <div class="title-wrap">
+            <div class="icon">👨‍👩‍👧‍👦</div>
+            <div>
+                <h1>Family Fee Balance Report</h1>
+                <p>Pinned, Pending &amp; Solved cases with outstanding balances per family</p>
+            </div>
+        </div>
+        <div class="nav-bar">
+            <a href="dashboard.html"><i class="fas fa-chart-line"></i> Dashboard</a>
+            <a href="family_contacts.html"><i class="fas fa-phone-volume"></i> Family Contacts</a>
+            <a href="collect_family_fee.html"><i class="fas fa-users-cog"></i> Collect Family Fee</a>
+            <a href="family_fee_report.html" class="active-page"><i class="fas fa-file-invoice-dollar"></i> This Report</a>
+        </div>
+    </header>
+
+    <div class="sum-cards">
+        <div class="s-card c-brand">
+            <span class="lbl">Total Families</span>
+            <strong id="scTotal">—</strong>
+            <small id="scStudents">— students</small>
+        </div>
+        <div class="s-card c-danger">
+            <span class="lbl">Pending</span>
+            <strong id="scPending">—</strong>
+            <small id="scPendingBal">Rs —</small>
+        </div>
+        <div class="s-card c-ok">
+            <span class="lbl">Solved</span>
+            <strong id="scSolved">—</strong>
+            <small id="scSolvedBal">Rs —</small>
+        </div>
+        <div class="s-card c-warn">
+            <span class="lbl">Pinned</span>
+            <strong id="scPinned">—</strong>
+            <small id="scPinnedBal">Rs —</small>
+        </div>
+        <div class="s-card c-danger">
+            <span class="lbl">Total Unpaid Balance</span>
+            <strong id="scTotalBal">Rs —</strong>
+            <small id="scFiltered"></small>
+        </div>
+    </div>
+
+    <div class="filters">
+        <div class="field">
+            <label for="monthPicker">Month</label>
+            <input type="month" id="monthPicker">
+        </div>
+        <div class="field">
+            <label for="statusFilter">Status</label>
+            <select id="statusFilter">
+                <option value="All">All Rows</option>
+                <option value="Pending">Pending Only</option>
+                <option value="Solved">Solved Only</option>
+                <option value="Pinned">Pinned Only</option>
+            </select>
+        </div>
+        <div class="field">
+            <label for="searchInput">Search</label>
+            <input type="text" id="searchInput" placeholder="Mobile / Name / Family #" style="min-width:210px;">
+        </div>
+        <div class="field slider-field" style="min-width:160px;">
+            <label>Font Size <span id="fsVal">9px</span></label>
+            <input type="range" id="fontSizeRange" min="7" max="20" step="0.5" value="9">
+        </div>
+        <div class="field slider-field" style="min-width:160px;">
+            <label>Compactness <span id="cmVal">80%</span></label>
+            <input type="range" id="compactnessRange" min="0" max="100" step="5" value="80">
+        </div>
+        <div class="actions">
+            <button class="btn-primary" id="loadBtn"><i class="fas fa-sync"></i> Reload</button>
+            <button class="btn-primary" id="printBtn"><i class="fas fa-print"></i> Print</button>
+            <button class="btn-outline" id="resetBtn"><i class="fas fa-times"></i> Reset</button>
+        </div>
+    </div>
+
+    <div class="table-wrap">
+        <div class="print-header" id="printHeader"></div>
+        <div id="loader">🔄 Loading family data...</div>
+        <table id="reportTable" style="display:none;">
+            <thead>
+                <tr>
+                    <th style="width:50px;text-align:center;">Fam #</th>
+                    <th style="min-width:180px;text-align:left;">Father / Family</th>
+                    <th style="min-width:160px;text-align:left;">Members &amp; Mobile</th>
+                    <th style="width:100px;text-align:right;">Balance</th>
+                    <th style="width:80px;text-align:center;">Status</th>
+                    <th style="width:55px;text-align:center;">Pin</th>
+                    <th style="min-width:180px;text-align:left;">Commitment / Notes</th>
+                </tr>
+            </thead>
+            <tbody id="reportBody">
+                <tr><td colspan="7" class="empty">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script src="auth.js"></script>
+<script src="family_fee_report.js"></script>
+</body>
+</html>

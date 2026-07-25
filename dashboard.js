@@ -22,7 +22,8 @@ var NAV_CATEGORIES = [
       { href: 'complaint_diary.html', label: 'Complaint Diary', icon: 'fas fa-envelope-open-text', key: 'complaints' },
       { href: 'student_complaints_report.html', label: 'Complaints Report', icon: 'fas fa-chart-pie', key: 'complaints' },
       { href: 'monitoring.html', label: 'Monitoring', icon: 'fas fa-chart-line', key: 'monitoring' },
-      { href: 'syllabus_progress.html', label: 'Progress', icon: 'fas fa-list-check', key: 'classes' }
+      { href: 'syllabus_progress.html', label: 'Progress', icon: 'fas fa-list-check', key: 'classes' },
+      { href: 'general_certificates.html', label: 'Certificates', icon: 'fas fa-certificate', key: 'classes' }
     ]
   },
     {
@@ -52,6 +53,7 @@ var NAV_CATEGORIES = [
       { href: 'fee_unpaid_head_report.html', label: 'Fee Not Paid Head Wise', icon: 'fas fa-exclamation-circle', key: 'collect_fee' },
       { href: 'discount_report.html', label: 'Discount Report', icon: 'fas fa-tag', key: 'collect_fee' },
       { href: 'fee_default_report.html', label: 'Fee Default Report', icon: 'fas fa-user-slash', key: 'collect_fee' },
+      { href: 'family_fee_report.html', label: 'Family Fee Balance Report', icon: 'fas fa-users-cog', key: 'collect_fee' },
     ]
   },
     {
