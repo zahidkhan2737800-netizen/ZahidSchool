@@ -177,14 +177,24 @@ function renderTable() {
         return true;
     });
 
-    // Sort: pinned first → by balance desc; then unpinned → roll number asc
+    // Sort: pinned first → by balance desc; then unpinned → classwise → roll number asc
     rows.sort((a, b) => {
         const ap = !!a.d.pinned, bp = !!b.d.pinned;
         if (ap && !bp) return -1;
         if (!ap && bp) return 1;
-        if (ap && bp) return (studentBalances[b.student.id] || 0) - (studentBalances[a.student.id] || 0);
-        // unpinned: roll number order (already sorted from query)
-        return 0;
+        if (ap && bp) {
+            return (studentBalances[b.student.id] || 0) - (studentBalances[a.student.id] || 0);
+        }
+        // both unpinned: group class-wise
+        const classA = a.student.applying_for_class || '';
+        const classB = b.student.applying_for_class || '';
+        if (classA !== classB) {
+            return classA.localeCompare(classB, undefined, { numeric: true, sensitivity: 'base' });
+        }
+        // same class: sort by roll number
+        const rollA = a.student.roll_number || '';
+        const rollB = b.student.roll_number || '';
+        return rollA.localeCompare(rollB, undefined, { numeric: true, sensitivity: 'base' });
     });
 
     // Summary counts
