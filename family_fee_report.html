@@ -11,8 +11,7 @@
             --bg:#f1f5f9;--panel:#ffffff;--line:#e2e8f0;--ink:#0f172a;--muted:#64748b;
             --brand:#7c3aed;--brand-dark:#5b21b6;--brand-light:#f3e8ff;
             --ok:#059669;--danger:#b91c1c;--warn:#d97706;
-            --tf:14px;--tdp:8px 10px;--thp:9px 10px;
-            --pf:11px;--pdp:4px 6px;--php:5px 6px;
+            --tf:16px;--tdp:8px 10px;--thp:9px 10px;
         }
         *{box-sizing:border-box;}
         body{margin:0;font-family:"Segoe UI",Tahoma,Geneva,Verdana,sans-serif;background:linear-gradient(140deg,#f5f3ff 0%,#f8fafc 50%,#ede9fe 100%);color:var(--ink);}
@@ -91,20 +90,20 @@
         tbody tr.row-solved td{opacity:.4;}
 
         /* Text labels instead of colored badges */
-        .status-lbl{font-weight:700;font-size:.85em;text-transform:uppercase;}
+        .status-lbl{font-weight:700;font-size:1em;text-transform:uppercase;}
         .status-lbl.pending{color:var(--danger);}
         .status-lbl.solved {color:var(--ok);}
-        .pin-lbl{font-weight:700;font-size:.85em;color:#334155;}
+        .pin-lbl{font-weight:700;font-size:1em;color:#334155;}
 
         .bal-cell{font-weight:800;color:#0f172a;text-align:right;}
         .bal-cell.zero{color:var(--ok);}
-        .member-row{font-size:.9em;color:#475569;padding:1px 0;display:block;}
+        .member-row{font-size:1em;color:#475569;padding:2px 0;display:block;}
         .member-row b{color:#0f172a;}
         .notes-cell{font-style:italic;color:#475569;max-width:200px;word-break:break-word;}
         .empty{text-align:center;color:var(--muted);padding:2rem;}
         #loader{text-align:center;padding:2rem;color:var(--muted);font-size:1.1rem;}
 
-        /* ── Print — same pattern as fee_paid_log ── */
+        /* ── Print — same pattern as fee_paid_log, but uses slider font sizes dynamically ── */
         @media print{
             @page{size:A4 portrait;margin:6mm;}
             body{background:#fff;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
@@ -113,8 +112,8 @@
             .table-wrap{margin-top:0;border:none;border-radius:0;overflow:visible;}
             .print-header{display:block;}
             table{min-width:0;width:100%;}
-            thead th{position:static;font-size:var(--pf);padding:var(--php);border:1px solid #000;color:#000;background:#fff;}
-            tbody td{font-size:var(--pf);padding:var(--pdp);border:1px solid #000;color:#000;}
+            thead th{position:static;font-size:var(--tf);padding:var(--thp);border:1px solid #000;color:#000;background:#fff;}
+            tbody td{font-size:var(--tf);padding:var(--tdp);border:1px solid #000;color:#000;}
             tbody tr:hover td{background:transparent;}
             tbody tr.row-pinned td{border-left:2px solid #000;}
             tbody tr.row-solved td{opacity:.45;}
@@ -188,8 +187,8 @@
             <input type="text" id="searchInput" placeholder="Mobile / Name / Family #" style="min-width:210px;">
         </div>
         <div class="field slider-field" style="min-width:160px;">
-            <label>Font Size <span id="fsVal">14px</span></label>
-            <input type="range" id="fontSizeRange" min="7" max="20" step="0.5" value="14">
+            <label>Font Size <span id="fsVal">16px</span></label>
+            <input type="range" id="fontSizeRange" min="10" max="25" step="0.5" value="16">
         </div>
         <div class="field slider-field" style="min-width:160px;">
             <label>Compactness <span id="cmVal">80%</span></label>

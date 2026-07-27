@@ -1,4 +1,4 @@
-﻿// ═══════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 // student_fee_report.js  –  Student Fee Balance Report
 // Data sources:
 //   - admissions  : individual students (excluding family students)
@@ -258,11 +258,11 @@ function resetFilters() {
     document.getElementById('classFilter').value      = '';
     document.getElementById('statusFilter').value     = 'All';
     document.getElementById('searchInput').value      = '';
-    document.getElementById('fontSizeRange').value    = 14;
+    document.getElementById('fontSizeRange').value    = 16;
     document.getElementById('compactnessRange').value = 80;
-    document.getElementById('fsVal').textContent      = '14px';
+    document.getElementById('fsVal').textContent      = '16px';
     document.getElementById('cmVal').textContent      = '80%';
-    document.documentElement.style.setProperty('--tf',  '14px');
+    document.documentElement.style.setProperty('--tf',  '16px');
     document.documentElement.style.setProperty('--tdp', '8px 10px');
     document.documentElement.style.setProperty('--thp', '9px 10px');
     renderTable();

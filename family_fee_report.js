@@ -239,7 +239,7 @@ function renderTable() {
         const rowCls   = (isPinned ? 'row-pinned ' : '') + (isSolved ? 'row-solved' : '');
 
         const membersHtml = fam.members.map(m =>
-            `<span class="member-row">• <b>${m.roll_number}</b> ${esc(m.full_name)} <small style="color:#94a3b8;">(${m.applying_for_class || ''})</small></span>`
+            `<span class="member-row">• <b>${m.roll_number}</b> ${esc(m.full_name)} <span style="color:#64748b; font-weight:600;">(${m.applying_for_class || ''})</span></span>`
         ).join('');
 
         const statusLbl = isSolved
@@ -283,11 +283,11 @@ function setLoader(show) {
 function resetFilters() {
     document.getElementById('statusFilter').value = 'All';
     document.getElementById('searchInput').value  = '';
-    document.getElementById('fontSizeRange').value = 14;
+    document.getElementById('fontSizeRange').value = 16;
     document.getElementById('compactnessRange').value = 80;
-    document.getElementById('fsVal').textContent  = '14px';
+    document.getElementById('fsVal').textContent  = '16px';
     document.getElementById('cmVal').textContent  = '80%';
-    document.documentElement.style.setProperty('--tf',  '14px');
+    document.documentElement.style.setProperty('--tf',  '16px');
     document.documentElement.style.setProperty('--tdp', '8px 10px');
     document.documentElement.style.setProperty('--thp', '9px 10px');
     renderTable();
