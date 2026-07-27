@@ -1,21 +1,21 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zahid School - Family Fee Balance Report</title>
+    <title>Zahid School - Student Fee Balance Report</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root {
             --bg:#f1f5f9;--panel:#ffffff;--line:#e2e8f0;--ink:#0f172a;--muted:#64748b;
-            --brand:#7c3aed;--brand-dark:#5b21b6;--brand-light:#f3e8ff;
+            --brand:#2563eb;--brand-dark:#1d4ed8;--brand-light:#eff6ff;
             --ok:#059669;--danger:#b91c1c;--warn:#d97706;
             --tf:14px;--tdp:8px 10px;--thp:9px 10px;
             --pf:8px;--pdp:1.5px 3px;--php:2px 3px;
         }
         *{box-sizing:border-box;}
-        body{margin:0;font-family:"Segoe UI",Tahoma,Geneva,Verdana,sans-serif;background:linear-gradient(140deg,#f5f3ff 0%,#f8fafc 50%,#ede9fe 100%);color:var(--ink);}
+        body{margin:0;font-family:"Segoe UI",Tahoma,Geneva,Verdana,sans-serif;background:linear-gradient(140deg,#eff6ff 0%,#f8fafc 50%,#dbeafe 100%);color:var(--ink);}
         .page-wrap{max-width:1500px;margin:0 auto;padding:1.25rem;}
 
         /* ── Header ── */
@@ -25,7 +25,7 @@
         .title-wrap h1{margin:0;font-size:1.35rem;}
         .title-wrap p{margin:.2rem 0 0;color:var(--muted);font-size:.9rem;}
         .nav-bar{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;}
-        .nav-bar a{text-decoration:none;color:var(--brand-dark);font-weight:600;font-size:.85rem;border:1px solid #d8b4fe;background:var(--brand-light);padding:.4rem .65rem;border-radius:8px;white-space:nowrap;display:inline-flex;align-items:center;gap:.35rem;}
+        .nav-bar a{text-decoration:none;color:var(--brand-dark);font-weight:600;font-size:.85rem;border:1px solid #bfdbfe;background:var(--brand-light);padding:.4rem .65rem;border-radius:8px;white-space:nowrap;display:inline-flex;align-items:center;gap:.35rem;}
         .nav-bar a:hover{background:var(--brand);color:#fff;border-color:var(--brand);}
         .nav-bar a.active-page{background:var(--brand);color:#fff;border-color:var(--brand);}
 
@@ -54,13 +54,13 @@
         .btn-outline{border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:var(--ink);font-weight:600;padding:.6rem 1rem;cursor:pointer;font-size:.9rem;display:flex;align-items:center;gap:.35rem;}
         .btn-outline:hover{background:#f8fafc;}
 
-        /* ── Table — BLACK & WHITE like fee_paid_log ── */
+        /* ── Table — Black & White like fee_paid_log ── */
         .table-wrap{margin-top:1rem;background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:auto;}
         .print-header{display:none;font-weight:700;font-size:12px;margin:0 0 6px;color:#000;}
 
         table{width:100%;border-collapse:collapse;min-width:900px;}
 
-        thead th {
+        thead th{
             text-align:left;
             padding:var(--thp);
             font-size:var(--tf);
@@ -74,7 +74,7 @@
             font-weight:700;
         }
 
-        tbody td {
+        tbody td{
             padding:var(--tdp);
             border-bottom:1px solid #f1f5f9;
             font-size:var(--tf);
@@ -83,28 +83,25 @@
 
         tbody tr:hover td{background:#f8fafc;}
 
-        /* Pinned: subtle left border only, no color fill */
+        /* Pinned: bold left border only */
         tbody tr.row-pinned td{border-left:3px solid #334155;}
-        tbody tr.row-pinned td:first-child{border-left:3px solid #334155;}
 
         /* Solved: dimmed */
         tbody tr.row-solved td{opacity:.4;}
 
-        /* Text labels instead of colored badges */
+        /* Labels */
         .status-lbl{font-weight:700;font-size:.85em;text-transform:uppercase;}
         .status-lbl.pending{color:var(--danger);}
-        .status-lbl.solved {color:var(--ok);}
+        .status-lbl.solved{color:var(--ok);}
         .pin-lbl{font-weight:700;font-size:.85em;color:#334155;}
 
         .bal-cell{font-weight:800;color:#0f172a;text-align:right;}
         .bal-cell.zero{color:var(--ok);}
-        .member-row{font-size:.9em;color:#475569;padding:1px 0;display:block;}
-        .member-row b{color:#0f172a;}
         .notes-cell{font-style:italic;color:#475569;max-width:200px;word-break:break-word;}
         .empty{text-align:center;color:var(--muted);padding:2rem;}
         #loader{text-align:center;padding:2rem;color:var(--muted);font-size:1.1rem;}
 
-        /* ── Print — same pattern as fee_paid_log ── */
+        /* ── Print ── */
         @media print{
             @page{size:A4 portrait;margin:6mm;}
             body{background:#fff;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
@@ -127,25 +124,26 @@
 
     <header class="top-head">
         <div class="title-wrap">
-            <div class="icon">👨‍👩‍👧‍👦</div>
+            <div class="icon">🧑‍🎓</div>
             <div>
-                <h1>Family Fee Balance Report</h1>
-                <p>Pinned, Pending &amp; Solved cases with outstanding balances per family</p>
+                <h1>Student Fee Balance Report</h1>
+                <p>Pinned, Pending &amp; Solved cases with outstanding balances per individual student</p>
             </div>
         </div>
         <div class="nav-bar">
             <a href="dashboard.html"><i class="fas fa-chart-line"></i> Dashboard</a>
-            <a href="family_contacts.html"><i class="fas fa-phone-volume"></i> Family Contacts</a>
-            <a href="collect_family_fee.html"><i class="fas fa-users-cog"></i> Collect Family Fee</a>
-            <a href="family_fee_report.html" class="active-page"><i class="fas fa-file-invoice-dollar"></i> This Report</a>
+            <a href="fee_contacts.html"><i class="fas fa-phone-alt"></i> Student Contacts</a>
+            <a href="collect_fee.html"><i class="fas fa-hand-holding-usd"></i> Collect Fee</a>
+            <a href="family_fee_report.html"><i class="fas fa-users-cog"></i> Family Report</a>
+            <a href="student_fee_report.html" class="active-page"><i class="fas fa-file-invoice-dollar"></i> This Report</a>
         </div>
     </header>
 
     <div class="sum-cards">
         <div class="s-card c-brand">
-            <span class="lbl">Total Families</span>
+            <span class="lbl">Total Students</span>
             <strong id="scTotal">—</strong>
-            <small id="scStudents">— students</small>
+            <small id="scClass">All classes</small>
         </div>
         <div class="s-card c-danger">
             <span class="lbl">Pending</span>
@@ -175,6 +173,12 @@
             <input type="month" id="monthPicker">
         </div>
         <div class="field">
+            <label for="classFilter">Class</label>
+            <select id="classFilter">
+                <option value="">All Classes</option>
+            </select>
+        </div>
+        <div class="field">
             <label for="statusFilter">Status</label>
             <select id="statusFilter">
                 <option value="All">All Rows</option>
@@ -185,7 +189,7 @@
         </div>
         <div class="field">
             <label for="searchInput">Search</label>
-            <input type="text" id="searchInput" placeholder="Mobile / Name / Family #" style="min-width:210px;">
+            <input type="text" id="searchInput" placeholder="Roll / Name / Father / Mobile" style="min-width:210px;">
         </div>
         <div class="field slider-field" style="min-width:160px;">
             <label>Font Size <span id="fsVal">14px</span></label>
@@ -204,27 +208,28 @@
 
     <div class="table-wrap">
         <div class="print-header" id="printHeader"></div>
-        <div id="loader">🔄 Loading family data...</div>
+        <div id="loader">🔄 Loading student data...</div>
         <table id="reportTable" style="display:none;">
             <thead>
                 <tr>
-                    <th style="width:50px;text-align:center;">Fam #</th>
-                    <th style="min-width:180px;">Father / Family</th>
-                    <th style="min-width:160px;">Members &amp; Mobile</th>
-                    <th style="width:100px;text-align:right;">Balance</th>
-                    <th style="width:70px;text-align:center;">Status</th>
-                    <th style="width:50px;text-align:center;">Pin</th>
+                    <th style="width:55px;text-align:center;">Roll #</th>
+                    <th style="min-width:160px;">Student Name</th>
+                    <th style="min-width:140px;">Father / Mobile</th>
+                    <th style="width:90px;">Class</th>
+                    <th style="width:110px;text-align:right;">Balance</th>
+                    <th style="width:75px;text-align:center;">Status</th>
+                    <th style="width:55px;text-align:center;">Pin</th>
                     <th style="min-width:180px;">Commitment / Notes</th>
                 </tr>
             </thead>
             <tbody id="reportBody">
-                <tr><td colspan="7" class="empty">Loading...</td></tr>
+                <tr><td colspan="8" class="empty">Loading...</td></tr>
             </tbody>
         </table>
     </div>
 </div>
 
 <script src="auth.js"></script>
-<script src="family_fee_report.js"></script>
+<script src="student_fee_report.js"></script>
 </body>
 </html>

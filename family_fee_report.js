@@ -283,13 +283,13 @@ function setLoader(show) {
 function resetFilters() {
     document.getElementById('statusFilter').value = 'All';
     document.getElementById('searchInput').value  = '';
-    document.getElementById('fontSizeRange').value = 9;
+    document.getElementById('fontSizeRange').value = 14;
     document.getElementById('compactnessRange').value = 80;
-    document.getElementById('fsVal').textContent  = '9px';
+    document.getElementById('fsVal').textContent  = '14px';
     document.getElementById('cmVal').textContent  = '80%';
-    document.documentElement.style.setProperty('--tf',  '9px');
-    document.documentElement.style.setProperty('--tdp', '4px 6px');
-    document.documentElement.style.setProperty('--thp', '5px 6px');
+    document.documentElement.style.setProperty('--tf',  '14px');
+    document.documentElement.style.setProperty('--tdp', '8px 10px');
+    document.documentElement.style.setProperty('--thp', '9px 10px');
     renderTable();
 }
 
