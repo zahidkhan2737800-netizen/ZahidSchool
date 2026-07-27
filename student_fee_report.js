@@ -226,18 +226,41 @@ function renderTable() {
         return;
     }
 
-    tbody.innerHTML = rows.map(({ student, d }) => {
+    let html = '';
+    let lastClass = null;
+    let hasPinnedHeaderBeenAdded = false;
+
+    rows.forEach(({ student, d }) => {
         const bal      = studentBalances[student.id] || 0;
         const isPinned = !!d.pinned;
         const isSolved = d.row_status === 'Solved';
         const rowCls   = (isPinned ? 'row-pinned ' : '') + (isSolved ? 'row-solved' : '');
+
+        // 1. Header for Pinned Students
+        if (isPinned && !hasPinnedHeaderBeenAdded) {
+            html += `<tr class="group-header-row pinned-group-header">
+                <td colspan="8">📌 PINNED FOLLOW-UPS</td>
+            </tr>`;
+            hasPinnedHeaderBeenAdded = true;
+        }
+
+        // 2. Class Header for Unpinned Students
+        if (!isPinned) {
+            const currentClass = (student.applying_for_class || 'Unassigned').trim();
+            if (currentClass !== lastClass) {
+                lastClass = currentClass;
+                html += `<tr class="group-header-row class-group-header">
+                    <td colspan="8">🏫 Class: ${esc(currentClass)}</td>
+                </tr>`;
+            }
+        }
 
         const statusLbl = isSolved
             ? '<span class="status-lbl solved">Solved</span>'
             : '<span class="status-lbl pending">Pending</span>';
         const pinLbl = isPinned ? '<span class="pin-lbl">📌 Pin</span>' : '—';
 
-        return `<tr class="${rowCls}">
+        html += `<tr class="${rowCls}">
             <td style="text-align:center;font-weight:700;">${esc(student.roll_number)}</td>
             <td><strong>${esc(student.full_name)}</strong></td>
             <td>
@@ -250,7 +273,9 @@ function renderTable() {
             <td style="text-align:center;">${pinLbl}</td>
             <td class="notes-cell">${esc(d.commitment_notes || '')}</td>
         </tr>`;
-    }).join('');
+    });
+
+    tbody.innerHTML = html;
 
     document.getElementById('reportTable').style.display = 'table';
 }
