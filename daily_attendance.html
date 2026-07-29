@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zahid School - Paid Fee Log</title>
+    <title>Zahid School - Daily Attendance Report</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="fee_paid_log.css">
+    <link rel="stylesheet" href="daily_attendance.css">
     <style>
         .nav-bar{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
         .nav-bar>a{text-decoration:none;color:var(--brand-dark);font-weight:600;font-size:.85rem;border:1px solid #c7d2fe;background:#eef2ff;padding:.4rem .65rem;border-radius:8px;white-space:nowrap}
@@ -28,19 +28,20 @@
     <div class="page-wrap">
         <header class="top-head">
             <div class="title-wrap">
-                <div class="icon">💰</div>
+                <div class="icon">📋</div>
                 <div>
-                    <h1>Paid Fee Log</h1>
-                    <p>Date-wise challan payments with student details</p>
+                    <h1>Daily Attendance Report</h1>
+                    <p>Date-wise student attendance log with Present, Absent, and Leave filters</p>
                 </div>
             </div>
             <div class="nav-bar">
                 <a href="dashboard.html"><i class="fas fa-chart-line"></i> Dashboard</a>
-                <a href="collect_fee.html"><i class="fas fa-hand-holding-usd"></i> Collect Fee</a>
+                <a href="attendance.html"><i class="fas fa-calendar-check"></i> Attendance Hub</a>
+                
                 <div class="nav-dropdown">
                     <span class="nav-dropdown-btn" tabindex="0"><i class="fas fa-user-graduate"></i> Students Report <i class="fas fa-chevron-down" style="font-size:.7rem"></i></span>
                     <div class="nav-dropdown-menu">
-                        <a href="daily_attendance.html"><i class="fas fa-calendar-check"></i> Daily Attendance Report</a>
+                        <a href="daily_attendance.html" class="active-page"><i class="fas fa-calendar-check"></i> Daily Attendance Report</a>
                         <a href="Absent_days.html"><i class="fas fa-calendar-minus"></i> Absent Days</a>
                         <a href="Absent_Report Card.html"><i class="fas fa-id-card"></i> Absent Days Reports</a>
                         <div class="nav-sep"></div>
@@ -48,10 +49,11 @@
                         <a href="reports.html"><i class="fas fa-print"></i> Report Generator</a>
                     </div>
                 </div>
+
                 <div class="nav-dropdown">
                     <span class="nav-dropdown-btn" tabindex="0"><i class="fas fa-file-invoice-dollar"></i> Fee Reports <i class="fas fa-chevron-down" style="font-size:.7rem"></i></span>
                     <div class="nav-dropdown-menu">
-                        <a href="fee_paid_log.html" class="active-page"><i class="fas fa-list-check"></i> Fee Paid Log</a>
+                        <a href="fee_paid_log.html"><i class="fas fa-list-check"></i> Fee Paid Log</a>
                         <a href="fee_register.html"><i class="fas fa-table"></i> Fee Register</a>
                         <div class="nav-sep"></div>
                         <a href="fee_type_report.html"><i class="fas fa-file-invoice"></i> Fee Type Report</a>
@@ -65,12 +67,30 @@
 
         <section class="filters">
             <div class="field">
-                <label for="feeDate">Select Date</label>
-                <input type="date" id="feeDate">
+                <label for="attDate">Select Date</label>
+                <input type="date" id="attDate">
+            </div>
+            <div class="field">
+                <label for="statusFilter">Attendance Status</label>
+                <select id="statusFilter">
+                    <option value="ALL">All Statuses</option>
+                    <option value="Present">Present Only ✅</option>
+                    <option value="Absent">Absent Only ❌</option>
+                    <option value="Leave">Leave Only 📝</option>
+                    <option value="Late">Late Only ⏰</option>
+                    <option value="Holiday">Holiday 🏖️</option>
+                    <option value="NotMarked">Not Marked ❓</option>
+                </select>
+            </div>
+            <div class="field">
+                <label for="classFilter">Target Class</label>
+                <select id="classFilter">
+                    <option value="ALL">All Classes</option>
+                </select>
             </div>
             <div class="field search-field">
                 <label for="searchText">Search Student / Roll / Father</label>
-                <input type="text" id="searchText" placeholder="Type student name, roll number, or father name">
+                <input type="text" id="searchText" placeholder="Type student name, roll, class, or father name">
             </div>
             <div class="field slider-field">
                 <label for="fontSizeRange">Font Size <span id="fontSizeValue">8.5px</span></label>
@@ -88,12 +108,28 @@
 
         <section class="summary" id="summaryBar">
             <div class="card">
-                <span class="lbl">Rows</span>
-                <strong id="rowCount">0</strong>
+                <span class="lbl">Total Students</span>
+                <strong id="rowCount" style="color:var(--ink);">0</strong>
             </div>
             <div class="card">
-                <span class="lbl">Total Amount</span>
-                <strong id="totalAmount">Rs 0</strong>
+                <span class="lbl">Present</span>
+                <strong id="presentCount" style="color:var(--ok);">0</strong>
+            </div>
+            <div class="card">
+                <span class="lbl">Absent</span>
+                <strong id="absentCount" style="color:var(--danger);">0</strong>
+            </div>
+            <div class="card">
+                <span class="lbl">Leave</span>
+                <strong id="leaveCount" style="color:var(--warning);">0</strong>
+            </div>
+            <div class="card">
+                <span class="lbl">Late</span>
+                <strong id="lateCount" style="color:var(--info);">0</strong>
+            </div>
+            <div class="card">
+                <span class="lbl">Not Marked</span>
+                <strong id="notMarkedCount" style="color:var(--muted);">0</strong>
             </div>
         </section>
 
@@ -103,18 +139,17 @@
                 <thead>
                     <tr>
                         <th>Date</th>
-                        <th>Time (12h)</th>
                         <th>Roll No</th>
                         <th>Student Name</th>
                         <th>Class</th>
-                        <th>Fee Head / Month</th>
-                        <th>Payment Type</th>
-                        <th>Amount</th>
+                        <th>Father Name</th>
+                        <th>Father Mobile</th>
+                        <th>Attendance Status</th>
                     </tr>
                 </thead>
-                <tbody id="paidLogBody">
+                <tbody id="attendanceBody">
                     <tr>
-                        <td colspan="8" class="empty">Loading...</td>
+                        <td colspan="7" class="empty">Loading daily attendance records...</td>
                     </tr>
                 </tbody>
             </table>
@@ -122,6 +157,6 @@
     </div>
 
     <script src="auth.js"></script>
-    <script src="fee_paid_log.js"></script>
+    <script src="daily_attendance.js"></script>
 </body>
 </html>

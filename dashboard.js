@@ -29,7 +29,8 @@ var NAV_CATEGORIES = [
     {
         id: 'attendance_tools', label: 'Attendance', icon: 'fas fa-calendar-check',
         items: [
-            { href: 'attendance.html', label: 'Attendance', icon: 'fas fa-calendar-check', key: 'attendance' },
+            { href: 'attendance.html', label: 'Attendance Hub', icon: 'fas fa-calendar-check', key: 'attendance' },
+            { href: 'daily_attendance.html', label: 'Daily Attendance Report', icon: 'fas fa-clipboard-list', key: 'attendance' },
             { href: 'attendance_register.html', label: 'Attendance Register', icon: 'fas fa-table', key: 'attendance' },
             { href: 'Absent_days.html', label: 'Absent Days', icon: 'fas fa-calendar-minus', key: 'attendance' },
             { href: 'Absent_Report Card.html', label: 'Absent Days Reports', icon: 'fas fa-id-card', key: 'attendance' },

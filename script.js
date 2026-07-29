@@ -201,10 +201,20 @@ document.addEventListener('DOMContentLoaded', () => {
             ageInput.value = '';
         }
     });
-    // Set admission date to today by default
+    // Set admission date to today by default (Asia/Karachi timezone)
     const admissionDateInput = document.getElementById('admissionDate');
     if (admissionDateInput) {
-        admissionDateInput.value = new Date().toISOString().split('T')[0];
+        const parts = new Intl.DateTimeFormat('en-US', { 
+            timeZone: 'Asia/Karachi', 
+            year: 'numeric', 
+            month: '2-digit', 
+            day: '2-digit' 
+        }).formatToParts(new Date());
+        
+        const y = parts.find(p => p.type === 'year').value;
+        const m = parts.find(p => p.type === 'month').value;
+        const d = parts.find(p => p.type === 'day').value;
+        admissionDateInput.value = `${y}-${m}-${d}`;
     }
 
     // Photo Preview + Compression
