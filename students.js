@@ -2,8 +2,7 @@
 
 document.addEventListener('DOMContentLoaded', async () => {
     const studentsBody = document.getElementById('studentsBody');
-    const searchNameInput = document.getElementById('searchName');
-    const searchRollInput = document.getElementById('searchRoll');
+    const searchQueryInput = document.getElementById('searchQuery');
     const searchClassSelect = document.getElementById('searchClass');
     const applySchoolScope = (query) => {
         const sid = window.currentSchoolId || null;
@@ -26,8 +25,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }, 400); // Wait 400ms after last keystroke before querying
     }
 
-    searchNameInput.addEventListener('input', handleSearchInput);
-    searchRollInput.addEventListener('input', handleSearchInput);
+    if (searchQueryInput) searchQueryInput.addEventListener('input', handleSearchInput);
     searchClassSelect.addEventListener('change', fetchStudents);
 
     async function waitForAuthContext(timeoutMs = 10000) {
@@ -57,23 +55,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 .select('id, roll_number, full_name, father_name, father_mobile, father_whatsapp, admission_date, applying_for_class')
                 .eq('status', 'Active')); // ALWAYS filter by Active status!
 
-            // Apply exact filter: Roll Number
-            const searchRoll = searchRollInput.value.trim();
-            if (searchRoll) {
-                query = query.eq('roll_number', searchRoll);
-            }
-
             // Apply exact filter: Class
             const searchClass = searchClassSelect.value;
             if (searchClass) {
                 query = query.eq('applying_for_class', searchClass);
             }
 
-            // Apply partial filter: Student Name OR Father Name
-            const searchName = searchNameInput.value.trim();
-            if (searchName) {
-                // In Supabase, testing OR logic on single columns with ilike looks like this:
-                query = query.or(`full_name.ilike.%${searchName}%,father_name.ilike.%${searchName}%`);
+            // Apply search query: Student Name OR Father Name OR Roll Number
+            const searchQuery = searchQueryInput ? searchQueryInput.value.trim() : '';
+            if (searchQuery) {
+                const safeQuery = searchQuery.replace(/[,\(\)]/g, ' ').trim();
+                query = query.or(`full_name.ilike.%${safeQuery}%,father_name.ilike.%${safeQuery}%,roll_number.eq.${safeQuery}`);
             }
 
             // Order by date

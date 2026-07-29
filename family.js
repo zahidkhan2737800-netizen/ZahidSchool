@@ -131,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     ${optionsHtml}
                 `;
             } else {
-                fatherCell = `<strong>${fam.primaryName}</strong>`;
+                fatherCell = `<input type="text" class="family-name-input" data-mobile="${fam.mobile}" value="${fam.primaryName}" style="width:100%; padding:0.4rem; border-radius:6px; border:1px solid #cbd5e1; font-size:1.1rem; font-weight:700; outline:none; transition:0.2s; color:#0f172a; background:transparent;" title="Edit family name and click away to save">`;
             }
 
             let membersHtml = `<div style="display: flex; flex-wrap: wrap; gap: 0.4rem;">` + fam.members.map(m => `
@@ -198,6 +198,66 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(e.key === 'Enter') e.target.blur();
             });
         });
+
+        // Handle Editable Family Name (auto-save on blur)
+        document.querySelectorAll('.family-name-input').forEach(input => {
+            input.addEventListener('focus', (e) => {
+                e.target.dataset.original = e.target.value;
+                e.target.style.background = '#fff';
+                e.target.style.borderColor = '#2563eb';
+            });
+
+            input.addEventListener('blur', async (e) => {
+                const mobile = e.target.getAttribute('data-mobile');
+                const newName = e.target.value.trim();
+                const originalName = e.target.dataset.original || '';
+
+                e.target.style.borderColor = '#cbd5e1';
+
+                if (!newName) {
+                    e.target.value = originalName;
+                    e.target.style.background = 'transparent';
+                    return;
+                }
+
+                if (newName === originalName) {
+                    e.target.style.background = 'transparent';
+                    return;
+                }
+
+                e.target.style.background = '#fef3c7';
+
+                try {
+                    const { error } = await supabaseClient
+                        .from('admissions')
+                        .update({ father_name: newName })
+                        .eq('father_mobile', mobile);
+
+                    if (error) throw error;
+
+                    e.target.style.background = '#d1fae5';
+                    setTimeout(() => { e.target.style.background = 'transparent'; }, 1500);
+
+                    // Update local data so search/filter stays consistent
+                    const fam = familiesData.find(f => f.mobile === mobile);
+                    if (fam) {
+                        fam.primaryName = newName;
+                        fam.uniqueFatherNames = [newName];
+                        fam.members.forEach(m => { m.father_name = newName; });
+                    }
+                } catch (err) {
+                    alert('Error saving family name: ' + err.message);
+                    e.target.value = originalName;
+                    e.target.style.background = '#fee2e2';
+                    setTimeout(() => { e.target.style.background = 'transparent'; }, 1500);
+                }
+            });
+
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') e.target.blur();
+            });
+        });
+
         // Handle Conflict Resolution
         document.querySelectorAll('.conflict-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
