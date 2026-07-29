@@ -449,7 +449,7 @@ async function loadHistory(famMembers) {
         }
 
         historyBody.innerHTML = historyArray.map((r, idx) => {
-            const dateStr = new Date(r.created_at).toLocaleDateString();
+            const dateStr = new Date(r.created_at).toLocaleDateString('en-PK', { timeZone: 'Asia/Karachi' });
             return `
             <tr>
                 <td>
@@ -477,7 +477,7 @@ async function loadHistory(famMembers) {
 function reprintFromHistory(receipt) {
     applyThermalSettings('collect_family_fee');
     document.getElementById('rctNo').textContent        = receipt.receipt_number;
-    document.getElementById('rctDate').textContent      = new Date(receipt.created_at).toLocaleString();
+    document.getElementById('rctDate').textContent      = new Date(receipt.created_at).toLocaleString('en-PK', { timeZone: 'Asia/Karachi' });
     document.getElementById('rctName').textContent      = `${activeFamily.primaryName}`;
     const rctFamNode = document.getElementById('rctFamilyNo');
     if(rctFamNode) rctFamNode.textContent = activeFamily.familyNo || 'N/A';
@@ -518,7 +518,7 @@ function reprintFromHistory(receipt) {
 window.printDaySummary = function(dateStr) {
     if (!receiptCache || receiptCache.length === 0) return;
     
-    const dayReceipts = receiptCache.filter(r => new Date(r.created_at).toLocaleDateString() === dateStr);
+    const dayReceipts = receiptCache.filter(r => new Date(r.created_at).toLocaleDateString('en-PK', { timeZone: 'Asia/Karachi' }) === dateStr);
     if (dayReceipts.length === 0) return;
     
     const sorted = [...dayReceipts].sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
@@ -958,7 +958,7 @@ async function submitPayment() {
 function printReceipt(receiptId, txRecords, totalPaid, remaining, fine = 0, discount = 0) {
     applyThermalSettings('collect_family_fee');
     document.getElementById('rctNo').textContent       = receiptId;
-    document.getElementById('rctDate').textContent     = new Date().toLocaleString();
+    document.getElementById('rctDate').textContent     = new Date().toLocaleString('en-PK', { timeZone: 'Asia/Karachi' });
     document.getElementById('rctName').textContent     = `${activeFamily.primaryName}`;
     
     const rctFamNode = document.getElementById('rctFamilyNo');
@@ -1039,7 +1039,7 @@ function printBill() {
 
     applyThermalSettings('collect_family_fee');
     document.getElementById('rctNo').textContent       = 'BILL-' + Date.now().toString().slice(-4);
-    document.getElementById('rctDate').textContent     = new Date().toLocaleString();
+    document.getElementById('rctDate').textContent     = new Date().toLocaleString('en-PK', { timeZone: 'Asia/Karachi' });
     document.getElementById('rctName').textContent     = `${activeFamily.primaryName}`;
     
     const rctFamNode = document.getElementById('rctFamilyNo');
@@ -1195,8 +1195,8 @@ async function loadDiscountHistory(famMembers) {
         discountBody.innerHTML = rows.map(row => {
             const stu = famMembers.find(m => m.id === row.student_id);
             const stuName = stu ? stu.full_name.split(' ')[0] + ' (' + (stu.roll_number || row.roll_number || '?') + ')' : (row.roll_number || 'Unknown');
-            const dateStr = new Date(row.created_at).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' });
-            const timeStr = new Date(row.created_at).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' });
+            const dateStr = new Date(row.created_at).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Karachi' });
+            const timeStr = new Date(row.created_at).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Karachi' });
             const reason  = row.fee_details || row.payment_reference || '—';
             const rem     = typeof row.amount_paid === 'number' ? `Rs ${Number(row.amount_paid).toLocaleString()}` : '—';
             return `
