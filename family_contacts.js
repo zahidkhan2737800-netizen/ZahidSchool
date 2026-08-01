@@ -166,24 +166,31 @@ async function loadBaseData() {
             });
         });
 
-        // Fetch Real Unpaid Balances - Filtered by active students only to avoid 1000-row limit from old challans
+        // Fetch Real Unpaid Balances - Safely batched by student IDs to avoid URI Too Long errors
         let allStudentIds = [];
         allFamilies.forEach(f => {
-            if (f.members) {
-                f.members.forEach(m => allStudentIds.push(m.id));
-            }
+            if (f.members) f.members.forEach(m => allStudentIds.push(m.id));
         });
 
         allPendingChallans = [];
         if (allStudentIds.length > 0) {
-            const { data: challans, error: bErr } = await window.supabaseClient
-                .from('challans')
-                .select('*')
-                .in('student_id', allStudentIds)
-                .in('status', ['Unpaid', 'Partially Paid']);
-                
-            if (!bErr && challans) {
-                allPendingChallans = challans;
+            try {
+                // Batch by 40 students to stay well within URL limits
+                for (let i = 0; i < allStudentIds.length; i += 40) {
+                    const batch = allStudentIds.slice(i, i + 40);
+                    const { data: batchData, error: bErr } = await window.supabaseClient
+                        .from('challans')
+                        .select('*')
+                        .in('student_id', batch)
+                        .in('status', ['Unpaid', 'Partially Paid'])
+                        .limit(2000); // safety limit per batch
+                        
+                    if (!bErr && batchData) {
+                        allPendingChallans.push(...batchData);
+                    }
+                }
+            } catch (queryErr) {
+                console.warn("Challan batch fetch warning:", queryErr);
             }
         }
 
