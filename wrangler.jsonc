@@ -6,6 +6,9 @@
   "observability": {
     "enabled": true
   },
+  "assets": {
+    "directory": "."
+  },
   "vars": {
     "VERSION": "UI_REDESIGN_v1"
   },
