@@ -166,22 +166,37 @@ async function loadBaseData() {
             });
         });
 
-        // Fetch Real Unpaid Balances with FULL DETAILS
-        const { data: challans, error: bErr } = await window.supabaseClient
-            .from('challans')
-            .select('*')
-            .in('status', ['Unpaid', 'Partially Paid']);
-            
-        allPendingChallans = challans || [];
+        // Fetch Real Unpaid Balances — filtered by OUR students & paginated to avoid Supabase 1000-row cap
+        const allStudentIds = allFamilies.flatMap(f => f.members.map(m => m.id));
+        let allChallansRaw = [];
+
+        // Batch student IDs in groups of 50 to avoid overly long URLs
+        for (let i = 0; i < allStudentIds.length; i += 50) {
+            const batch = allStudentIds.slice(i, i + 50);
+            let from = 0;
+            const pageSize = 1000;
+            while (true) {
+                const { data: page, error: pErr } = await window.supabaseClient
+                    .from('challans')
+                    .select('*')
+                    .in('student_id', batch)
+                    .in('status', ['Unpaid', 'Partially Paid'])
+                    .range(from, from + pageSize - 1);
+                if (pErr || !page) break;
+                allChallansRaw = allChallansRaw.concat(page);
+                if (page.length < pageSize) break;   // last page
+                from += pageSize;
+            }
+        }
+
+        allPendingChallans = allChallansRaw;
 
         // First map by student ID
         studentBalancesMap = {};
-        if (challans && !bErr) {
-            challans.forEach(c => {
-                const rem = parseFloat(c.amount || 0) - parseFloat(c.paid_amount || 0);
-                studentBalancesMap[c.student_id] = (studentBalancesMap[c.student_id] || 0) + rem;
-            });
-        }
+        allPendingChallans.forEach(c => {
+            const rem = parseFloat(c.amount || 0) - parseFloat(c.paid_amount || 0);
+            studentBalancesMap[c.student_id] = (studentBalancesMap[c.student_id] || 0) + rem;
+        });
 
         // Aggregate student balances into family balances
         familyBalances = {};
