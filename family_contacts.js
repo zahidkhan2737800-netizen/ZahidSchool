@@ -118,23 +118,11 @@ function changeMonth(offset) {
 // ─── Fetch Base Data (Students grouped into Families) ──────────────────────────
 async function loadBaseData() {
     try {
-        // Fetch specific columns for speed
-        let schoolId = window.currentSchoolId;
-        if ((schoolId === null || schoolId === undefined) && window.currentUser?.id) {
-            const { data: roleData } = await window.supabaseClient
-                .from('user_roles')
-                .select('school_id')
-                .eq('user_id', window.currentUser.id)
-                .single();
-            schoolId = roleData?.school_id ?? null;
-            window.currentSchoolId = schoolId;
-        }
         let studentsQ = window.supabaseClient
             .from('admissions')
             .select('id, roll_number, full_name, father_name, father_mobile, applying_for_class, family_id_manual')
             .eq('status', 'Active')
             .order('roll_number', { ascending: true });
-        if (schoolId) studentsQ = studentsQ.eq('school_id', schoolId);
         const { data: students, error: sErr } = await studentsQ;
 
         if (sErr) throw sErr;
@@ -217,19 +205,31 @@ async function loadBaseData() {
             d.setDate(attToday.getDate() - i);
             recentDates.push(d.toISOString().slice(0, 10));
         }
-        const allMemberIds = allFamilies.flatMap(f => f.members.map(m => m.id));
+        const allMemberIds = [];
+        allFamilies.forEach(f => {
+            if (f.members) f.members.forEach(m => allMemberIds.push(m.id));
+        });
+        
+        recentAttendance = {};
         if (allMemberIds.length > 0) {
-            const { data: attData, error: attErr } = await window.supabaseClient
-                .from('attendance')
-                .select('student_id, status, date')
-                .in('date', recentDates)
-                .in('student_id', allMemberIds);
-            recentAttendance = {};
-            if (attData && !attErr) {
-                attData.forEach(a => {
-                    if (!recentAttendance[a.student_id]) recentAttendance[a.student_id] = {};
-                    recentAttendance[a.student_id][a.date] = a.status;
-                });
+            try {
+                for (let i = 0; i < allMemberIds.length; i += 40) {
+                    const batch = allMemberIds.slice(i, i + 40);
+                    const { data: attData, error: attErr } = await window.supabaseClient
+                        .from('attendance')
+                        .select('student_id, status, date')
+                        .in('date', recentDates)
+                        .in('student_id', batch);
+                        
+                    if (attData && !attErr) {
+                        attData.forEach(a => {
+                            if (!recentAttendance[a.student_id]) recentAttendance[a.student_id] = {};
+                            recentAttendance[a.student_id][a.date] = a.status;
+                        });
+                    }
+                }
+            } catch (queryErr) {
+                console.warn("Attendance batch fetch warning:", queryErr);
             }
         }
 
