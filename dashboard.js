@@ -526,8 +526,8 @@ async function loadStats() {
                 .eq('date', todayStr)),
             sc(window.supabaseClient.from('admissions')
                 .select('*', { count: 'exact', head: true })
-                .gte('admission_date', fmtDate(monthStartDate))
-                .lt('admission_date', fmtDate(monthEndDate))),
+                .gte('admission_date', monthStart.slice(0,10))
+                .lt('admission_date', monthEnd.slice(0,10))),
             // Discount given today (sum of discount_amount from transactions)
             sc(window.supabaseClient.from('transactions')
                 .select('discount_amount')
