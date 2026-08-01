@@ -166,24 +166,26 @@ async function loadBaseData() {
             });
         });
 
-        // Fetch Real Unpaid Balances with FULL DETAILS using Pagination
-        let allChallansRaw = [];
-        let from = 0;
-        const pageSize = 1000;
-        while (true) {
-            const { data: page, error: pErr } = await window.supabaseClient
+        // Fetch Real Unpaid Balances - Filtered by active students only to avoid 1000-row limit from old challans
+        let allStudentIds = [];
+        allFamilies.forEach(f => {
+            if (f.members) {
+                f.members.forEach(m => allStudentIds.push(m.id));
+            }
+        });
+
+        allPendingChallans = [];
+        if (allStudentIds.length > 0) {
+            const { data: challans, error: bErr } = await window.supabaseClient
                 .from('challans')
                 .select('*')
-                .in('status', ['Unpaid', 'Partially Paid'])
-                .range(from, from + pageSize - 1);
+                .in('student_id', allStudentIds)
+                .in('status', ['Unpaid', 'Partially Paid']);
                 
-            if (pErr || !page) break;
-            allChallansRaw = allChallansRaw.concat(page);
-            if (page.length < pageSize) break; // Reached the last page
-            from += pageSize;
+            if (!bErr && challans) {
+                allPendingChallans = challans;
+            }
         }
-        
-        allPendingChallans = allChallansRaw;
 
         // First map by student ID
         studentBalancesMap = {};
