@@ -166,26 +166,21 @@ async function loadBaseData() {
             });
         });
 
-        // Fetch Real Unpaid Balances — filtered by OUR students & paginated to avoid Supabase 1000-row cap
+        // Fetch Real Unpaid Balances — filtered by OUR students with high limit
         const allStudentIds = allFamilies.flatMap(f => f.members.map(m => m.id));
         let allChallansRaw = [];
 
-        // Batch student IDs in groups of 50 to avoid overly long URLs
-        for (let i = 0; i < allStudentIds.length; i += 50) {
-            const batch = allStudentIds.slice(i, i + 50);
-            let from = 0;
-            const pageSize = 1000;
-            while (true) {
-                const { data: page, error: pErr } = await window.supabaseClient
+        if (allStudentIds.length > 0) {
+            // Query in batches of student IDs to avoid URL length limits
+            for (let i = 0; i < allStudentIds.length; i += 50) {
+                const batch = allStudentIds.slice(i, i + 50);
+                const { data: batchData, error: bErr } = await window.supabaseClient
                     .from('challans')
                     .select('*')
                     .in('student_id', batch)
                     .in('status', ['Unpaid', 'Partially Paid'])
-                    .range(from, from + pageSize - 1);
-                if (pErr || !page) break;
-                allChallansRaw = allChallansRaw.concat(page);
-                if (page.length < pageSize) break;   // last page
-                from += pageSize;
+                    .limit(5000);
+                if (!bErr && batchData) allChallansRaw = allChallansRaw.concat(batchData);
             }
         }
 
