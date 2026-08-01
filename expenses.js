@@ -14,14 +14,16 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initExpenseModule() {
-    const now = new Date();
-    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+    const kn = karachiNow();
+    const fmtDate = (y, m, d) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const firstDay = fmtDate(kn.year, kn.month + 1, 1);
+    const lastDayObj = new Date(kn.year, kn.month + 1, 0);
+    const lastDay = fmtDate(kn.year, kn.month + 1, lastDayObj.getDate());
     
     document.getElementById('filterStart').value = firstDay;
     document.getElementById('filterEnd').value = lastDay;
     
-    const today = now.toISOString().split('T')[0];
+    const today = karachiToday();
     document.getElementById('expDate').value = today;
 
     document.getElementById('expenseForm').addEventListener('submit', handleAddExpense);
@@ -219,7 +221,7 @@ async function handleAddExpense(e) {
         showToast('Expense recorded successfully!', 'success');
         closeModal('expenseModal');
         document.getElementById('expenseForm').reset();
-        document.getElementById('expDate').value = new Date().toISOString().split('T')[0];
+        document.getElementById('expDate').value = karachiToday();
         
         loadExpenseData();
     } catch(err) {

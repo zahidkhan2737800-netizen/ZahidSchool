@@ -507,7 +507,8 @@ async function loadDues(uuid) {
 
 function renderDues() {
     challansList.innerHTML = '';
-    const today = new Date();
+    const kn = karachiNow();
+    const today = new Date(kn.year, kn.month, kn.day);
 
     pendingDues.forEach(c => {
         const rem = parseFloat(c.amount) - parseFloat(c.paid_amount || 0);
@@ -754,7 +755,7 @@ async function submitPayment() {
 function printReceipt(receiptId, txRecords, totalPaid, remaining) {
     applyThermalSettings('collect_fee');
     document.getElementById('rctNo').textContent       = receiptId;
-    document.getElementById('rctDate').textContent     = new Date().toLocaleString('en-PK', { timeZone: 'Asia/Karachi' });
+    document.getElementById('rctDate').textContent     = `${karachiFormatDate()} ${karachiFormatTime()}`;
     document.getElementById('rctName').textContent     = activeStudent.full_name;
     document.getElementById('rctRoll').textContent     = activeStudent.roll_number;
     document.getElementById('rctFather').textContent   = activeStudent.father_name || 'N/A';
@@ -810,7 +811,7 @@ function printBill() {
 
     applyThermalSettings('collect_fee');
     document.getElementById('rctNo').textContent       = 'BILL-' + Date.now().toString().slice(-4);
-    document.getElementById('rctDate').textContent     = new Date().toLocaleString('en-PK', { timeZone: 'Asia/Karachi' });
+    document.getElementById('rctDate').textContent     = `${karachiFormatDate()} ${karachiFormatTime()}`;
     document.getElementById('rctName').textContent     = activeStudent.full_name;
     document.getElementById('rctRoll').textContent     = activeStudent.roll_number;
     document.getElementById('rctFather').textContent   = activeStudent.father_name || 'N/A';

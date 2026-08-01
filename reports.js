@@ -102,8 +102,7 @@ printBtn.addEventListener('click', () => {
 function buildPages(students, scope) {
     previewArea.innerHTML = '';
     const fontSize = fontSlider.value + 'px';
-    const now = new Date();
-    const dateStr = now.toLocaleDateString('en-PK', { year: 'numeric', month: 'long', day: 'numeric' });
+    const dateStr = karachiFormatDate(new Date(), { month: 'long' });
     const totalStudents = students.length;
 
     // If school-wide, group by class and print class-by-class
@@ -183,7 +182,7 @@ function buildSinglePage(students, className, dateStr, pageNum, totalPages, font
         </table>
 
         <div class="report-footer">
-            <span>🖨️ ${SCHOOL_NAME} — ${new Date().getFullYear()}</span>
+            <span>🖨️ ${SCHOOL_NAME} — ${karachiYear()}</span>
             <span>Page ${pageNum} / ${totalPages}</span>
         </div>
     `;

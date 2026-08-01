@@ -44,9 +44,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const rollStatus = document.getElementById('rollStatus');
 
     // Default Due Date to +7 days
-    const nextWeek = new Date();
-    nextWeek.setDate(nextWeek.getDate() + 7);
-    dueDateInput.value = nextWeek.toISOString().split('T')[0];
+    const kn = karachiNow();
+    const nextWeekObj = new Date(kn.year, kn.month, kn.day + 7);
+    const fmtDate = (y, m, d) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    dueDateInput.value = fmtDate(nextWeekObj.getFullYear(), nextWeekObj.getMonth() + 1, nextWeekObj.getDate());
 
     // Show UI immediately — no blocking loading screen
     if (uiLoading) uiLoading.style.display = 'none';
@@ -66,9 +67,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             studentFields.style.display = scope === 'student' ? 'block' : 'none';
             classFields.style.display = scope === 'class' ? 'block' : 'none';
             
-            // If class or school, amount becomes fully calculated, gray out amount box unless overriding
-            if(scope === 'class' || scope === 'school') {
-                customAmountInput.placeholder = 'Auto-calculated per class formula';
+            if(scope === 'class') {
+                customAmountInput.placeholder = 'Auto-filled from fee config (or enter override)';
                 customAmountInput.value = '';
                 // Clear selected student
                 rollNoInput.value = '';
@@ -76,8 +76,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                 fatherNameInput.value = '';
                 studentClassInput.value = '';
                 rollStatus.textContent = 'Type to search cache...';
+                updateClassAmountPreview();
+            } else if(scope === 'school') {
+                customAmountInput.placeholder = 'Leave empty for per-class auto-calc (or enter flat override for all)';
+                customAmountInput.value = '';
+                rollNoInput.value = '';
+                studentNameInput.value = '';
+                fatherNameInput.value = '';
+                studentClassInput.value = '';
+                rollStatus.textContent = 'Type to search cache...';
+                updateSchoolAmountPreview();
             } else {
                 customAmountInput.placeholder = 'Auto-calculated or custom';
+                hideAmountPreview();
                 lookupRollNumber(); // re-trigger fetch if they go back to Student
             }
         });
@@ -168,25 +179,34 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         if (isMonthlyType) {
             monthPickerGroup.style.display = 'block';
-            amountGroup.style.display = 'block'; // ALWAYS show amount box so they can edit it
-            updateDueDateForMonth(); // instantly snap the due date to the 1st
+            amountGroup.style.display = 'block';
+            updateDueDateForMonth();
         } else {
             monthPickerGroup.style.display = 'none';
-            amountGroup.style.display = 'block'; // force user to see amount box
-            customAmountInput.value = ''; // clear any old generic auto-fill
+            amountGroup.style.display = 'block';
+            customAmountInput.value = '';
             
             // Snap to today's date for one-off fees
-            const today = new Date();
-            const yyyy = today.getFullYear();
-            const mm = String(today.getMonth() + 1).padStart(2, '0');
-            const dd = String(today.getDate()).padStart(2, '0');
-            dueDateInput.value = `${yyyy}-${mm}-${dd}`;
+            dueDateInput.value = karachiToday();
         }
 
-        // Auto update amount if specific student scope is active
-        if(document.querySelector('input[name="scope"]:checked').value === 'student') {
+        // Auto update amount based on current scope
+        const currentScope = document.querySelector('input[name="scope"]:checked').value;
+        if(currentScope === 'student') {
             const match = cache.admissions.find(s => String(s.roll_number).toLowerCase() === rollNoInput.value.trim().toLowerCase());
             if(match) updateAmountEstimate(match);
+        } else if(currentScope === 'class') {
+            updateClassAmountPreview();
+        } else if(currentScope === 'school') {
+            updateSchoolAmountPreview();
+        }
+    });
+
+    // When target class changes, also update the amount preview
+    targetClassSelect.addEventListener('change', () => {
+        const currentScope = document.querySelector('input[name="scope"]:checked').value;
+        if(currentScope === 'class') {
+            updateClassAmountPreview();
         }
     });
 
@@ -234,6 +254,143 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Auto-update the Due Date if they change the dropdowns while Monthly is active
     feeMonthName.addEventListener('change', updateDueDateForMonth);
     feeMonthYear.addEventListener('input', updateDueDateForMonth);
+
+    // ====== AMOUNT AUTO-FILL HELPERS FOR CLASS & SCHOOL SCOPE ======
+
+    function getOrCreatePreviewEl() {
+        let el = document.getElementById('amountPreviewInfo');
+        if(!el) {
+            el = document.createElement('div');
+            el.id = 'amountPreviewInfo';
+            el.style.cssText = 'margin-top:0.5rem; padding:0.75rem 1rem; border-radius:8px; font-size:0.82rem; line-height:1.5;';
+            amountGroup.appendChild(el);
+        }
+        return el;
+    }
+
+    function hideAmountPreview() {
+        const el = document.getElementById('amountPreviewInfo');
+        if(el) el.style.display = 'none';
+    }
+
+    // Auto-fill amount when CLASS scope is selected
+    function updateClassAmountPreview() {
+        const feeType = feeTypeSelect.value;
+        const selClassStr = targetClassSelect.value;
+        if(!feeType || !selClassStr) {
+            hideAmountPreview();
+            return;
+        }
+
+        const matchedClass = cache.classes.find(c => `${c.class_name} ${c.section}`.trim() === selClassStr.trim());
+        let matchedFee = null;
+        let feeSource = '';
+
+        if(matchedClass) {
+            matchedFee = cache.feeHeads.find(f => f.fee_type === feeType && f.class_id === matchedClass.id);
+            if(matchedFee) {
+                feeSource = 'class-specific fee head';
+            }
+        }
+        if(!matchedFee) {
+            matchedFee = cache.feeHeads.find(f => f.fee_type === feeType && f.class_id === null);
+            if(matchedFee) feeSource = 'global fee head';
+        }
+
+        const el = getOrCreatePreviewEl();
+
+        if(matchedFee && matchedFee.amount != null) {
+            // Auto-fill the amount field with the configured fee
+            customAmountInput.value = matchedFee.amount;
+            
+            // Count students in this class
+            const studentCount = cache.admissions.filter(s => s.applying_for_class === selClassStr).length;
+            
+            el.style.display = 'block';
+            el.style.background = '#eff6ff';
+            el.style.color = '#1e40af';
+            el.style.border = '1px solid #bfdbfe';
+            el.innerHTML = `✅ <strong>Rs ${Number(matchedFee.amount).toLocaleString()}</strong> auto-filled from ${feeSource}` +
+                `<br>📋 <strong>${studentCount}</strong> active student(s) in ${selClassStr}` +
+                `<br><small style="color:#64748b;">💡 Individual discounts will be applied automatically per student. You can override the base amount above.</small>`;
+        } else {
+            customAmountInput.value = '';
+            el.style.display = 'block';
+            el.style.background = '#fef3c7';
+            el.style.color = '#92400e';
+            el.style.border = '1px solid #fde68a';
+            el.innerHTML = `⚠️ No fee amount configured for <strong>${feeType}</strong> in <strong>${selClassStr}</strong>.` +
+                `<br>Please enter an amount manually or configure it in <a href="fee_heads.html" style="color:#2563eb;">Fee Heads</a>.`;
+        }
+    }
+
+    // Show per-class breakdown when SCHOOL scope is selected
+    function updateSchoolAmountPreview() {
+        const feeType = feeTypeSelect.value;
+        if(!feeType) {
+            hideAmountPreview();
+            return;
+        }
+
+        const el = getOrCreatePreviewEl();
+        const isMonthlyType = cache.feeHeads.some(f => f.fee_type === feeType && f.is_monthly);
+
+        // Build per-class breakdown
+        let breakdownRows = [];
+        let totalStudents = 0;
+        let studentsWithFee = 0;
+        let studentsWithoutFee = 0;
+
+        // Get unique classes from admissions
+        const classNames = [...new Set(cache.admissions.map(s => s.applying_for_class))].sort();
+
+        for(const className of classNames) {
+            const classStudents = cache.admissions.filter(s => s.applying_for_class === className);
+            const count = classStudents.length;
+            totalStudents += count;
+
+            const matchedClass = cache.classes.find(c => `${c.class_name} ${c.section}`.trim().toLowerCase() === className.trim().toLowerCase());
+            let matchedFee = null;
+            let source = '';
+
+            if(matchedClass) {
+                matchedFee = cache.feeHeads.find(f => f.fee_type === feeType && f.class_id === matchedClass.id);
+                if(matchedFee) source = 'Class';
+            }
+            if(!matchedFee) {
+                matchedFee = cache.feeHeads.find(f => f.fee_type === feeType && f.class_id === null);
+                if(matchedFee) source = 'Global';
+            }
+
+            if(matchedFee && matchedFee.amount != null) {
+                studentsWithFee += count;
+                breakdownRows.push(`<tr><td style="padding:2px 8px;">${className}</td><td style="padding:2px 8px;text-align:center;">${count}</td><td style="padding:2px 8px;text-align:right;">Rs ${Number(matchedFee.amount).toLocaleString()}</td><td style="padding:2px 8px;text-align:center;"><span style="color:#16a34a;font-size:0.75rem;">${source}</span></td></tr>`);
+            } else {
+                // Check if students have monthly_fee fallback
+                const withFallback = isMonthlyType ? classStudents.filter(s => s.monthly_fee).length : 0;
+                studentsWithFee += withFallback;
+                studentsWithoutFee += (count - withFallback);
+                if(withFallback > 0) {
+                    breakdownRows.push(`<tr><td style="padding:2px 8px;">${className}</td><td style="padding:2px 8px;text-align:center;">${count}</td><td style="padding:2px 8px;text-align:right;">Per student</td><td style="padding:2px 8px;text-align:center;"><span style="color:#d97706;font-size:0.75rem;">Fallback</span></td></tr>`);
+                } else {
+                    breakdownRows.push(`<tr style="color:#dc2626;"><td style="padding:2px 8px;">${className}</td><td style="padding:2px 8px;text-align:center;">${count}</td><td style="padding:2px 8px;text-align:right;">❌ Not set</td><td style="padding:2px 8px;"></td></tr>`);
+                }
+            }
+        }
+
+        el.style.display = 'block';
+        el.style.background = '#f0fdf4';
+        el.style.color = '#166534';
+        el.style.border = '1px solid #bbf7d0';
+        el.innerHTML = `🏫 <strong>Whole School — ${feeType}</strong> (${totalStudents} students across ${classNames.length} classes)` +
+            `<br><small style="color:#64748b;">Amounts will be auto-calculated per class from fee heads. Discounts applied per student.</small>` +
+            `<table style="width:100%;margin-top:0.5rem;border-collapse:collapse;font-size:0.8rem;">` +
+            `<tr style="background:#e2e8f0;"><th style="padding:3px 8px;text-align:left;">Class</th><th style="padding:3px 8px;text-align:center;">Students</th><th style="padding:3px 8px;text-align:right;">Amount</th><th style="padding:3px 8px;text-align:center;">Source</th></tr>` +
+            breakdownRows.join('') +
+            `</table>` +
+            (studentsWithoutFee > 0 ? `<br><span style="color:#dc2626;">⚠️ ${studentsWithoutFee} student(s) have no fee configured and will be skipped.</span>` : '') +
+            `<br><small style="color:#64748b;">💡 Enter an amount above to override ALL classes with a flat rate.</small>`;
+    }
 
     // 4. Submit logic
     generateBtn.addEventListener('click', async () => {

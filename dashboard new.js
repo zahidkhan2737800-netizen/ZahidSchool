@@ -91,8 +91,8 @@ async function boot() {
 
   var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  var now = new Date();
-  document.getElementById('welcomeDate').textContent = days[now.getDay()] + ', ' + months[now.getMonth()] + ' ' + now.getDate() + ', ' + now.getFullYear();
+  var now = karachiNow();
+  document.getElementById('welcomeDate').textContent = days[now.dayOfWeek] + ', ' + months[now.month] + ' ' + now.day + ', ' + now.year;
 
   buildSidebar(user);
   buildQuickLinks();
@@ -178,9 +178,10 @@ async function loadQuoteOfDay() {
   try {
     var { data } = await supabase.from('quotes').select('quote, author').eq('is_active', true);
     if (!data || data.length === 0) return;
-    var now = new Date();
-    var start = new Date(now.getFullYear(), 0, 0);
-    var dayOfYear = Math.floor((now - start) / 86400000);
+    var now = karachiNow();
+    var start = new Date(now.year, 0, 0); // safe to use local Date for relative dayOfYear diff
+    var currentObj = new Date(now.year, now.month, now.day);
+    var dayOfYear = Math.floor((currentObj - start) / 86400000);
     var q = data[dayOfYear % data.length];
     if (!q) return;
     document.getElementById('quoteText').textContent = q.quote;

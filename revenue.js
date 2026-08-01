@@ -14,14 +14,16 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initRevenueModule() {
-    const now = new Date();
-    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+    const kn = karachiNow();
+    const fmtDate = (y, m, d) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const firstDay = fmtDate(kn.year, kn.month + 1, 1);
+    const lastDayObj = new Date(kn.year, kn.month + 1, 0);
+    const lastDay = fmtDate(kn.year, kn.month + 1, lastDayObj.getDate());
     
     document.getElementById('filterStart').value = firstDay;
     document.getElementById('filterEnd').value = lastDay;
     
-    const today = now.toISOString().split('T')[0];
+    const today = karachiToday();
     document.getElementById('revDate').value = today;
 
     document.getElementById('revenueForm').addEventListener('submit', handleAddRevenue);
@@ -233,7 +235,7 @@ async function handleAddRevenue(e) {
         showToast('Revenue added successfully!', 'success');
         closeModal('revenueModal');
         document.getElementById('revenueForm').reset();
-        document.getElementById('revDate').value = new Date().toISOString().split('T')[0];
+        document.getElementById('revDate').value = karachiToday();
         
         loadRevenueData();
     } catch(err) {

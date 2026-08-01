@@ -159,8 +159,8 @@ async function bootDashboard() {
 
     var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
     var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-    var now = new Date();
-    document.getElementById('welcomeDate').textContent = days[now.getDay()] + ', ' + months[now.getMonth()] + ' ' + now.getDate() + ', ' + now.getFullYear();
+    var now = karachiNow();
+    document.getElementById('welcomeDate').textContent = days[now.dayOfWeek] + ', ' + months[now.month] + ' ' + now.day + ', ' + now.year;
 
     buildSidebar();
     loadDashboardDiaryTasks();
@@ -231,17 +231,15 @@ window.markDashboardDiaryDone = markDashboardDiaryDone;
 // ─── Cash Flow Overview ────────────────────────────────────────────────────────
 async function loadCashFlowStats() {
     try {
-        const now = new Date();
-        const fmtDate = (d) => {
-            const y = d.getFullYear();
-            const m = String(d.getMonth() + 1).padStart(2, '0');
-            const day = String(d.getDate()).padStart(2, '0');
-            return `${y}-${m}-${day}`;
-        };
-        const firstDay = fmtDate(new Date(now.getFullYear(), now.getMonth(), 1));
-        const lastDay  = fmtDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
-        const today = fmtDate(now);
-        const tomorrow = fmtDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
+        const kn = karachiNow();
+        const fmtDate = (y, m, d) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        
+        const firstDay = fmtDate(kn.year, kn.month + 1, 1);
+        const lastDayObj = new Date(kn.year, kn.month + 1, 0); // use local Date just for days-in-month calc
+        const lastDay  = fmtDate(kn.year, kn.month + 1, lastDayObj.getDate());
+        const today = karachiToday();
+        const tomorrowObj = new Date(kn.year, kn.month, kn.day + 1);
+        const tomorrow = fmtDate(tomorrowObj.getFullYear(), tomorrowObj.getMonth() + 1, tomorrowObj.getDate());
         const schoolId = window.currentSchoolId;
 
         const fmt = n => 'Rs ' + Math.round(n || 0).toLocaleString();
@@ -390,8 +388,7 @@ async function loadCashFlowStats() {
 // ─── Staff Today Stats ─────────────────────────────────────────────────────────
 async function loadStaffTodayStats() {
     try {
-        const now = new Date();
-        const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        const today = karachiToday();
         const schoolId = window.currentSchoolId;
 
         // Total active staff (scoped to school)
@@ -478,24 +475,17 @@ function buildQuickLinks() {}
 
 async function loadStats() {
     try {
-        const now = new Date();
-        const fmtDate = (d) => {
-            const y = d.getFullYear();
-            const m = String(d.getMonth() + 1).padStart(2, '0');
-            const day = String(d.getDate()).padStart(2, '0');
-            return `${y}-${m}-${day}`;
-        };
+        const kn = karachiNow();
+        const fmtDate = (y, m, d) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 
-        const monthStartDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        const monthEndDate   = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-        const todayDate      = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const tomorrowDate   = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-
-        const monthStart = `${fmtDate(monthStartDate)}T00:00:00`;
-        const monthEnd   = `${fmtDate(monthEndDate)}T00:00:00`;
-        const todayStart = `${fmtDate(todayDate)}T00:00:00`;
-        const todayEnd   = `${fmtDate(tomorrowDate)}T00:00:00`;
-        const todayStr   = fmtDate(todayDate);
+        const monthStart = `${fmtDate(kn.year, kn.month + 1, 1)}T00:00:00`;
+        const monthEndObj = new Date(kn.year, kn.month + 1, 1);
+        const monthEnd   = `${fmtDate(monthEndObj.getFullYear(), monthEndObj.getMonth() + 1, 1)}T00:00:00`;
+        
+        const todayStart = `${karachiToday()}T00:00:00`;
+        const tomorrowObj = new Date(kn.year, kn.month, kn.day + 1);
+        const todayEnd   = `${fmtDate(tomorrowObj.getFullYear(), tomorrowObj.getMonth() + 1, tomorrowObj.getDate())}T00:00:00`;
+        const todayStr   = karachiToday();
         const sid        = window.currentSchoolId; // tenant isolation
 
         // Helper: add school_id filter only when available
@@ -585,10 +575,10 @@ async function loadMonthlyFeeBalance() {
     const tbody = document.getElementById('monthlyFeeBody');
     try {
         const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-        const now = new Date();
+        const kn = karachiNow();
         const months = [];
         for (let i = 5; i >= 0; i--) {
-            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const d = new Date(kn.year, kn.month - i, 1);
             months.push(`${monthNames[d.getMonth()]} ${d.getFullYear()}`);
         }
 

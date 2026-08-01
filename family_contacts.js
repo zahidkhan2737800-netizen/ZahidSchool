@@ -640,11 +640,52 @@ window.openWaModal = function(mobile) {
     document.getElementById('waModal').style.display = 'flex';
 };
 
-window.applySelectedWaTemplate = function() {
+window.applySelectedWaTemplate = async function() {
     if(!currentOpenMobile) return;
     const mobile = currentOpenMobile;
     const fam = allFamilies.find(f => f.mobile === mobile);
     if (!fam) return;
+
+    // ── Fresh-fetch challans for THIS family so the WA message is never stale ──
+    const studentIds = fam.members.map(m => m.id);
+    try {
+        const { data: freshChallans, error: fErr } = await window.supabaseClient
+            .from('challans')
+            .select('*')
+            .in('student_id', studentIds)
+            .in('status', ['Unpaid', 'Partially Paid']);
+
+        if (!fErr && freshChallans) {
+            // Remove old entries for these students from the global cache
+            allPendingChallans = allPendingChallans.filter(c => !studentIds.includes(c.student_id));
+            // Add fresh entries
+            allPendingChallans = allPendingChallans.concat(freshChallans);
+
+            // Update per-student and family balance caches so the table column stays in sync
+            let famBalance = 0;
+            studentIds.forEach(sid => {
+                const stuTotal = freshChallans
+                    .filter(c => c.student_id === sid)
+                    .reduce((sum, c) => sum + Math.max(0, parseFloat(c.amount || 0) - parseFloat(c.paid_amount || 0)), 0);
+                studentBalancesMap[sid] = stuTotal;
+                famBalance += stuTotal;
+            });
+            familyBalances[fam.mobile] = famBalance;
+
+            // Live-update the balance cell in the table row if visible
+            const balanceCells = document.querySelectorAll('td.col-balance');
+            const row = [...document.querySelectorAll('tr')].find(tr => tr.innerHTML && tr.innerHTML.includes(fam.mobile));
+            if (row) {
+                const balCell = row.querySelector('.col-balance');
+                if (balCell) {
+                    balCell.textContent = famBalance.toLocaleString();
+                    balCell.classList.toggle('zero', famBalance === 0);
+                }
+            }
+        }
+    } catch(e) {
+        console.warn('Could not refresh challans for WA message, using cached data:', e.message);
+    }
 
     let templateText = "";
     const dropdown = document.getElementById('waTemplateDropdown');
