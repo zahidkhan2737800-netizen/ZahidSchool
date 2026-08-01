@@ -166,32 +166,22 @@ async function loadBaseData() {
             });
         });
 
-        // Fetch Real Unpaid Balances — filtered by OUR students with high limit
-        const allStudentIds = allFamilies.flatMap(f => f.members.map(m => m.id));
-        let allChallansRaw = [];
-
-        if (allStudentIds.length > 0) {
-            // Query in batches of student IDs to avoid URL length limits
-            for (let i = 0; i < allStudentIds.length; i += 50) {
-                const batch = allStudentIds.slice(i, i + 50);
-                const { data: batchData, error: bErr } = await window.supabaseClient
-                    .from('challans')
-                    .select('*')
-                    .in('student_id', batch)
-                    .in('status', ['Unpaid', 'Partially Paid'])
-                    .limit(5000);
-                if (!bErr && batchData) allChallansRaw = allChallansRaw.concat(batchData);
-            }
-        }
-
-        allPendingChallans = allChallansRaw;
+        // Fetch Real Unpaid Balances with FULL DETAILS
+        const { data: challans, error: bErr } = await window.supabaseClient
+            .from('challans')
+            .select('*')
+            .in('status', ['Unpaid', 'Partially Paid']);
+            
+        allPendingChallans = challans || [];
 
         // First map by student ID
         studentBalancesMap = {};
-        allPendingChallans.forEach(c => {
-            const rem = parseFloat(c.amount || 0) - parseFloat(c.paid_amount || 0);
-            studentBalancesMap[c.student_id] = (studentBalancesMap[c.student_id] || 0) + rem;
-        });
+        if (challans && !bErr) {
+            challans.forEach(c => {
+                const rem = parseFloat(c.amount || 0) - parseFloat(c.paid_amount || 0);
+                studentBalancesMap[c.student_id] = (studentBalancesMap[c.student_id] || 0) + rem;
+            });
+        }
 
         // Aggregate student balances into family balances
         familyBalances = {};
