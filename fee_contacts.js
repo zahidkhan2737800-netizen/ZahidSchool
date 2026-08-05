@@ -156,24 +156,35 @@ async function loadBaseData() {
             });
         }
 
-        // Fetch Real Unpaid Balances fully detailed for WhatsApp bills
-        const { data: challans, error: bErr } = await supabaseClient
-            .from('challans')
-            .select('*')
-            .neq('status', 'Paid')
-            .neq('status', 'Cancelled');
-            
-        allPendingChallans = challans || [];
+        // Fetch Real Unpaid Balances - batched by student IDs to avoid URI Too Long errors
+        const allStudentIds = allStudents.map(s => s.id);
+        allPendingChallans = [];
         studentBalances = {};
-        if (challans && !bErr) {
-            challans.forEach(c => {
+        if (allStudentIds.length > 0) {
+            try {
+                for (let i = 0; i < allStudentIds.length; i += 40) {
+                    const batch = allStudentIds.slice(i, i + 40);
+                    const { data: batchData, error: bErr } = await supabaseClient
+                        .from('challans')
+                        .select('*')
+                        .in('student_id', batch)
+                        .in('status', ['Unpaid', 'Partially Paid'])
+                        .limit(2000);
+                    if (!bErr && batchData) {
+                        allPendingChallans.push(...batchData);
+                    }
+                }
+            } catch (queryErr) {
+                console.warn("Challan batch fetch warning:", queryErr);
+            }
+            allPendingChallans.forEach(c => {
                 studentBalances[c.student_id] = (studentBalances[c.student_id] || 0) + Number(c.amount || 0) - Number(c.paid_amount || 0);
             });
         }
         
         await loadWaTemplates();
 
-        // Fetch Last 3 Days Attendance
+        // Fetch Last 3 Days Attendance - batched by student IDs
         const attToday = new Date();
         recentDates = [];
         for (let i = 2; i >= 0; i--) {
@@ -181,19 +192,27 @@ async function loadBaseData() {
             d.setDate(attToday.getDate() - i);
             recentDates.push(toLocalYmd(d));
         }
-        let attQ = supabaseClient
-            .from('attendance')
-            .select('student_id, status, date')
-            .in('date', recentDates);
-        if (schoolId) attQ = attQ.eq('school_id', schoolId);
-        const { data: attData, error: attErr } = await attQ;
 
         recentAttendance = {};
-        if (attData && !attErr) {
-            attData.forEach(a => {
-                if (!recentAttendance[a.student_id]) recentAttendance[a.student_id] = {};
-                recentAttendance[a.student_id][a.date] = normalizeAttendanceStatus(a.status);
-            });
+        if (allStudentIds.length > 0) {
+            try {
+                for (let i = 0; i < allStudentIds.length; i += 40) {
+                    const batch = allStudentIds.slice(i, i + 40);
+                    const { data: attData, error: attErr } = await supabaseClient
+                        .from('attendance')
+                        .select('student_id, status, date')
+                        .in('date', recentDates)
+                        .in('student_id', batch);
+                    if (attData && !attErr) {
+                        attData.forEach(a => {
+                            if (!recentAttendance[a.student_id]) recentAttendance[a.student_id] = {};
+                            recentAttendance[a.student_id][a.date] = normalizeAttendanceStatus(a.status);
+                        });
+                    }
+                }
+            } catch (queryErr) {
+                console.warn("Attendance batch fetch warning:", queryErr);
+            }
         }
 
     } catch (err) {
