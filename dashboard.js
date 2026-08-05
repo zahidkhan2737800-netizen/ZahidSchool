@@ -652,6 +652,7 @@ async function loadRecentAdmissions() {
             .from('admissions')
             .select('roll_number, full_name, father_name, applying_for_class, admission_date')
             .eq('status', 'Active')
+            .not('admission_date', 'is', null)
             .order('admission_date', { ascending: false })
             .limit(6);
         if (schoolId) q = q.eq('school_id', schoolId);
