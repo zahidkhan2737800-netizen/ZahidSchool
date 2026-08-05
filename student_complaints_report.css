@@ -152,7 +152,8 @@ body {
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: 14px;
-    overflow: auto;
+    /* overflow: visible so sticky headers work with window scroll */
+    overflow: visible; 
 }
 
 .print-date-header {
@@ -178,6 +179,7 @@ thead th {
     background: #f8fafc;
     position: sticky;
     top: 0;
+    z-index: 10;
 }
 
 tbody td {

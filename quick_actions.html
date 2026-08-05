@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>Customize Quick Actions - Zahid School</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="dashboard new.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .quick-actions-settings {
+            max-width: 800px;
+            margin: 2rem auto;
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .qa-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 1rem;
+        }
+        .qa-title h2 {
+            margin: 0;
+            color: #1e293b;
+        }
+        .qa-title p {
+            margin: 0.5rem 0 0 0;
+            color: #64748b;
+            font-size: 0.9rem;
+        }
+        .qa-actions button {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .btn-cancel {
+            background: #f1f5f9;
+            color: #475569;
+            margin-right: 0.5rem;
+        }
+        .btn-cancel:hover { background: #e2e8f0; }
+        .btn-save {
+            background: #2563eb;
+            color: white;
+        }
+        .btn-save:hover { background: #1d4ed8; }
+        
+        .qa-category {
+            margin-bottom: 2rem;
+        }
+        .qa-category-title {
+            font-weight: 700;
+            color: #334155;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .qa-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 1rem;
+        }
+        .qa-item {
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 1rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        .qa-item:hover {
+            border-color: #cbd5e1;
+            background: #f8fafc;
+        }
+        .qa-item.selected {
+            border-color: #2563eb;
+            background: #eff6ff;
+        }
+        .qa-item-icon {
+            font-size: 1.25rem;
+            color: #64748b;
+        }
+        .qa-item.selected .qa-item-icon {
+            color: #2563eb;
+        }
+        .qa-item-label {
+            font-weight: 600;
+            color: #475569;
+        }
+        .qa-item.selected .qa-item-label {
+            color: #1e293b;
+        }
+        .qa-checkbox {
+            position: absolute;
+            right: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 20px;
+            height: 20px;
+            border: 2px solid #cbd5e1;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .qa-item.selected .qa-checkbox {
+            background: #2563eb;
+            border-color: #2563eb;
+        }
+        .qa-item.selected .qa-checkbox::after {
+            content: '\\f00c';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            color: white;
+            font-size: 0.75rem;
+        }
+        .qa-limit-msg {
+            color: #dc2626;
+            font-weight: 600;
+            margin-top: 1rem;
+            display: none;
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+    <div class="mobile-header">
+        <a href="dashboard.html" style="color:white; text-decoration:none;"><i class="fas fa-arrow-left"></i></a>
+        <span class="mob-title">Customize Quick Actions</span>
+    </div>
+    
+    <main class="main" style="margin-left:0; padding:1rem;">
+        <div class="quick-actions-settings">
+            <div class="qa-header">
+                <div class="qa-title">
+                    <h2>Customize Quick Actions</h2>
+                    <p>Select up to 5 shortcuts to pin to your dashboard header.</p>
+                </div>
+                <div class="qa-actions">
+                    <button class="btn-cancel" onclick="window.location.href='dashboard.html'">Cancel</button>
+                    <button class="btn-save" onclick="saveQuickActions()">Save Changes</button>
+                </div>
+            </div>
+            <div id="qaLimitMsg" class="qa-limit-msg"><i class="fas fa-exclamation-circle"></i> You can only select up to 5 quick actions.</div>
+            <div id="qaContainer">
+                <div style="text-align:center; padding:3rem; color:#64748b;"><i class="fas fa-spinner fa-spin fa-2x"></i><br><br>Loading available pages...</div>
+            </div>
+        </div>
+    </main>
+
+    <script src="auth.js"></script>
+    <!-- Include dashboard.js just to get NAV_CATEGORIES without running bootDashboard -->
+    <!-- We will extract NAV_CATEGORIES manually or fetch them from a shared script. -->
+    <script src="quick_actions.js"></script>
+</body>
+</html>

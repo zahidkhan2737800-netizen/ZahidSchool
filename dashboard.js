@@ -121,7 +121,8 @@ var NAV_CATEGORIES = [
       { href: 'curriculum_and_session.html', label: 'Curriculum & Session', icon: 'fas fa-book', key: 'classes' },
       { href: 'class_subjects_assignment.html', label: 'Class Subjects', icon: 'fas fa-link', key: 'classes' },
       { href: 'thermal_print_settings.html', label: 'Thermal Print Settings', icon: 'fas fa-print', key: 'collect_fee' },
-      { href: 'access_control.html', label: 'Access Control', icon: 'fas fa-lock', key: 'access_control' }
+      { href: 'access_control.html', label: 'Access Control', icon: 'fas fa-lock', key: 'access_control' },
+      { href: 'quick_actions.html', label: 'Dashboard Shortcuts', icon: 'fas fa-cog', key: 'access_control' }
     ]
   }
 ];
@@ -169,6 +170,7 @@ async function bootDashboard() {
     loadRecentAdmissions();
     loadCashFlowStats();
     loadStaffTodayStats();
+    buildQuickLinks();
 }
 
 async function loadDashboardDiaryTasks() {
@@ -470,7 +472,39 @@ function buildSidebar() {
     });
 }
 
-function buildQuickLinks() {}
+function buildQuickLinks() {
+    const container = document.getElementById('quickActionsContainer');
+    if (!container) return;
+
+    let savedActions = [];
+    try {
+        const userId = window.currentUser ? window.currentUser.id : 'default';
+        const saved = localStorage.getItem('quickActions_' + userId);
+        if (saved) savedActions = JSON.parse(saved);
+    } catch(e) {
+        console.error('Failed to parse saved quick actions', e);
+    }
+
+    if (!savedActions || savedActions.length === 0) {
+        // Default quick actions
+        savedActions = [
+            { href: 'index.html', label: 'New Admission', icon: 'fas fa-user-plus' },
+            { href: 'collect_fee.html', label: 'Collect Fee', icon: 'fas fa-hand-holding-usd' },
+            { href: 'Dairy.html', label: 'Dairy / Tasks', icon: 'fas fa-clipboard-list' }
+        ];
+    }
+
+    let html = '';
+    const colorClasses = ['qa-blue', 'qa-purple', 'qa-green', 'qa-amber', 'qa-rose'];
+    savedActions.forEach((action, index) => {
+        const color = colorClasses[index % colorClasses.length];
+        html += `<a href="${action.href}" class="quick-action-card ${color}" title="${action.label}">
+                   <div class="qa-icon"><i class="${action.icon}"></i></div>
+                   <div class="qa-label">${action.label}</div>
+                 </a>`;
+    });
+    container.innerHTML = html;
+}
 
 
 async function loadStats() {

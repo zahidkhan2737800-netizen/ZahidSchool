@@ -64,6 +64,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                 window.print();
             });
             document.getElementById('searchText').addEventListener('input', renderTable);
+            
+            document.getElementById('monthFilter').addEventListener('change', (e) => {
+                const m = e.target.value;
+                if (!m) return;
+                const year = new Date().getFullYear();
+                const firstDay = `${year}-${m}-01`;
+                const lastDayObj = new Date(year, parseInt(m), 0);
+                const lastDay = `${year}-${m}-${String(lastDayObj.getDate()).padStart(2, '0')}`;
+                
+                document.getElementById('fromDate').value = firstDay;
+                document.getElementById('toDate').value = lastDay;
+            });
         }
     }, 100);
 });
@@ -125,9 +137,15 @@ async function loadReport() {
         // If we have thousands of students, fetching all complaints might be heavy, but it's ok for one class or whole school.
         let qComplaints = window.supabaseClient
             .from('complaints')
-            .select('roll, category');
+            .select('roll, category, date');
             
         if (schoolId) qComplaints = qComplaints.eq('school_id', schoolId);
+        
+        const fromDate = document.getElementById('fromDate').value;
+        const toDate = document.getElementById('toDate').value;
+        if (fromDate) qComplaints = qComplaints.gte('date', fromDate);
+        if (toDate) qComplaints = qComplaints.lte('date', toDate);
+        
         // We do not filter by class here because complaints might have old class names. 
         // We match by roll.
         

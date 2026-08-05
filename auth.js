@@ -51,6 +51,7 @@ const PAGE_KEY_MAP = {
     'staff_attendance.html':    'staff_attendance',
     'staff_payroll.html':       'staff_payroll',
     'staff_payments.html':      'staff_payments',
+    'quick_actions.html':       'access_control',
     'saas_master_console.html': 'access_control' // Super admin restricted
 };
 
@@ -282,7 +283,8 @@ function filterSidebarNav() {
         'staff_hiring.html':        'staff_hiring',
         'staff_attendance.html':    'staff_attendance',
         'staff_payroll.html':       'staff_payroll',
-        'staff_payments.html':      'staff_payments'
+        'staff_payments.html':      'staff_payments',
+        'quick_actions.html':       'access_control'
     };
 
     document.querySelectorAll('.nav-link').forEach(link => {
