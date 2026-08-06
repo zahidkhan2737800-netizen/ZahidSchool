@@ -15,6 +15,7 @@ const loadBtn = document.getElementById('loadBtn');
 const paidLogBody = document.getElementById('paidLogBody');
 const rowCountEl = document.getElementById('rowCount');
 const totalAmountEl = document.getElementById('totalAmount');
+const collectorSummaryEl = document.getElementById('collectorSummary');
 
 const LS_KEYS = {
     date: 'feePaidLog.date',
@@ -73,6 +74,36 @@ function getFilteredRows() {
     });
 }
 
+function getCollectorTotals(rows) {
+    const totals = new Map();
+    rows.forEach(row => {
+        const displayName = cleanCollectorName(row.collectedBy) || 'Unknown';
+        const key = displayName.toLowerCase();
+        const current = totals.get(key) || { name: displayName, amount: 0, rows: 0 };
+        current.amount += Number(row.amount || 0);
+        current.rows += 1;
+        totals.set(key, current);
+    });
+    return [...totals.values()].sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name));
+}
+
+function renderCollectorSummary(rows) {
+    const totals = getCollectorTotals(rows);
+    collectorSummaryEl.replaceChildren();
+
+    totals.forEach(collector => {
+        const card = document.createElement('div');
+        card.className = 'card collector-card';
+        const label = document.createElement('span');
+        label.className = 'lbl';
+        label.textContent = `${collector.name} (${collector.rows} payment${collector.rows === 1 ? '' : 's'})`;
+        const amount = document.createElement('strong');
+        amount.textContent = toCurrencyLabel(collector.amount);
+        card.append(label, amount);
+        collectorSummaryEl.appendChild(card);
+    });
+}
+
 function updatePrintHeader() {
     const selected = feeDateInput.value;
     if (!selected) {
@@ -92,8 +123,12 @@ function updatePrintHeader() {
         second: '2-digit',
         hour12: true
     });
-    const total = getFilteredRows().reduce((sum, row) => sum + row.amount, 0);
-    printDateHeader.textContent = `Date: ${dateLabel} | Time: ${timeLabel} | Total Balance: ${toCurrencyLabel(total)}`;
+    const filteredRows = getFilteredRows();
+    const total = filteredRows.reduce((sum, row) => sum + row.amount, 0);
+    const collectorText = getCollectorTotals(filteredRows)
+        .map(collector => `${collector.name}: ${toCurrencyLabel(collector.amount)}`)
+        .join(' | ');
+    printDateHeader.textContent = `Date: ${dateLabel} | Time: ${timeLabel} | Total Collected: ${toCurrencyLabel(total)}${collectorText ? ` | ${collectorText}` : ''}`;
 }
 
 function applyLayoutControls() {
@@ -283,6 +318,7 @@ async function loadPaidFees() {
         paidLogBody.innerHTML = `<tr><td colspan="9" class="empty" style="color:#dc2626;">Failed to load data: ${err.message}</td></tr>`;
         rowCountEl.textContent = '0';
         totalAmountEl.textContent = 'Rs 0';
+        renderCollectorSummary([]);
     } finally {
         loadBtn.disabled = false;
         loadBtn.innerHTML = '<i class="fas fa-sync"></i> Load';
@@ -296,6 +332,7 @@ function renderRows() {
         paidLogBody.innerHTML = '<tr><td colspan="9" class="empty">No paid fee records found for this filter.</td></tr>';
         rowCountEl.textContent = '0';
         totalAmountEl.textContent = 'Rs 0';
+        renderCollectorSummary([]);
         updatePrintHeader();
         return;
     }
@@ -318,5 +355,6 @@ function renderRows() {
 
     rowCountEl.textContent = filtered.length.toLocaleString();
     totalAmountEl.textContent = toCurrencyLabel(total);
+    renderCollectorSummary(filtered);
     updatePrintHeader();
 }

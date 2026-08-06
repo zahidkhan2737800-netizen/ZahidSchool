@@ -7,6 +7,25 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 let currentMonth = '';
+const includeFamilyStudents = new URLSearchParams(window.location.search).get('scope') === 'all';
+
+function configureReportMode() {
+    const heading = document.querySelector('.title-wrap h1');
+    const description = document.querySelector('.title-wrap p');
+    const individualLink = document.getElementById('individualReportLink');
+    const allStudentsLink = document.getElementById('allStudentsReportLink');
+
+    if (includeFamilyStudents) {
+        document.title = 'Zahid School - All Students Fee Balance Report';
+        if (heading) heading.textContent = 'All Students Fee Balance Report';
+        if (description) description.textContent = 'Complete class-wise fee balances for every active student, including family members';
+        individualLink?.classList.remove('active-page');
+        allStudentsLink?.classList.add('active-page');
+    } else {
+        individualLink?.classList.add('active-page');
+        allStudentsLink?.classList.remove('active-page');
+    }
+}
 let allStudents   = [];       // [{id, roll_number, full_name, father_name, father_mobile, applying_for_class}]
 let studentBalances = {};     // student_id → total unpaid Rs
 let monthData       = {};     // student_id → fee_contacts row
@@ -22,6 +41,7 @@ async function waitForAuth(ms = 10000) {
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
+    configureReportMode();
     await waitForAuth();
 
     const now = new Date();
@@ -75,18 +95,22 @@ async function loadBaseData() {
         if (sErr) throw sErr;
 
         // 2. Exclude family students (mobile shared by 2+) — same logic as fee_contacts.js
-        const mobileCnt = {};
-        (students || []).forEach(s => {
-            const mob = (s.father_mobile || '').trim();
-            if (mob) mobileCnt[mob] = (mobileCnt[mob] || 0) + 1;
-        });
-        const familyMobiles = new Set(
-            Object.entries(mobileCnt).filter(([, c]) => c >= 2).map(([m]) => m)
-        );
-        allStudents = (students || []).filter(s => {
-            const mob = (s.father_mobile || '').trim();
-            return !mob || !familyMobiles.has(mob);
-        });
+        if (includeFamilyStudents) {
+            allStudents = students || [];
+        } else {
+            const mobileCnt = {};
+            (students || []).forEach(s => {
+                const mob = (s.father_mobile || '').trim();
+                if (mob) mobileCnt[mob] = (mobileCnt[mob] || 0) + 1;
+            });
+            const familyMobiles = new Set(
+                Object.entries(mobileCnt).filter(([, c]) => c >= 2).map(([m]) => m)
+            );
+            allStudents = (students || []).filter(s => {
+                const mob = (s.father_mobile || '').trim();
+                return !mob || !familyMobiles.has(mob);
+            });
+        }
 
         // 3. Populate class dropdown
         const classSet = [...new Set(allStudents.map(s => s.applying_for_class).filter(Boolean))].sort();
@@ -99,16 +123,27 @@ async function loadBaseData() {
             classSelect.appendChild(opt);
         });
 
-        // 4. Unpaid challan balances
-        let bq = window.supabaseClient
-            .from('challans')
-            .select('student_id, amount, paid_amount')
-            .in('status', ['Unpaid', 'Partially Paid']);
-        if (sid) bq = bq.eq('school_id', sid);
-        const { data: challans } = await bq;
+        // 4. Unpaid challan balances. Match Fee Contacts exactly: query by
+        // the visible individual-student IDs in batches. This includes valid
+        // legacy challans whose school_id is blank and avoids row-limit loss.
+        const allStudentIds = allStudents.map(student => student.id);
+        const challans = [];
+
+        for (let i = 0; i < allStudentIds.length; i += 40) {
+            const batch = allStudentIds.slice(i, i + 40);
+            const { data: batchData, error: batchErr } = await window.supabaseClient
+                .from('challans')
+                .select('student_id, amount, paid_amount')
+                .in('student_id', batch)
+                .in('status', ['Unpaid', 'Partially Paid'])
+                .limit(2000);
+
+            if (batchErr) throw batchErr;
+            if (batchData) challans.push(...batchData);
+        }
 
         studentBalances = {};
-        (challans || []).forEach(c => {
+        challans.forEach(c => {
             const rem = parseFloat(c.amount || 0) - parseFloat(c.paid_amount || 0);
             studentBalances[c.student_id] = (studentBalances[c.student_id] || 0) + rem;
         });
@@ -310,5 +345,9 @@ function doPrint() {
     const now      = new Date().toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' });
     document.getElementById('printHeader').textContent =
         `Student Fee Balance Report — Month: ${monthStr}  |  Class: ${cls}  |  Filter: ${status}  |  Printed: ${now}`;
+    if (includeFamilyStudents) {
+        document.getElementById('printHeader').textContent =
+            document.getElementById('printHeader').textContent.replace('Student Fee Balance Report', 'All Students Fee Balance Report');
+    }
     window.print();
 }

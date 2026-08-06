@@ -122,21 +122,9 @@ async function loadBaseData() {
 
         if (sErr) throw sErr;
 
-        // Exclude students who belong to a family (father_mobile shared by 2+ active students).
-        // Those students are managed in family_contacts, so they should not appear here.
-        const mobileCount = {};
-        (students || []).forEach(s => {
-            const mob = (s.father_mobile || '').trim();
-            if (mob) mobileCount[mob] = (mobileCount[mob] || 0) + 1;
-        });
-        const familyMobiles = new Set(
-            Object.entries(mobileCount).filter(([, cnt]) => cnt >= 2).map(([mob]) => mob)
-        );
-
-        allStudents = (students || []).filter(s => {
-            const mob = (s.father_mobile || '').trim();
-            return !mob || !familyMobiles.has(mob);
-        });
+        // This page intentionally includes every active student, including students
+        // who are also grouped on the Family Fee Contacts page.
+        allStudents = students || [];
 
         // Fetch classes for dropdown
         const { data: classes, error: cErr } = await supabaseClient
@@ -665,4 +653,3 @@ async function saveContactState(studentId, fieldsToUpdate) {
         console.error("Save error:", err);
     }
 }
-

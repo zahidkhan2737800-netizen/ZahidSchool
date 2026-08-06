@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Complaints - Zahid School System</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="complaint_diary.css?v=4">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="student-complaints-page">
+    <div class="page-container student-complaints-wrap">
+        <div class="header">
+            <div>
+                <h1 style="margin:0;color:#0f172a;font-size:2rem;font-weight:800;">👨‍🎓 Student Complaints</h1>
+                <p style="margin:.5rem 0 0;color:#64748b;">Find a student and view their complete complaint history.</p>
+            </div>
+            <div class="header-nav">
+                <a href="complaint_diary.html"><i class="fas fa-book"></i> Complaint Diary</a>
+                <a href="student_complaints_report.html"><i class="fas fa-chart-pie"></i> Complaints Report</a>
+                <a href="dashboard.html"><i class="fas fa-chart-line"></i> Dashboard</a>
+            </div>
+        </div>
+
+        <div class="section-card">
+            <h3>🔎 Select Student</h3>
+            <div class="student-selector-layout">
+                <div class="form-group student-search-field">
+                    <label>Student Name or Roll</label>
+                    <div class="student-autocomplete">
+                        <input type="text" id="reportStudent" placeholder="Type part of a student name or roll" autocomplete="off"
+                            aria-autocomplete="list" aria-controls="reportStudentSuggestions" aria-expanded="false">
+                        <div id="reportStudentSuggestions" class="student-suggestions" role="listbox" hidden></div>
+                    </div>
+                </div>
+                <div class="form-group student-layout-control">
+                    <label for="fontSizeRange">Font Size <span id="fontSizeValue">8.5px</span></label>
+                    <input type="range" id="fontSizeRange" min="7" max="20" step="0.5" value="8.5">
+                </div>
+                <div class="form-group student-layout-control">
+                    <label for="compactnessRange">Compactness <span id="compactnessValue">80%</span></label>
+                    <input type="range" id="compactnessRange" min="0" max="100" step="5" value="80">
+                </div>
+                <div class="student-report-actions">
+                    <button class="btn btn-primary btn-sm" id="genStudentReport">Generate Report</button>
+                    <button class="btn btn-secondary btn-sm" id="printStudentReport">🖨️ Print</button>
+                </div>
+                <div id="selectedStudentDetails" class="selected-student-details" hidden></div>
+            </div>
+        </div>
+
+        <div class="section-card student-report-card">
+            <div class="report-output" id="specificReport">
+                <p style="color:#94a3b8;text-align:center;padding:2rem;">Select a student to view complaints.</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="auth.js"></script>
+    <script src="student_complaints.js?v=4"></script>
+</body>
+</html>

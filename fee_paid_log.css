@@ -159,6 +159,18 @@ body {
     gap: 0.8rem;
 }
 
+.collector-summary {
+    display: flex;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+}
+.summary .collector-card {
+    border-color: #bae6fd;
+    background: #f0f9ff;
+}
+.summary .collector-card strong { color: #0369a1; }
+
 .summary .card {
     background: var(--panel);
     border: 1px solid var(--line);

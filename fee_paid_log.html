@@ -6,7 +6,7 @@
     <title>Zahid School - Paid Fee Log</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="fee_paid_log.css">
+    <link rel="stylesheet" href="fee_paid_log.css?v=2">
     <style>
         .nav-bar{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
         .nav-bar>a{text-decoration:none;color:var(--brand-dark);font-weight:600;font-size:.85rem;border:1px solid #c7d2fe;background:#eef2ff;padding:.4rem .65rem;border-radius:8px;white-space:nowrap}
@@ -95,6 +95,7 @@
                 <span class="lbl">Total Amount</span>
                 <strong id="totalAmount">Rs 0</strong>
             </div>
+            <div class="collector-summary" id="collectorSummary"></div>
         </section>
 
         <section class="table-wrap">
@@ -123,6 +124,6 @@
     </div>
 
     <script src="auth.js"></script>
-    <script src="fee_paid_log.js?v=2"></script>
+    <script src="fee_paid_log.js?v=3"></script>
 </body>
 </html>

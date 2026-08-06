@@ -25,6 +25,9 @@ const contactOptions  = ["Whatsapp","Call Received","Call Not Received","Number 
 
 let complaintsCache = [];
 let studentsMap     = {};
+let studentsList    = [];
+let reportMatches   = [];
+let selectedReportRoll = '';
 
 let waTemplates = [];
 let currentComplaintId = null;
@@ -99,14 +102,17 @@ async function loadStudents() {
             .order('roll_number'));
         if (error) throw error;
         studentsMap = {};
+        studentsList = [];
         (data || []).forEach(s => {
             const roll = String(s.roll_number || '').trim();
-            if (roll) studentsMap[roll] = { 
+            if (roll) studentsMap[roll] = {
+                roll,
                 name: s.full_name || '', 
                 className: s.applying_for_class || '',
                 fatherName: s.father_name || '',
                 mobile: getValidPhone(s.father_whatsapp, s.father_mobile)
             };
+            if (roll) studentsList.push(studentsMap[roll]);
         });
     } catch (e) {
         console.warn('loadStudents failed', e);
@@ -350,24 +356,113 @@ function generateAnalytics() {
 
 
 // ─── Student Report ───────────────────────────────────────────
-document.getElementById('genStudentReport').addEventListener('click', () => {
-    const q = (document.getElementById('reportStudent').value || '').trim().toLowerCase();
-    const clsFilter = (document.getElementById('reportClass').value || '').trim().toLowerCase();
-    if (!q && !clsFilter) { alert('Enter roll/name or class'); return; }
+const reportStudentInput = document.getElementById('reportStudent');
+const reportStudentSuggestions = document.getElementById('reportStudentSuggestions');
+const selectedStudentDetails = document.getElementById('selectedStudentDetails');
 
-    const filtered = complaintsCache.filter(r => {
-        if (q && !((r.roll || '').toLowerCase() === q || (r.name || '').toLowerCase().includes(q))) return false;
-        if (clsFilter && (r.class_name || '').toLowerCase() !== clsFilter) return false;
-        return true;
-    });
+// The student report now lives on student_complaints.html. Keep this guarded
+// temporarily so older cached copies of complaint_diary.html cannot break.
+if (reportStudentInput && reportStudentSuggestions && selectedStudentDetails) {
 
-    const out = document.getElementById('specificReport');
-    if (filtered.length === 0) {
-        out.innerHTML = '<p style="color:#94a3b8;">No records found.</p>';
+function hideReportSuggestions() {
+    reportStudentSuggestions.hidden = true;
+    reportStudentInput.setAttribute('aria-expanded', 'false');
+}
+
+function clearSelectedReportStudent() {
+    selectedReportRoll = '';
+    selectedStudentDetails.hidden = true;
+    selectedStudentDetails.innerHTML = '';
+}
+
+function selectReportStudent(student) {
+    selectedReportRoll = student.roll;
+    reportStudentInput.value = `${student.name} (${student.roll})`;
+    selectedStudentDetails.innerHTML = `
+        <strong>${esc(student.name)}</strong>
+        <span><b>Father:</b> ${esc(student.fatherName || '—')}</span>
+        <span><b>Class:</b> ${esc(student.className || '—')}</span>
+        <span><b>Roll:</b> ${esc(student.roll)}</span>`;
+    selectedStudentDetails.hidden = false;
+    hideReportSuggestions();
+}
+
+function renderReportSuggestions() {
+    const query = reportStudentInput.value.trim().toLowerCase();
+    clearSelectedReportStudent();
+
+    if (!query) {
+        hideReportSuggestions();
         return;
     }
 
-    out.innerHTML = `<h4>Report (${filtered.length} records)</h4>
+    reportMatches = studentsList.filter(student =>
+        student.name.toLowerCase().includes(query) ||
+        student.roll.toLowerCase().includes(query)
+    ).slice(0, 15);
+
+    if (!reportMatches.length) {
+        reportStudentSuggestions.innerHTML = '<div class="student-suggestion-empty">No matching active student</div>';
+    } else {
+        reportStudentSuggestions.innerHTML = reportMatches.map((student, index) => `
+            <button type="button" class="student-suggestion" role="option" data-student-index="${index}">
+                <strong>${esc(student.name)}</strong>
+                <span>Father: ${esc(student.fatherName || '—')}</span>
+                <span>Class: ${esc(student.className || '—')} &nbsp;|&nbsp; Roll: ${esc(student.roll)}</span>
+            </button>`).join('');
+    }
+
+    reportStudentSuggestions.hidden = false;
+    reportStudentInput.setAttribute('aria-expanded', 'true');
+}
+
+reportStudentInput.addEventListener('input', renderReportSuggestions);
+reportStudentInput.addEventListener('keydown', event => {
+    if (event.key === 'Escape') hideReportSuggestions();
+});
+reportStudentSuggestions.addEventListener('click', event => {
+    const option = event.target.closest('[data-student-index]');
+    if (!option) return;
+    const student = reportMatches[Number(option.dataset.studentIndex)];
+    if (student) selectReportStudent(student);
+});
+document.addEventListener('click', event => {
+    if (!event.target.closest('.student-autocomplete')) hideReportSuggestions();
+});
+
+document.getElementById('genStudentReport').addEventListener('click', () => {
+    if (!selectedReportRoll) {
+        const query = reportStudentInput.value.trim().toLowerCase();
+        const exactMatch = studentsList.find(student =>
+            student.roll.toLowerCase() === query || student.name.toLowerCase() === query
+        );
+        if (exactMatch) selectReportStudent(exactMatch);
+    }
+    if (!selectedReportRoll) {
+        alert('Type a student name or roll and select a student from the list.');
+        return;
+    }
+
+    const student = studentsMap[selectedReportRoll];
+    const filtered = complaintsCache.filter(r => String(r.roll || '').trim() === selectedReportRoll);
+
+    const out = document.getElementById('specificReport');
+    if (filtered.length === 0) {
+        out.innerHTML = `<div class="report-student-heading">
+                <h4>${esc(student?.name || '')} — Complaint Report</h4>
+                <span><b>Father:</b> ${esc(student?.fatherName || '—')}</span>
+                <span><b>Class:</b> ${esc(student?.className || '—')}</span>
+                <span><b>Roll:</b> ${esc(selectedReportRoll)}</span>
+            </div><p style="color:#94a3b8;">No complaint records found for this student.</p>`;
+        return;
+    }
+
+    out.innerHTML = `<div class="report-student-heading">
+            <h4>${esc(student?.name || '')} — Complaint Report (${filtered.length} records)</h4>
+            <span><b>Father:</b> ${esc(student?.fatherName || '—')}</span>
+            <span><b>Class:</b> ${esc(student?.className || '—')}</span>
+            <span><b>Roll:</b> ${esc(selectedReportRoll)}</span>
+        </div>
         <table><thead><tr><th>Roll</th><th>Name</th><th>Date</th><th>Complaint</th><th>Category</th><th>Contact</th><th>Status</th></tr></thead>
         <tbody>${filtered.map(r => `<tr>
             <td>${esc(r.roll)}</td><td>${esc(r.name)}</td><td>${esc(r.date)}</td>
@@ -377,6 +472,7 @@ document.getElementById('genStudentReport').addEventListener('click', () => {
 });
 
 document.getElementById('printStudentReport').addEventListener('click', () => window.print());
+}
 
 // ─── Search Wiring ────────────────────────────────────────────
 ['searchBox', 'searchDate', 'searchCategory', 'searchStatus'].forEach(id => {

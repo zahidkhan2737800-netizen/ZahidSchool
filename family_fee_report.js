@@ -68,15 +68,12 @@ async function loadBaseData() {
     setLoader(true);
 
     try {
-        const sid = window.currentSchoolId || null;
-
         // 1. Fetch active students
-        let q = window.supabaseClient
+        const q = window.supabaseClient
             .from('admissions')
             .select('id, roll_number, full_name, father_name, father_mobile, applying_for_class, family_id_manual')
             .eq('status', 'Active')
             .order('roll_number', { ascending: true });
-        if (sid) q = q.eq('school_id', sid);
         const { data: students, error: sErr } = await q;
         if (sErr) throw sErr;
 
@@ -103,16 +100,27 @@ async function loadBaseData() {
             });
         });
 
-        // 3. Unpaid challan balances
-        let bq = window.supabaseClient
-            .from('challans')
-            .select('student_id, amount, paid_amount')
-            .in('status', ['Unpaid', 'Partially Paid']);
-        if (sid) bq = bq.eq('school_id', sid);
-        const { data: challans } = await bq;
+        // 3. Unpaid challan balances. Match Family Contacts exactly: query by
+        // the active family-member IDs in batches. This includes valid legacy
+        // challans whose school_id is blank while RLS still protects the data.
+        const allStudentIds = allFamilies.flatMap(fam => fam.members.map(member => member.id));
+        const challans = [];
+
+        for (let i = 0; i < allStudentIds.length; i += 40) {
+            const batch = allStudentIds.slice(i, i + 40);
+            const { data: batchData, error: batchErr } = await window.supabaseClient
+                .from('challans')
+                .select('student_id, amount, paid_amount')
+                .in('student_id', batch)
+                .in('status', ['Unpaid', 'Partially Paid'])
+                .limit(2000);
+
+            if (batchErr) throw batchErr;
+            if (batchData) challans.push(...batchData);
+        }
 
         const studentBal = {};
-        (challans || []).forEach(c => {
+        challans.forEach(c => {
             const rem = parseFloat(c.amount || 0) - parseFloat(c.paid_amount || 0);
             studentBal[c.student_id] = (studentBal[c.student_id] || 0) + rem;
         });

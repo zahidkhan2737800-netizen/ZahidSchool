@@ -20,6 +20,7 @@ var NAV_CATEGORIES = [
     id: 'quality', label: 'Quality', icon: 'fas fa-star',
     items: [
       { href: 'complaint_diary.html', label: 'Complaint Diary', icon: 'fas fa-envelope-open-text', key: 'complaints' },
+      { href: 'student_complaints.html', label: 'Student Complaints', icon: 'fas fa-user-check', key: 'complaints' },
       { href: 'student_complaints_report.html', label: 'Complaints Report', icon: 'fas fa-chart-pie', key: 'complaints' },
       { href: 'monitoring.html', label: 'Monitoring', icon: 'fas fa-chart-line', key: 'monitoring' },
       { href: 'syllabus_progress.html', label: 'Progress', icon: 'fas fa-list-check', key: 'classes' },
@@ -42,6 +43,7 @@ var NAV_CATEGORIES = [
     items: [
       { href: 'family_contacts.html', label: 'Family Fee Contact', icon: 'fas fa-phone-volume', key: 'fee_contacts' },
       { href: 'fee_contacts.html', label: 'Student Fee Contact', icon: 'fas fa-phone-alt', key: 'fee_contacts' },
+      { href: 'All Fee Contact.html', label: 'All Fee Contact', icon: 'fas fa-users', key: 'fee_contacts' },
     ]
   },
   {
@@ -56,6 +58,7 @@ var NAV_CATEGORIES = [
       { href: 'fee_default_report.html', label: 'Fee Default Report', icon: 'fas fa-user-slash', key: 'collect_fee' },
       { href: 'family_fee_report.html', label: 'Family Fee Balance Report', icon: 'fas fa-users-cog', key: 'collect_fee' },
       { href: 'student_fee_report.html', label: 'Student Fee Balance Report', icon: 'fas fa-user-graduate', key: 'collect_fee' },
+      { href: 'student_fee_report.html?scope=all', label: 'All Students Fee Balance Report', icon: 'fas fa-users', key: 'collect_fee' },
     ]
   },
     {
