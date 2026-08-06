@@ -85,7 +85,7 @@ window.campusFeatureReady = false;
         // 2. Fetch user's role and school status
         const { data: roleData, error: roleError } = await supabaseClient
             .from('user_roles')
-            .select('role_id, school_id, schools(is_active, school_name), roles(id, role_name)')
+            .select('role_id, school_id, full_name, schools(is_active, school_name), roles(id, role_name)')
             .eq('user_id', currentUser.id)
             .single();
 
@@ -102,6 +102,7 @@ window.campusFeatureReady = false;
         }
         window.currentSchoolName = school ? school.school_name : 'System';
         window.currentSchoolId = roleData.school_id || null; // ← expose for tenant isolation
+        window.currentUserFullName = roleData.full_name || '';
 
         // Optional campus context (backward-compatible): if campus_id isn't migrated yet, keep null.
         try {

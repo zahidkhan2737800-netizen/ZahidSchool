@@ -56,6 +56,10 @@ function toCurrencyLabel(amount) {
     return `Rs ${Math.round(Number(amount) || 0).toLocaleString()}`;
 }
 
+function cleanCollectorName(value) {
+    return String(value || '').trim().replace(/\s*\([^)]*\)\s*$/, '').trim();
+}
+
 function getFilteredRows() {
     const q = (searchTextInput.value || '').trim().toLowerCase();
 
@@ -63,7 +67,8 @@ function getFilteredRows() {
         return !q || (
             String(r.rollNo).toLowerCase().includes(q) ||
             String(r.studentName).toLowerCase().includes(q) ||
-            String(r.fatherName).toLowerCase().includes(q)
+            String(r.fatherName).toLowerCase().includes(q) ||
+            String(r.collectedBy).toLowerCase().includes(q)
         );
     });
 }
@@ -159,7 +164,7 @@ async function loadPaidFees() {
 
     loadBtn.disabled = true;
     loadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading';
-    paidLogBody.innerHTML = '<tr><td colspan="8" class="empty">Loading paid fee records...</td></tr>';
+    paidLogBody.innerHTML = '<tr><td colspan="9" class="empty">Loading paid fee records...</td></tr>';
 
     try {
         const startDate = `${selected}T00:00:00`;
@@ -169,7 +174,7 @@ async function loadPaidFees() {
 
         const { data: txData, error: txErr } = await applySchoolScope(
             db.from('transactions')
-                .select('student_id, roll_number, challan_id, fee_details, amount_paid, payment_method, created_at')
+                .select('student_id, roll_number, challan_id, receipt_number, payment_reference, fee_details, amount_paid, payment_method, created_at')
                 .gte('created_at', startDate)
                 .lt('created_at', endDate)
                 .order('created_at', { ascending: false })
@@ -189,6 +194,8 @@ async function loadPaidFees() {
 
         let admissionsMap = new Map();
         let challansMap = new Map();
+        let receiptByNumber = new Map();
+        let receiptByReferenceAndStudent = new Map();
 
         if (studentIds.length > 0) {
             const { data: stuData, error: stuErr } = await applySchoolScope(
@@ -210,9 +217,47 @@ async function loadPaidFees() {
             challansMap = new Map((chData || []).map(c => [c.id, c]));
         }
 
+        if (studentIds.length > 0) {
+            const { data: receiptData, error: receiptErr } = await db.from('receipts')
+                .select('receipt_number, student_id, payment_reference, collected_by, created_at')
+                .in('student_id', studentIds)
+                .gte('created_at', startDate)
+                .lt('created_at', endDate)
+                .order('created_at', { ascending: false });
+
+            if (receiptErr) throw receiptErr;
+
+            (receiptData || []).forEach(receipt => {
+                const receiptNumber = String(receipt.receipt_number || '').trim();
+                const reference = String(receipt.payment_reference || '').trim();
+                const studentId = String(receipt.student_id || '');
+
+                if (receiptNumber && !receiptByNumber.has(receiptNumber)) {
+                    receiptByNumber.set(receiptNumber, receipt);
+                }
+                if (reference && studentId) {
+                    const key = `${reference}::${studentId}`;
+                    if (!receiptByReferenceAndStudent.has(key)) {
+                        receiptByReferenceAndStudent.set(key, receipt);
+                    }
+                }
+            });
+        }
+
         allRows = transactions.map(tx => {
             const stu = admissionsMap.get(tx.student_id) || {};
             const ch = challansMap.get(tx.challan_id) || {};
+
+            const txReference = String(tx.payment_reference || '').trim();
+            const txStudentId = String(tx.student_id || '');
+            const txReceiptNumber = String(tx.receipt_number || '').trim();
+            const baseReceiptNumber = txReceiptNumber.startsWith('RCT-')
+                ? txReceiptNumber.replace(/-\d+$/, '')
+                : txReceiptNumber;
+
+            const savedReceipt = txReceiptNumber.startsWith('RCT-')
+                ? (receiptByNumber.get(baseReceiptNumber) || receiptByNumber.get(txReceiptNumber) || null)
+                : (receiptByReferenceAndStudent.get(`${txReference}::${txStudentId}`) || receiptByNumber.get(txReceiptNumber) || null);
 
             const feeHead = ch.fee_type
                 ? `${ch.fee_type}${ch.fee_month ? ` (${ch.fee_month})` : ''}`
@@ -227,6 +272,7 @@ async function loadPaidFees() {
                 className: stu.applying_for_class || 'N/A',
                 feeHead,
                 paymentType: tx.payment_method || 'N/A',
+                collectedBy: cleanCollectorName(savedReceipt?.collected_by) || '—',
                 amount: Number(tx.amount_paid || 0)
             };
         });
@@ -234,7 +280,7 @@ async function loadPaidFees() {
         renderRows();
     } catch (err) {
         console.error('Paid fee log load error:', err);
-        paidLogBody.innerHTML = `<tr><td colspan="8" class="empty" style="color:#dc2626;">Failed to load data: ${err.message}</td></tr>`;
+        paidLogBody.innerHTML = `<tr><td colspan="9" class="empty" style="color:#dc2626;">Failed to load data: ${err.message}</td></tr>`;
         rowCountEl.textContent = '0';
         totalAmountEl.textContent = 'Rs 0';
     } finally {
@@ -247,7 +293,7 @@ function renderRows() {
     const filtered = getFilteredRows();
 
     if (filtered.length === 0) {
-        paidLogBody.innerHTML = '<tr><td colspan="8" class="empty">No paid fee records found for this filter.</td></tr>';
+        paidLogBody.innerHTML = '<tr><td colspan="9" class="empty">No paid fee records found for this filter.</td></tr>';
         rowCountEl.textContent = '0';
         totalAmountEl.textContent = 'Rs 0';
         updatePrintHeader();
@@ -265,6 +311,7 @@ function renderRows() {
             <td>${row.className}</td>
             <td>${row.feeHead}</td>
             <td>${row.paymentType}</td>
+            <td><strong>${row.collectedBy}</strong></td>
             <td><strong>Rs ${Math.round(row.amount).toLocaleString()}</strong></td>
         </tr>
     `).join('');

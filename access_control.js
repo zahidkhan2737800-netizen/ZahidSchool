@@ -292,6 +292,9 @@ async function loadUsers() {
             const campusOptions = ['<option value="">All Campuses (School-wide)</option>']
                 .concat(campuses.filter(c => c.is_active).map(c => `<option value="${c.id}" ${ur.campus_id === c.id ? 'selected' : ''}>${c.campus_name}</option>`))
                 .join('');
+            const canDeleteUser = userRoleName === 'super_admin'
+                && ur.user_id !== window.currentUser?.id
+                && rName !== 'super_admin';
 
             const row = document.createElement('tr');
             row.innerHTML = `
@@ -310,16 +313,21 @@ async function loadUsers() {
                 }
                 </td>
                 <td>
-                ${rName === 'admin' || rName === 'super_admin'
-                    ? '<div style="font-size:0.8rem; font-weight:800; color:#2563eb; padding:0.4rem 0.8rem; border-radius:6px; background:#eff6ff; display: inline-block;">SUPER ADMIN</div>'
-                    : `<select class="role-select" data-ur-id="${ur.id}" data-user-id="${ur.user_id}">
-                        ${allRoles.filter(r => r.role_name !== 'admin' && r.role_name !== 'super_admin').map(r => `<option value="${r.id}" ${r.id === ur.role_id ? 'selected' : ''}>${r.role_name.replace('_', ' ').toUpperCase()}</option>`).join('')}
-                       </select>`
-                }
+                    <div class="user-actions">
+                    ${rName === 'admin' || rName === 'super_admin'
+                        ? `<div style="font-size:0.8rem; font-weight:800; color:#2563eb; padding:0.4rem 0.8rem; border-radius:6px; background:#eff6ff; display: inline-block;">${rName.replace('_', ' ').toUpperCase()}</div>`
+                        : `<select class="role-select user-role-select" data-ur-id="${ur.id}" data-user-id="${ur.user_id}">
+                            ${allRoles.filter(r => r.role_name !== 'admin' && r.role_name !== 'super_admin').map(r => `<option value="${r.id}" ${r.id === ur.role_id ? 'selected' : ''}>${r.role_name.replace('_', ' ').toUpperCase()}</option>`).join('')}
+                           </select>`
+                    }
+                    ${canDeleteUser
+                        ? `<button type="button" class="btn-delete-user" title="Permanently delete ${displayName}">🗑️ Delete</button>`
+                        : ''}
+                    </div>
                 </td>
             `;
-            
-            const sel = row.querySelector('.role-select');
+
+            const sel = row.querySelector('.user-role-select');
             if(sel) {
                 sel.addEventListener('change', async (e) => {
                     try {
@@ -353,12 +361,61 @@ async function loadUsers() {
                     }
                 });
             }
+
+            const deleteBtn = row.querySelector('.btn-delete-user');
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', () => deleteUserAccount(ur, displayName, displayEmail, deleteBtn));
+            }
             
             container.appendChild(row);
         }
 
     } catch (err) {
         container.innerHTML = `<p style="color:red;">Error: ${err.message}</p>`;
+    }
+}
+
+// ─── Delete User Account (Super Admin only) ──────────────────────────────────
+async function deleteUserAccount(userRecord, displayName, displayEmail, button) {
+    if (userRoleName !== 'super_admin') {
+        showToast('❌ Only the Super Admin can delete user accounts.', 'error');
+        return;
+    }
+
+    if (!userRecord?.user_id || userRecord.user_id === window.currentUser?.id) {
+        showToast('❌ You cannot delete your own account.', 'error');
+        return;
+    }
+
+    const confirmed = window.confirm(
+        `Permanently delete "${displayName}" (${displayEmail})?\n\n` +
+        'This removes the login account and role assignment. This action cannot be undone.'
+    );
+    if (!confirmed) return;
+
+    const originalText = button.textContent;
+    button.disabled = true;
+    button.textContent = '⏳ Deleting...';
+
+    try {
+        const { error } = await supabaseClient.rpc('delete_managed_user', {
+            p_user_id: userRecord.user_id
+        });
+        if (error) throw error;
+
+        showToast(`✅ User "${displayName}" deleted permanently.`, 'success');
+        await loadUsers();
+    } catch (err) {
+        console.error('Delete user error:', err);
+        const missingFunction = err.code === 'PGRST202' || /delete_managed_user/i.test(err.message || '');
+        showToast(
+            missingFunction
+                ? '❌ Secure delete is not installed in Supabase. Run delete_user_account_rpc.sql first.'
+                : '❌ Delete failed: ' + err.message,
+            'error'
+        );
+        button.disabled = false;
+        button.textContent = originalText;
     }
 }
 

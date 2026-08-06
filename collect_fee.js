@@ -11,6 +11,10 @@ let selectedIds   = new Set();
 let grandTotal    = 0;
 let receiptCache  = [];   // saved receipts for current student (for reprint)
 
+function cleanCollectorName(value) {
+    return String(value || '').trim().replace(/\s*\([^)]*\)\s*$/, '').trim();
+}
+
 // ─── DOM Refs ─────────────────────────────────────────────────────────────────
 const studentSearch = document.getElementById('studentSearch');
 const searchStatus = document.getElementById('searchStatus');
@@ -362,7 +366,7 @@ async function loadHistory(uuid) {
             <tr>
                 <td>
                     ${dateStr}
-                    <button onclick="window.printDaySummary('${dateStr}')" style="margin-left:5px; font-size:0.75rem; background:#f8fafc; border:1px solid #cbd5e1; border-radius:4px; padding:2px 4px; cursor:pointer; color:#334155;" title="Print combined summary for this day">📅</button>
+                    <button onclick="window.printDaySummaryForReceipt(${idx})" style="margin-left:5px; font-size:0.75rem; background:#f8fafc; border:1px solid #cbd5e1; border-radius:4px; padding:2px 4px; cursor:pointer; color:#334155;" title="Print this collector's combined summary for this day">📅</button>
                 </td>
                 <td style="font-family:monospace; font-weight:600; font-size:0.82rem;">${r.receipt_number}</td>
                 <td style="color:#16a34a; font-weight:700;">Rs ${Number(r.total_paid).toLocaleString()}</td>
@@ -383,6 +387,8 @@ function reprintFromHistory(receipt) {
     applyThermalSettings('collect_fee');
     document.getElementById('rctNo').textContent        = receipt.receipt_number;
     document.getElementById('rctDate').textContent      = new Date(receipt.created_at).toLocaleString('en-PK', { timeZone: 'Asia/Karachi' });
+    const collectorName = cleanCollectorName(receipt.collected_by);
+    document.getElementById('rctUser').textContent     = collectorName ? `User: ${collectorName}` : '';
     document.getElementById('rctName').textContent      = receipt.student_name;
     document.getElementById('rctRoll').textContent      = receipt.roll_number;
     document.getElementById('rctFather').textContent    = receipt.father_name || 'N/A';
@@ -410,10 +416,21 @@ function reprintFromHistory(receipt) {
 }
 
 // ─── Print Daily Combined Summary ─────────────────────────────────────────────
-window.printDaySummary = function(dateStr) {
+window.printDaySummaryForReceipt = function(receiptIndex) {
+    const sourceReceipt = receiptCache[receiptIndex];
+    if (!sourceReceipt) return;
+
+    const dateStr = new Date(sourceReceipt.created_at).toLocaleDateString('en-PK', { timeZone: 'Asia/Karachi' });
+    window.printDaySummary(dateStr, sourceReceipt.collected_by || '');
+};
+
+window.printDaySummary = function(dateStr, collectorKey = '') {
     if (!receiptCache || receiptCache.length === 0) return;
-    
-    const dayReceipts = receiptCache.filter(r => new Date(r.created_at).toLocaleDateString('en-PK', { timeZone: 'Asia/Karachi' }) === dateStr);
+
+    const dayReceipts = receiptCache.filter(r =>
+        new Date(r.created_at).toLocaleDateString('en-PK', { timeZone: 'Asia/Karachi' }) === dateStr &&
+        String(r.collected_by || '').trim() === String(collectorKey || '').trim()
+    );
     if (dayReceipts.length === 0) return;
     
     const sorted = [...dayReceipts].sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
@@ -440,6 +457,8 @@ window.printDaySummary = function(dateStr) {
     applyThermalSettings('collect_fee');
     document.getElementById('rctNo').textContent        = `DAY-${dateStr.replace(/\//g, '')}`;
     document.getElementById('rctDate').textContent      = `${dateStr} (Combined Summary)`;
+    const collectorName = cleanCollectorName(firstReceipt.collected_by);
+    document.getElementById('rctUser').textContent     = collectorName ? `User: ${collectorName}` : '';
     document.getElementById('rctName').textContent      = firstReceipt.student_name;
     document.getElementById('rctRoll').textContent      = firstReceipt.roll_number;
     document.getElementById('rctFather').textContent    = firstReceipt.father_name || 'N/A';
@@ -636,6 +655,7 @@ async function submitPayment() {
     const method   = inputMethod.value;
     const ref      = inputRef.value.trim();
     const remarks  = inputRemarks.value.trim();
+    const collectorName = cleanCollectorName(window.currentUserFullName);
 
     if (paying <= 0) return alert('Enter a valid amount.');
     if (paying > grandTotal) return alert(`Cannot exceed Grand Total of Rs ${grandTotal}.`);
@@ -722,13 +742,14 @@ async function submitPayment() {
             payment_method:    method,
             payment_reference: ref || null,
             remarks:           remarks || null,
-            school_id:         currentSchoolId
+            school_id:         currentSchoolId,
+            collected_by:      collectorName || null
         };
         const { error: rctErr } = await db.from('receipts').insert([receiptRecord]);
         if (rctErr) console.warn('Receipt save warning:', rctErr.message); // non-fatal
 
         // Print receipt
-        printReceipt(baseReceipt, txRecords, paying, remaining);
+        printReceipt(baseReceipt, txRecords, paying, remaining, collectorName);
 
         // Reset & Refresh
         inputFine.value    = '0';
@@ -752,10 +773,11 @@ async function submitPayment() {
 }
 
 // ─── Receipt Print ────────────────────────────────────────────────────────────
-function printReceipt(receiptId, txRecords, totalPaid, remaining) {
+function printReceipt(receiptId, txRecords, totalPaid, remaining, collectorName) {
     applyThermalSettings('collect_fee');
     document.getElementById('rctNo').textContent       = receiptId;
     document.getElementById('rctDate').textContent     = `${karachiFormatDate()} ${karachiFormatTime()}`;
+    document.getElementById('rctUser').textContent     = collectorName ? `User: ${collectorName}` : '';
     document.getElementById('rctName').textContent     = activeStudent.full_name;
     document.getElementById('rctRoll').textContent     = activeStudent.roll_number;
     document.getElementById('rctFather').textContent   = activeStudent.father_name || 'N/A';
@@ -812,6 +834,8 @@ function printBill() {
     applyThermalSettings('collect_fee');
     document.getElementById('rctNo').textContent       = 'BILL-' + Date.now().toString().slice(-4);
     document.getElementById('rctDate').textContent     = `${karachiFormatDate()} ${karachiFormatTime()}`;
+    const userName = cleanCollectorName(window.currentUserFullName);
+    document.getElementById('rctUser').textContent     = userName ? `User: ${userName}` : '';
     document.getElementById('rctName').textContent     = activeStudent.full_name;
     document.getElementById('rctRoll').textContent     = activeStudent.roll_number;
     document.getElementById('rctFather').textContent   = activeStudent.father_name || 'N/A';

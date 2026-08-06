@@ -498,7 +498,7 @@ function buildQuickLinks() {
     const colorClasses = ['qa-blue', 'qa-purple', 'qa-green', 'qa-amber', 'qa-rose'];
     savedActions.forEach((action, index) => {
         const color = colorClasses[index % colorClasses.length];
-        html += `<a href="${action.href}" class="quick-action-card ${color}" title="${action.label}">
+        html += `<a href="${action.href}" class="quick-action-card ${color}" title="${action.label}" target="_blank" rel="noopener noreferrer">
                    <div class="qa-icon"><i class="${action.icon}"></i></div>
                    <div class="qa-label">${action.label}</div>
                  </a>`;

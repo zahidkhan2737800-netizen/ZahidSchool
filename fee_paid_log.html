@@ -69,8 +69,8 @@
                 <input type="date" id="feeDate">
             </div>
             <div class="field search-field">
-                <label for="searchText">Search Student / Roll / Father</label>
-                <input type="text" id="searchText" placeholder="Type student name, roll number, or father name">
+                    <label for="searchText">Search Student / Roll / Father / User</label>
+                    <input type="text" id="searchText" placeholder="Type student name, roll number, father name, or user">
             </div>
             <div class="field slider-field">
                 <label for="fontSizeRange">Font Size <span id="fontSizeValue">8.5px</span></label>
@@ -109,12 +109,13 @@
                         <th>Class</th>
                         <th>Fee Head / Month</th>
                         <th>Payment Type</th>
+                        <th>Collected By</th>
                         <th>Amount</th>
                     </tr>
                 </thead>
                 <tbody id="paidLogBody">
                     <tr>
-                        <td colspan="8" class="empty">Loading...</td>
+                        <td colspan="9" class="empty">Loading...</td>
                     </tr>
                 </tbody>
             </table>
@@ -122,6 +123,6 @@
     </div>
 
     <script src="auth.js"></script>
-    <script src="fee_paid_log.js"></script>
+    <script src="fee_paid_log.js?v=2"></script>
 </body>
 </html>

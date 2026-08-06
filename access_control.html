@@ -249,6 +249,36 @@
             max-width: 250px;
         }
 
+        .user-actions {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.55rem;
+            flex-wrap: wrap;
+        }
+        .btn-delete-user {
+            padding: 0.58rem 0.85rem;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            background: #fff1f2;
+            color: #be123c;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.82rem;
+            font-weight: 800;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s ease;
+        }
+        .btn-delete-user:hover:not(:disabled) {
+            background: #be123c;
+            border-color: #be123c;
+            color: #fff;
+        }
+        .btn-delete-user:disabled {
+            opacity: 0.55;
+            cursor: wait;
+        }
+
         .campus-tools {
             display: flex;
             gap: 0.8rem;
@@ -449,6 +479,6 @@
     </div>
 
     <script src="auth.js"></script>
-    <script src="access_control.js"></script>
+    <script src="access_control.js?v=2"></script>
 </body>
 </html>
