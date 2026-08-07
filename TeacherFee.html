@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TeacherFee - Zahid School</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="fee_paid_log.css?v=6">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .filters { grid-template-columns: minmax(230px, 1fr) minmax(155px, .55fr) 150px 150px auto; }
+        .teacher-table { min-width: 1140px; }
+        .choice-select { width: 100%; min-width: 92px; border: 1px solid #94a3b8; border-radius: 7px; padding: 5px 6px; background: #fff; color: #0f172a; font: inherit; font-weight: 800; }
+        .choice-select:focus { outline: 2px solid #86efac; border-color: #16a34a; }
+        .choice-select:disabled { opacity: .65; cursor: wait; }
+        .choice-print { display: none; font-weight: 800; color: #111827; }
+        .remove-student-btn { border: 0; border-radius: 7px; padding: 6px 8px; background: #fee2e2; color: #b91c1c; font-size: .76rem; font-weight: 800; cursor: pointer; }
+        .remove-student-btn:hover { background: #dc2626; color: #fff; }
+        .btn-danger { border: 0; border-radius: 8px; background: #dc2626; color: #fff; font-weight: 700; padding: .68rem 1rem; cursor: pointer; }
+        .btn-danger:hover { background: #b91c1c; }
+        .btn-unfilled { border: 1px solid #f59e0b; border-radius: 8px; background: #fffbeb; color: #b45309; font-weight: 800; padding: .68rem .9rem; cursor: pointer; white-space: nowrap; }
+        .btn-unfilled:hover, .btn-unfilled.active { background: #f59e0b; color: #fff; }
+        .student-name { font-weight: 800; color: #0f172a; }
+        .class-cell { color: #4338ca; font-weight: 800; }
+        .commitment-date { display: inline-block; min-width: 52px; padding: 3px 6px; border-radius: 999px; background: #eff6ff; color: #1d4ed8; font-size: .76rem; font-weight: 900; text-align: center; }
+        .commitment-date.none { background: transparent; color: #94a3b8; }
+        .remaining-cell { color: #b91c1c; font-weight: 900; white-space: nowrap; text-align: right; }
+        #teacherFeeToast { position: fixed; top: 18px; right: 18px; z-index: 5000; max-width: 360px; padding: 11px 15px; border-radius: 9px; background: #dcfce7; color: #166534; border: 1px solid #86efac; box-shadow: 0 8px 24px rgba(15,23,42,.18); font-weight: 700; display: none; }
+        #teacherFeeToast.error { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+        @media (max-width: 1100px) {
+            .filters { grid-template-columns: 1fr 1fr; }
+            .actions { grid-column: 1 / -1; }
+        }
+        @media print {
+            .screen-only { display: none !important; }
+            .teacher-table { min-width: 0; }
+            .choice-select { display: none !important; }
+            .choice-print { display: inline !important; }
+        }
+    </style>
+</head>
+<body>
+    <div id="teacherFeeToast" role="status"></div>
+    <div class="page-wrap">
+        <header class="top-head">
+            <div class="title-wrap">
+                <div class="icon">👨‍🏫</div>
+                <div>
+                    <h1>TeacherFee</h1>
+                    <p>Class-wise student list with three shared selections</p>
+                </div>
+            </div>
+            <div class="head-links">
+                <a href="family_contacts.html"><i class="fas fa-people-roof"></i> Family Contacts</a>
+                <a href="fee_contacts.html"><i class="fas fa-user-graduate"></i> Student Contacts</a>
+                <a href="dashboard.html"><i class="fas fa-chart-line"></i> Dashboard</a>
+            </div>
+        </header>
+
+        <section class="filters screen-only">
+            <div class="field search-field">
+                <label for="teacherFeeSearch">Search Student / Roll / Father</label>
+                <input id="teacherFeeSearch" type="search" placeholder="Type student, roll, father or class">
+            </div>
+            <div class="field">
+                <label for="teacherClassSelect">Class Filter</label>
+                <select id="teacherClassSelect"><option value="">All classes</option></select>
+            </div>
+            <div class="field slider-field">
+                <label for="fontSizeRange">Font Size <span id="fontSizeValue">9.0px</span></label>
+                <input type="range" id="fontSizeRange" min="7" max="20" step="0.5" value="9">
+            </div>
+            <div class="field slider-field">
+                <label for="compactnessRange">Compactness <span id="compactnessValue">75%</span></label>
+                <input type="range" id="compactnessRange" min="0" max="100" step="5" value="75">
+            </div>
+            <div class="actions">
+                <button id="loadTeacherFee" class="btn-primary"><i class="fas fa-sync"></i> Refresh</button>
+                <button id="filterUnfilledTeacherFee" class="btn-unfilled" type="button" aria-pressed="false"><i class="fas fa-filter"></i> Unfilled Only</button>
+                <button id="clearTeacherFee" class="btn-danger"><i class="fas fa-trash"></i> Clear List</button>
+                <button id="printTeacherFee" class="btn-primary"><i class="fas fa-print"></i> Print</button>
+            </div>
+        </section>
+
+        <section class="summary">
+            <div class="card"><span class="lbl">Student Rows</span><strong id="teacherStudentCount">0</strong></div>
+            <div class="card"><span class="lbl">Classes</span><strong id="teacherClassCount">0</strong></div>
+            <div class="card"><span class="lbl">Rows With Selection</span><strong id="teacherSelectedCount">0</strong></div>
+        </section>
+
+        <section class="table-wrap">
+            <div id="teacherPrintHeader" class="print-date-header"></div>
+            <table class="teacher-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Roll</th>
+                        <th>Student Name</th>
+                        <th>Class</th>
+                        <th>Father Name</th>
+                        <th>Family #</th>
+                        <th>Commitment</th>
+                        <th class="screen-only">Remaining</th>
+                        <th>1</th>
+                        <th>2</th>
+                        <th>3</th>
+                        <th>4</th>
+                        <th class="screen-only">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="teacherFeeBody">
+                    <tr><td colspan="13" class="empty">Loading TeacherFee list...</td></tr>
+                </tbody>
+            </table>
+        </section>
+    </div>
+
+    <script src="auth.js"></script>
+    <script src="TeacherFee.js?v=10"></script>
+</body>
+</html>

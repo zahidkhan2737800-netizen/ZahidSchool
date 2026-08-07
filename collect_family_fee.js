@@ -147,7 +147,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     [inputFine, inputDiscount, inputPaying].forEach(el => {
-        if(el) el.addEventListener('input', recalcCart);
+        if (!el) return;
+
+        el.addEventListener('input', recalcCart);
+
+        // Keep wheel scrolling available without letting a focused number input
+        // silently increase or decrease its value.
+        el.addEventListener('wheel', () => {
+            if (document.activeElement === el) el.blur();
+        }, { passive: true });
+
+        // Do not start middle-button auto-scroll from an amount field.
+        el.addEventListener('mousedown', event => {
+            if (event.button === 1) event.preventDefault();
+        });
     });
 
     if(btnToggleHistory) {
@@ -1108,10 +1121,27 @@ async function applyDiscountToChallans() {
         return showAlert('No family selected or no pending dues.', true);
     }
 
+    if (selectedIds.size === 0) {
+        return showAlert('Select at least one fee month before applying a discount.', true);
+    }
+
     const discountAmt = parseFloat(inputDiscount?.value) || 0;
     if (discountAmt <= 0) {
         return showAlert('Please enter a discount amount.', true);
     }
+
+    const selectedChallans = pendingDues.filter(challan => selectedIds.has(challan.id));
+    const selectedOutstanding = Math.round(selectedChallans.reduce((total, challan) => {
+        return total + Math.max(0, parseFloat(challan.amount) - parseFloat(challan.paid_amount || 0));
+    }, 0) * 100) / 100;
+
+    if (discountAmt > selectedOutstanding) {
+        return showAlert('Discount cannot exceed the selected balance of Rs ' + selectedOutstanding + '.', true);
+    }
+
+    const discountCollector = cleanCollectorName(window.currentUserFullName) || 'Unknown User';
+    const enteredRemarks = inputRemarks?.value?.trim() || 'Direct discount applied';
+    const discountRemarks = enteredRemarks + ' | Applied by: ' + discountCollector;
 
     btnApplyDiscount.innerHTML = 'Applying...';
     btnApplyDiscount.disabled = true;
@@ -1123,7 +1153,7 @@ async function applyDiscountToChallans() {
         // ── Single sequential loop: compute → update → log ────────────────────
         // Sequential (not parallel) to avoid Supabase "Failed to fetch" on
         // simultaneous connections.
-        for (const challan of pendingDues) {
+        for (const challan of selectedChallans) {
             if (remainingDiscount <= 0) break;
 
             const outstanding = Math.max(0, parseFloat(challan.amount) - parseFloat(challan.paid_amount || 0));
@@ -1157,7 +1187,7 @@ async function applyDiscountToChallans() {
                 discount_amount:   discountToApply,
                 payment_method:    'Discount',
                 payment_reference: 'DISC-' + activeFamily.primaryName,
-                remarks:           inputRemarks.value.trim() || 'Direct discount applied'
+                remarks:           discountRemarks
             });
 
             remainingDiscount = Math.round((remainingDiscount - discountToApply) * 100) / 100;

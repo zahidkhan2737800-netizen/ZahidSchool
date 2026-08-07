@@ -42,6 +42,7 @@ var NAV_CATEGORIES = [
     id: 'fee_contact', label: 'Fee Contact', icon: 'fas fa-address-book',
     items: [
       { href: 'family_contacts.html', label: 'Family Fee Contact', icon: 'fas fa-phone-volume', key: 'fee_contacts' },
+      { href: 'family_fee_commitments.html', label: 'Commitments', icon: 'fas fa-handshake', key: 'fee_contacts' },
       { href: 'fee_contacts.html', label: 'Student Fee Contact', icon: 'fas fa-phone-alt', key: 'fee_contacts' },
       { href: 'All Fee Contact.html', label: 'All Fee Contact', icon: 'fas fa-users', key: 'fee_contacts' },
     ]
@@ -183,7 +184,7 @@ async function loadDashboardDiaryTasks() {
     try {
         let q = window.supabaseClient
             .from('todos')
-            .select('id, text, date, status, category, deleted, created_at')
+            .select('id, text, date, status, category, pinned, deleted, created_at')
             .eq('dashboard_pinned', true)
             .eq('deleted', false)
             .eq('status', 'Pending');
@@ -192,7 +193,11 @@ async function loadDashboardDiaryTasks() {
         if (error) throw error;
 
         const rows = (data || [])
-            .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+            .sort((a, b) => {
+                const priorityDifference = Number(b.pinned === true) - Number(a.pinned === true);
+                if (priorityDifference) return priorityDifference;
+                return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+            });
 
         if (!rows.length) {
             host.innerHTML = '<div class="diary-note-empty">No pinned diary tasks yet. Use the 🗒 button in Dairy / Tasks.</div>';
@@ -201,7 +206,9 @@ async function loadDashboardDiaryTasks() {
 
         host.innerHTML = rows.map((t, i) => {
             const txt = String(t.text || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            return `<div class="diary-note">
+            const isPriority = t.pinned === true;
+            return `<div class="diary-note${isPriority ? ' priority' : ''}">
+                ${isPriority ? '<div class="diary-note-head"><span><i class="fas fa-circle-exclamation"></i> Priority</span></div>' : ''}
                 <div class="diary-note-text">${txt}</div>
                 <div class="diary-note-actions">
                   <button class="diary-note-btn" onclick="markDashboardDiaryDone('${t.id}')">Mark Done</button>
@@ -535,7 +542,7 @@ async function loadStats() {
             .in('status', ['Active', 'active']));
         const activeStudentIds = new Set((activeStudentsRes.data || []).map(s => s.id));
 
-        const [activeRes, withdrawnRes, feesRes, challansRes, unpaidChallansRes, dailyFeesRes, balanceRes, attendanceRes, admittedRes, dailyDiscountRes] = await Promise.all([
+        const [activeRes, withdrawnRes, feesRes, challansRes, unpaidChallansRes, dailyFeesRes, balanceRes, attendanceRes, admittedRes, dailyDiscountRes, commitmentsTodayRes] = await Promise.all([
             sc(window.supabaseClient.from('admissions')
                 .select('*', { count: 'exact', head: true }).eq('status', 'Active')),
             sc(window.supabaseClient.from('admissions')
@@ -569,7 +576,12 @@ async function loadStats() {
             sc(window.supabaseClient.from('transactions')
                 .select('discount_amount')
                 .gt('discount_amount', 0)
-                .gte('created_at', todayStart).lt('created_at', todayEnd))
+                .gte('created_at', todayStart).lt('created_at', todayEnd)),
+            // Pending family promises due today
+            sc(window.supabaseClient.from('family_fee_commitments')
+                .select('*', { count: 'exact', head: true })
+                .eq('due_date', todayStr)
+                .eq('status', 'Pending'))
         ]);
 
         const activeCount    = activeRes.count || 0;
@@ -586,6 +598,7 @@ async function loadStats() {
         const presentCount   = attendanceData.filter(r => r.status === 'Present' || r.status === 'Late').length;
         const absentCount    = attendanceData.filter(r => r.status === 'Absent').length;
         const admittedCount  = admittedRes.count || 0;
+        const commitmentsTodayCount = commitmentsTodayRes.error ? 0 : (commitmentsTodayRes.count || 0);
 
         const fmt = (n) => 'Rs ' + Math.round(n).toLocaleString();
 
@@ -599,6 +612,17 @@ async function loadStats() {
         document.getElementById('statPresent').textContent        = presentCount.toLocaleString();
         document.getElementById('statAbsent').textContent         = absentCount.toLocaleString();
         document.getElementById('statAdmittedMonth').textContent  = admittedCount.toLocaleString();
+        const commitmentsTodayEl = document.getElementById('statCommitmentsToday');
+        const commitmentsTodayCard = document.getElementById('commitmentsTodayCard');
+        const commitmentsTodayLabel = document.getElementById('statCommitmentsLabel');
+        if (commitmentsTodayEl) commitmentsTodayEl.textContent = commitmentsTodayRes.error ? '0' : commitmentsTodayCount.toLocaleString();
+        if (commitmentsTodayCard) {
+            commitmentsTodayCard.classList.remove('is-loading', 'is-clear', 'has-commitments');
+            commitmentsTodayCard.classList.add(commitmentsTodayCount > 0 ? 'has-commitments' : 'is-clear');
+        }
+        if (commitmentsTodayLabel) {
+            commitmentsTodayLabel.textContent = commitmentsTodayCount > 0 ? 'Commitments Today' : 'No Commitments Today';
+        }
         // Discount today
         const discTodayEl = document.getElementById('statDiscountToday');
         if (discTodayEl) discTodayEl.textContent = dailyDiscount > 0 ? fmt(dailyDiscount) : 'Rs 0';

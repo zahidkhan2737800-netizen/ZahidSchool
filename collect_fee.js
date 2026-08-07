@@ -44,6 +44,7 @@ const challansList = document.getElementById('challansList');
 
 const inputFine     = document.getElementById('inputFine');
 const inputDiscount = document.getElementById('inputDiscount');
+const btnApplyDiscount = document.getElementById('btnApplyDiscount');
 const inputPaying   = document.getElementById('inputPaying');
 const inputMethod   = document.getElementById('inputMethod');
 const inputRef      = document.getElementById('inputRef');
@@ -150,7 +151,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         refGroup.style.display = inputMethod.value !== 'Cash' ? 'block' : 'none';
     });
 
-    [inputFine, inputDiscount, inputPaying].forEach(el => el.addEventListener('input', recalcCart));
+    [inputFine, inputDiscount, inputPaying].forEach(el => {
+        el.addEventListener('input', recalcCart);
+        // Keep wheel scrolling available without letting a focused number input
+        // silently increase or decrease its value.
+        el.addEventListener('wheel', () => {
+            if (document.activeElement === el) el.blur();
+        }, { passive: true });
+
+        // Do not start middle-button auto-scroll from an amount field.
+        el.addEventListener('mousedown', event => {
+            if (event.button === 1) event.preventDefault();
+        });
+    });
+
+    btnApplyDiscount.addEventListener('click', applyDiscountToSelectedChallans);
 
     btnToggleHistory.addEventListener('click', () => {
         if(historyPanel.style.display === 'none') {
@@ -576,6 +591,7 @@ function recalcCart() {
         sumGrandTotal.textContent = 'Rs 0';
         sumRemaining.textContent = 'Rs 0';
         btnSubmit.disabled = true;
+        btnApplyDiscount.disabled = true;
         grandTotal = 0;
         return;
     }
@@ -643,6 +659,101 @@ function recalcCart() {
     }
 
     btnSubmit.disabled = paying <= 0;
+    btnApplyDiscount.disabled = discount <= 0;
+}
+
+// ─── Direct Discount Submission ──────────────────────────────────────────────
+async function applyDiscountToSelectedChallans() {
+    if (!activeStudent || selectedIds.size === 0) {
+        return showAlert('Select at least one fee month before applying a discount.', true);
+    }
+
+    const discountAmt = Math.round((parseFloat(inputDiscount.value) || 0) * 100) / 100;
+    if (discountAmt <= 0) {
+        return showAlert('Please enter a valid discount amount.', true);
+    }
+
+    const collectorName = cleanCollectorName(window.currentUserFullName) || 'Unknown User';
+    const enteredRemark = inputRemarks.value.trim();
+    const discountRemarks = `${enteredRemark || 'Direct discount applied'} | Applied by: ${collectorName}`;
+
+    const selectedChallans = pendingDues.filter(challan => selectedIds.has(challan.id));
+    const selectedOutstanding = Math.round(selectedChallans.reduce((total, challan) => {
+        return total + Math.max(0, parseFloat(challan.amount || 0) - parseFloat(challan.paid_amount || 0));
+    }, 0) * 100) / 100;
+
+    if (discountAmt > selectedOutstanding) {
+        return showAlert(`Discount cannot exceed the selected balance of Rs ${selectedOutstanding}.`, true);
+    }
+
+    btnApplyDiscount.innerHTML = 'Applying...';
+    btnApplyDiscount.disabled = true;
+
+    try {
+        let remainingDiscount = discountAmt;
+        const discountLogs = [];
+        const discountReference = 'DISC-' + Date.now().toString().slice(-7);
+
+        for (const challan of selectedChallans) {
+            if (remainingDiscount <= 0) break;
+
+            const oldPaidAmount = parseFloat(challan.paid_amount || 0);
+            const outstanding = Math.max(0, parseFloat(challan.amount || 0) - oldPaidAmount);
+            const appliedDiscount = Math.round(Math.min(remainingDiscount, outstanding) * 100) / 100;
+            if (appliedDiscount <= 0) continue;
+
+            const newPaidAmount = Math.round((oldPaidAmount + appliedDiscount) * 100) / 100;
+            const newStatus = newPaidAmount >= parseFloat(challan.amount || 0) ? 'Paid' : 'Partially Paid';
+            const { error: updateError } = await db
+                .from('challans')
+                .update({ paid_amount: newPaidAmount, status: newStatus })
+                .eq('id', challan.id);
+
+            if (updateError) {
+                throw new Error(`Could not update ${challan.fee_month || challan.fee_type}: ${updateError.message}`);
+            }
+
+            let feeDetails = challan.fee_type;
+            if (challan.fee_month && challan.fee_month !== 'N/A') {
+                feeDetails += ` (${challan.fee_month})`;
+            }
+
+            discountLogs.push({
+                receipt_number:    discountReference + '-' + (discountLogs.length + 1),
+                student_id:        activeStudent.id,
+                roll_number:       activeStudent.roll_number,
+                challan_id:        challan.id,
+                fee_details:       feeDetails,
+                amount_paid:       0,
+                fine_amount:       0,
+                discount_amount:   appliedDiscount,
+                payment_method:    'Discount',
+                payment_reference: discountReference,
+                remarks:           discountRemarks,
+                school_id:         currentSchoolId
+            });
+
+            remainingDiscount = Math.round((remainingDiscount - appliedDiscount) * 100) / 100;
+        }
+
+        if (remainingDiscount > 0 || discountLogs.length === 0) {
+            throw new Error('The discount could not be fully allocated to the selected fee months.');
+        }
+
+        const { error: logError } = await db.from('transactions').insert(discountLogs);
+        if (logError) throw new Error('Discount was applied, but its transaction log could not be saved: ' + logError.message);
+
+        inputDiscount.value = '0';
+        selectedIds.clear();
+        showAlert(`Discount of Rs ${discountAmt} applied successfully without a payment.`, false);
+        await loadDues(activeStudent.id);
+    } catch (e) {
+        console.error(e);
+        showAlert('Failed: ' + e.message, true);
+    } finally {
+        btnApplyDiscount.innerHTML = 'Apply';
+        recalcCart();
+    }
 }
 
 // ─── Payment Submission ───────────────────────────────────────────────────────

@@ -144,6 +144,17 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f1f5f9; min-
   gap: 8px;
 }
 
+.diary-note.priority {
+  background: linear-gradient(165deg, #fee2e2 0%, #fff1f2 100%);
+  border-color: #f87171;
+  box-shadow: 0 5px 16px rgba(185, 28, 28, 0.16), inset 5px 0 0 #dc2626;
+}
+
+.diary-note.priority .diary-note-head,
+.diary-note.priority .diary-note-text {
+  color: #991b1b;
+}
+
 .diary-note-head {
   display: flex;
   justify-content: space-between;
@@ -208,6 +219,62 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f1f5f9; min-
   transition: transform 0.15s, box-shadow 0.15s;
 }
 .stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.06); }
+.stat-card-link { color: inherit; text-decoration: none; cursor: pointer; }
+.commitment-dashboard-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: 96px;
+  border-width: 1px;
+  border-style: solid;
+  transition: transform .18s ease, box-shadow .18s ease, background .25s ease, border-color .25s ease;
+}
+.commitment-dashboard-card::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  width: 135px;
+  height: 135px;
+  right: -52px;
+  top: -75px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .55);
+  filter: blur(2px);
+}
+.commitment-dashboard-card::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: linear-gradient(115deg, rgba(255,255,255,.42), transparent 48%);
+  pointer-events: none;
+}
+.commitment-dashboard-card.is-clear {
+  background: linear-gradient(135deg, rgba(236, 253, 245, .98), rgba(167, 243, 208, .9));
+  border-color: #6ee7b7;
+  box-shadow: 0 8px 22px rgba(16, 185, 129, .16);
+}
+.commitment-dashboard-card.is-clear .stat-icon {
+  background: rgba(255,255,255,.72);
+  color: #047857;
+  box-shadow: inset 0 0 0 1px rgba(16,185,129,.2);
+}
+.commitment-dashboard-card.is-clear .stat-val { color: #065f46; }
+.commitment-dashboard-card.is-clear .stat-label { color: #047857; }
+.commitment-dashboard-card.has-commitments {
+  background: linear-gradient(135deg, rgba(254, 242, 242, .98), rgba(254, 202, 202, .94));
+  border-color: #f87171;
+  box-shadow: 0 9px 24px rgba(220, 38, 38, .2);
+}
+.commitment-dashboard-card.has-commitments .stat-icon {
+  background: rgba(255,255,255,.72);
+  color: #dc2626;
+  box-shadow: inset 0 0 0 1px rgba(220,38,38,.18);
+}
+.commitment-dashboard-card.has-commitments .stat-val { color: #991b1b; font-size: 1.75rem; }
+.commitment-dashboard-card.has-commitments .stat-label { color: #b91c1c; }
+.commitment-dashboard-card.is-loading { background: #f8fafc; border-color: #e2e8f0; }
+.commitment-dashboard-card:hover { transform: translateY(-3px); }
 .stat-icon {
   width: 50px; height: 50px; border-radius: 14px; display: flex;
   align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0;

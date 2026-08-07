@@ -12,6 +12,9 @@ let waTemplates = []; // User templates for WhatsApp
 let currentOpenMobile = null; // Track who is opened in modal
 let recentAttendance = {}; // student_id -> { date: status }
 let recentDates = []; // Last 3 calendar dates (YYYY-MM-DD)
+let currentCommitmentMobile = null;
+let familyCommitmentsMap = {}; // family_mobile -> pending dated commitments
+let teacherFeeSelectedStudentIds = new Set(); // shared Supabase TeacherFee rows
 
 const STATUS_COLORS = {
     'C': 'status-C',
@@ -60,6 +63,107 @@ function showToast(msg, type = 'success') {
     }, 3000);
 }
 
+async function publishFamilyPriorityTodo(familyMobile, button) {
+    const family = allFamilies.find(item => item.mobile === familyMobile);
+    if (!family) {
+        showToast('Family record was not found.', 'error');
+        return;
+    }
+
+    const studentNames = (family.members || [])
+        .map(student => {
+            const name = student.full_name || student.name || '';
+            if (!name) return '';
+            const roll = student.roll_number || student.roll || 'N/A';
+            return `${name}(${roll})`;
+        })
+        .filter(Boolean);
+    const familyName = family.primaryName || 'Unnamed family';
+    const todoText = `Family: ${familyName} | Students: ${studentNames.join(', ') || 'No students listed'}`;
+    const today = karachiYmd();
+    const payload = {
+        text: todoText,
+        date: today,
+        date_ts: new Date(`${today}T00:00:00+05:00`).toISOString(),
+        status: 'Pending',
+        category: 'S',
+        pinned: true,
+        dashboard_pinned: true,
+        deleted: false
+    };
+    if (window.currentSchoolId) payload.school_id = window.currentSchoolId;
+
+    const oldText = button ? button.textContent : '';
+    if (button) {
+        button.disabled = true;
+        button.textContent = '...';
+    }
+
+    try {
+        const { error } = await window.supabaseClient.from('todos').insert(payload);
+        if (error) throw error;
+        if (button) button.textContent = 'Done';
+        showToast(`Priority diary task published for ${familyName}.`);
+        setTimeout(() => {
+            if (!button || !button.isConnected) return;
+            button.disabled = false;
+            button.textContent = oldText || 'Now';
+        }, 1800);
+    } catch (error) {
+        console.error('Could not publish family priority todo:', error);
+        if (button) {
+            button.disabled = false;
+            button.textContent = oldText || 'Now';
+        }
+        showToast(`Could not publish priority task: ${error.message || 'Unknown error'}`, 'error');
+    }
+}
+
+function isTeacherFeeSelected(familyMobile) {
+    const family = allFamilies.find(item => item.mobile === String(familyMobile || '').trim());
+    if (!family?.members?.length) return false;
+    return family.members.every(member => teacherFeeSelectedStudentIds.has(String(member.id)));
+}
+
+async function addFamilyToTeacherFee(familyMobile) {
+    const mobile = String(familyMobile || '').trim();
+    const family = allFamilies.find(item => item.mobile === mobile);
+    if (!family?.members?.length) {
+        showToast('No family students were found.', 'error');
+        return false;
+    }
+    if (!window.currentSchoolId) {
+        showToast('School could not be identified. Refresh and try again.', 'error');
+        return false;
+    }
+
+    const newMembers = family.members.filter(member => member.id && !teacherFeeSelectedStudentIds.has(String(member.id)));
+    if (!newMembers.length) {
+        showToast(`All students from ${family.primaryName || mobile} are already in TeacherFee.`);
+        return true;
+    }
+    const payload = newMembers.map(member => ({
+        school_id: window.currentSchoolId,
+        student_id: member.id,
+        source: 'Family',
+        added_by: window.currentUser?.id || null,
+        updated_by: window.currentUser?.id || null
+    }));
+    try {
+        const { error } = await window.supabaseClient
+            .from('teacher_fee_rows')
+            .upsert(payload, { onConflict: 'school_id,student_id', ignoreDuplicates: true });
+        if (error) throw error;
+        newMembers.forEach(member => teacherFeeSelectedStudentIds.add(String(member.id)));
+        showToast(`${newMembers.length} students from ${family.primaryName || mobile} added to TeacherFee.`);
+        return true;
+    } catch (error) {
+        const missingTable = error?.code === '42P01' || error?.code === 'PGRST205' || String(error?.message || '').includes('teacher_fee_rows');
+        showToast(missingTable ? 'TeacherFee storage is not installed. Run teacher_fee_setup.sql in Supabase.' : `Could not add family to TeacherFee: ${error.message || 'Unknown error'}`, 'error');
+        return false;
+    }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     await waitForAuthContext();
 
@@ -93,6 +197,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         renderTable();
     });
 
+    setupCommitmentModal();
+
     // Initial Load
     await loadBaseData();
     await loadData();
@@ -116,6 +222,166 @@ function changeMonth(offset) {
 }
 
 // ─── Fetch Base Data (Students grouped into Families) ──────────────────────────
+function karachiYmd(date = new Date()) {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Karachi',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).formatToParts(date);
+    const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    return `${values.year}-${values.month}-${values.day}`;
+}
+
+function addDaysToYmd(ymd, days) {
+    const [year, month, day] = ymd.split('-').map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    date.setUTCDate(date.getUTCDate() + days);
+    return date.toISOString().slice(0, 10);
+}
+
+function formatCommitmentDate(ymd) {
+    return new Date(`${ymd}T00:00:00Z`).toLocaleDateString('en-GB', {
+        weekday: 'long',
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        timeZone: 'UTC'
+    });
+}
+
+function setupCommitmentModal() {
+    const modal = document.getElementById('commitmentModal');
+    const input = document.getElementById('commitmentDays');
+    const cancel = document.getElementById('commitmentCancel');
+    const save = document.getElementById('commitmentSave');
+    if (!modal || !input || !cancel || !save) return;
+
+    input.addEventListener('keydown', event => {
+        if (['e', 'E', '+', '-', '.', ','].includes(event.key)) event.preventDefault();
+        if (event.key === 'Enter') saveCommitment();
+        if (event.key === 'Escape') closeCommitmentModal();
+    });
+    input.addEventListener('input', () => {
+        input.value = input.value.replace(/\D/g, '');
+        updateCommitmentPreview();
+    });
+    input.addEventListener('wheel', event => {
+        event.preventDefault();
+        input.blur();
+    }, { passive: false });
+    cancel.addEventListener('click', closeCommitmentModal);
+    save.addEventListener('click', saveCommitment);
+    modal.addEventListener('click', event => {
+        if (event.target === modal) closeCommitmentModal();
+    });
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && modal.classList.contains('open')) closeCommitmentModal();
+    });
+}
+
+function openCommitmentModal(familyMobile) {
+    const family = allFamilies.find(item => item.mobile === familyMobile);
+    if (!family) {
+        showToast('Family record was not found.', 'error');
+        return;
+    }
+
+    currentCommitmentMobile = familyMobile;
+    const modal = document.getElementById('commitmentModal');
+    const input = document.getElementById('commitmentDays');
+    document.getElementById('commitmentFamilyName').textContent = `${family.primaryName} (${family.mobile})`;
+    input.value = '';
+    updateCommitmentPreview();
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    setTimeout(() => input.focus(), 30);
+}
+
+function closeCommitmentModal() {
+    const modal = document.getElementById('commitmentModal');
+    if (modal) {
+        modal.classList.remove('open');
+        modal.setAttribute('aria-hidden', 'true');
+    }
+    currentCommitmentMobile = null;
+}
+
+function updateCommitmentPreview() {
+    const input = document.getElementById('commitmentDays');
+    const preview = document.getElementById('commitmentPreview');
+    if (!input || !preview || !/^\d+$/.test(input.value)) {
+        if (preview) preview.textContent = 'Enter the number of days.';
+        return;
+    }
+
+    const days = Number(input.value);
+    const madeOn = karachiYmd();
+    const dueDate = addDaysToYmd(madeOn, days);
+    preview.innerHTML = `Made on <strong>${formatCommitmentDate(madeOn)}</strong><br>Payment due <strong>${formatCommitmentDate(dueDate)}</strong>`;
+}
+
+async function saveCommitment() {
+    const input = document.getElementById('commitmentDays');
+    const saveButton = document.getElementById('commitmentSave');
+    const rawDays = input ? input.value.trim() : '';
+    if (!/^\d+$/.test(rawDays)) {
+        showToast('Enter a whole number: 0, 1, 2, 3...', 'error');
+        if (input) input.focus();
+        return;
+    }
+
+    const days = Number(rawDays);
+    if (!Number.isSafeInteger(days) || days < 0) {
+        showToast('Enter a valid number of days.', 'error');
+        return;
+    }
+
+    const family = allFamilies.find(item => item.mobile === currentCommitmentMobile);
+    if (!family || !window.currentSchoolId) {
+        showToast('Family or school information is missing.', 'error');
+        return;
+    }
+
+    const madeOn = karachiYmd();
+    const dueDate = addDaysToYmd(madeOn, days);
+    const payload = {
+        school_id: window.currentSchoolId,
+        family_mobile: family.mobile,
+        family_no: family.familyNo || null,
+        family_name: family.primaryName,
+        members: family.members.map(member => ({
+            student_id: member.id,
+            name: member.full_name,
+            roll: member.roll_number,
+            class_name: member.applying_for_class
+        })),
+        days_promised: days,
+        commitment_made_on: madeOn,
+        due_date: dueDate,
+        created_by_user_id: window.currentUser?.id || null,
+        created_by: window.currentUserFullName || window.currentUser?.email || 'Unknown User',
+        status: 'Pending'
+    };
+
+    saveButton.disabled = true;
+    saveButton.textContent = 'Saving...';
+    try {
+        const { error } = await window.supabaseClient.from('family_fee_commitments').insert(payload);
+        if (error) throw error;
+        closeCommitmentModal();
+        showToast(`Commitment saved for ${formatCommitmentDate(dueDate)}.`);
+        await loadData();
+    } catch (error) {
+        console.error('Could not save family commitment:', error);
+        const missingTable = error?.code === '42P01' || String(error?.message || '').includes('schema cache');
+        showToast(missingTable ? 'Commitment storage is not installed. Run family_fee_commitments_setup.sql in Supabase.' : `Could not save commitment: ${error.message || 'Unknown error'}`, 'error');
+    } finally {
+        saveButton.disabled = false;
+        saveButton.textContent = 'Save';
+    }
+}
+
 async function loadBaseData() {
     try {
         let studentsQ = window.supabaseClient
@@ -285,19 +551,55 @@ async function loadData() {
     tbody.innerHTML = '';
     
     try {
-        const { data: contacts, error } = await window.supabaseClient
+        const contactsRequest = window.supabaseClient
             .from('family_contacts')
             .select('*')
             .eq('month_key', currentMonth);
+
+        let commitmentsRequest = window.supabaseClient
+            .from('family_fee_commitments')
+            .select('id, family_mobile, family_name, members, days_promised, commitment_made_on, due_date, created_by, created_at')
+            .eq('status', 'Pending')
+            .order('due_date', { ascending: true })
+            .order('created_at', { ascending: true });
+        if (window.currentSchoolId) commitmentsRequest = commitmentsRequest.eq('school_id', window.currentSchoolId);
+
+        let teacherFeeRowsRequest = window.supabaseClient
+            .from('teacher_fee_rows')
+            .select('student_id');
+        if (window.currentSchoolId) teacherFeeRowsRequest = teacherFeeRowsRequest.eq('school_id', window.currentSchoolId);
+
+        const [contactsResult, commitmentsResult, teacherFeeRowsResult] = await Promise.all([contactsRequest, commitmentsRequest, teacherFeeRowsRequest]);
+        const contacts = contactsResult.data;
+        const error = contactsResult.error;
 
         // Map to lookup dictionary
         monthData = {};
         if (contacts && !error) {
             contacts.forEach(c => monthData[c.family_mobile] = c);
         }
+
+        familyCommitmentsMap = {};
+        if (!commitmentsResult.error) {
+            (commitmentsResult.data || []).forEach(commitment => {
+                const members = Array.isArray(commitment.members) ? commitment.members : [];
+                if (members.length < 2) return;
+                const mobile = String(commitment.family_mobile || '').trim();
+                if (!mobile) return;
+                if (!familyCommitmentsMap[mobile]) familyCommitmentsMap[mobile] = [];
+                familyCommitmentsMap[mobile].push(commitment);
+            });
+        } else {
+            console.warn('Could not load family commitments:', commitmentsResult.error);
+        }
+
+        teacherFeeSelectedStudentIds = new Set((teacherFeeRowsResult.data || []).map(row => String(row.student_id)));
+        if (teacherFeeRowsResult.error) console.warn('Could not load TeacherFee selections:', teacherFeeRowsResult.error);
     } catch (err) {
         console.warn("family_contacts table might not exist yet. Using empty state.", err);
         monthData = {};
+        familyCommitmentsMap = {};
+        teacherFeeSelectedStudentIds = new Set();
     }
 
     document.getElementById('loader').style.display = 'none';
@@ -421,6 +723,9 @@ function renderTable() {
             <td><button class="action-btn-cell" data-mobile="${fam.mobile}" title="Send Voice Message / Open Chat" onclick="openAudioChat('${fam.mobile}')">🎙️</button></td>
             <td><button class="action-btn-cell wa-btn" data-mobile="${fam.mobile}" title="Send WhatsApp Bill" onclick="openWaModal('${fam.mobile}')"><i class="fab fa-whatsapp" style="color:#25D366; font-size:1.3rem;"></i></button></td>
             <td><button class="action-btn-cell cd-btn ${data.complaint ? 'active' : ''}" data-id="${fam.mobile}" title="Complaint">C</button></td>
+            <td><button class="action-btn-cell co-btn" data-id="${fam.mobile}" title="Save payment commitment">Co</button></td>
+            <td><button class="action-btn-cell now-btn" data-id="${fam.mobile}" title="Publish family as a red priority diary task">Now</button></td>
+            <td><button class="action-btn-cell teacher-btn ${isTeacherFeeSelected(fam.mobile) ? 'active' : ''}" data-id="${fam.mobile}" title="Add every family student as a separate TeacherFee row">T</button></td>
             <td><button class="action-btn-cell pin-btn ${data.pinned ? 'active' : ''}" data-id="${fam.mobile}" title="Pin to top">📌</button></td>
             <td><input type="text" class="commit-input" value="${data.commitment_notes || ''}" placeholder="Add notes..." data-id="${fam.mobile}"></td>
             <td>
@@ -437,7 +742,7 @@ function renderTable() {
     });
 
     if (rowsToRender.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="15" style="padding: 3rem; color: #94a3b8;">No family records match your filters.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="20" style="padding: 3rem; color: #94a3b8;">No family records match your filters.</td></tr>';
     }
 
     // Update Counter
@@ -469,9 +774,11 @@ function getEmptyContactState(familyMobile) {
 function generateContactCell(familyMobile, idx, data) {
     const status = data[`c${idx}_status`] || '';
     const dateLine = data[`c${idx}_date`] ? new Date(data[`c${idx}_date`]).toLocaleDateString('en-GB', {day:'numeric', month:'short'}) : '';
+    const hasCommitment = (familyCommitmentsMap[String(familyMobile || '').trim()] || []).length > 0;
+    const commitmentStrip = idx === 1 ? generateFamilyCommitmentStrip(familyMobile) : '';
     
     return `
-        <td class="${idx >= 7 ? `col-c${idx}` : ''}">
+        <td class="${idx >= 7 ? `col-c${idx}` : ''} ${idx === 1 ? 'commitment-anchor-cell' : ''} ${hasCommitment && idx <= 6 ? 'commitment-space-cell' : ''}">
             <div class="contact-cell">
                 <select class="c-select" data-id="${familyMobile}" data-idx="${idx}">
                     <option value=""></option>
@@ -484,8 +791,49 @@ function generateContactCell(familyMobile, idx, data) {
                 <button class="c-btn ${STATUS_COLORS[status] || ''}" title="Status Indicator"></button>
                 <span class="c-date ${!dateLine ? 'hidden' : ''}">${dateLine || '---'}</span>
             </div>
+            ${commitmentStrip}
         </td>
     `;
+}
+
+function generateFamilyCommitmentStrip(familyMobile) {
+    const commitments = familyCommitmentsMap[String(familyMobile || '').trim()] || [];
+    if (!commitments.length) return '';
+
+    const today = karachiYmd();
+    const visible = commitments.slice(0, 5);
+    const chips = visible.map(commitment => {
+        const daysRemaining = ymdDayDifference(today, commitment.due_date);
+        const state = daysRemaining < 0 ? 'expired' : (daysRemaining === 0 ? 'today' : 'future');
+        const label = daysRemaining < 0 ? `E${Math.abs(daysRemaining)}` : (daysRemaining === 0 ? 'T' : String(daysRemaining));
+        const timing = daysRemaining < 0
+            ? `Expired ${Math.abs(daysRemaining)} day${Math.abs(daysRemaining) === 1 ? '' : 's'} ago`
+            : (daysRemaining === 0 ? 'Due today' : `Due in ${daysRemaining} day${daysRemaining === 1 ? '' : 's'}`);
+        const title = `${timing} | Due ${formatCommitmentDate(commitment.due_date)} | Made ${formatCommitmentDate(commitment.commitment_made_on)} | By ${commitment.created_by || 'Unknown User'}`;
+        return `<a class="commitment-day-chip ${state}" href="family_fee_commitments.html?date=${encodeURIComponent(commitment.due_date)}" target="_blank" title="${escapeFamilyContactHtml(title)}">${label}</a>`;
+    }).join('');
+    const extra = commitments.length > visible.length
+        ? `<a class="commitment-day-chip more" href="family_fee_commitments.html?date=${encodeURIComponent(commitments[visible.length].due_date)}" target="_blank" title="${commitments.length - visible.length} more pending commitments">+${commitments.length - visible.length}</a>`
+        : '';
+
+    return `<div class="family-commitment-strip" title="Pending fee commitments">
+        <span class="commitment-strip-label"><i class="fas fa-handshake"></i> Commit</span>
+        <span class="commitment-strip-chips">${chips}${extra}</span>
+    </div>`;
+}
+
+function ymdDayDifference(fromYmd, toYmd) {
+    const [fromYear, fromMonth, fromDay] = String(fromYmd).split('-').map(Number);
+    const [toYear, toMonth, toDay] = String(toYmd).split('-').map(Number);
+    const fromUtc = Date.UTC(fromYear, fromMonth - 1, fromDay);
+    const toUtc = Date.UTC(toYear, toMonth - 1, toDay);
+    return Math.round((toUtc - fromUtc) / 86400000);
+}
+
+function escapeFamilyContactHtml(value) {
+    return String(value ?? '').replace(/[&<>'"]/g, char => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+    }[char]));
 }
 
 function attachCellEvents(tr, familyMobile) {
@@ -571,6 +919,29 @@ function attachCellEvents(tr, familyMobile) {
                     console.error("Failed to auto-log family complaints:", err);
                 }
             }
+        });
+    }
+
+    // Dated fee commitment button
+    const commitmentButton = tr.querySelector('.co-btn');
+    if (commitmentButton) {
+        commitmentButton.addEventListener('click', () => openCommitmentModal(familyMobile));
+    }
+
+    // Publish a red priority Diary/Dashboard task for this family.
+    const nowButton = tr.querySelector('.now-btn');
+    if (nowButton) {
+        nowButton.addEventListener('click', () => publishFamilyPriorityTodo(familyMobile, nowButton));
+    }
+
+    // Add this family to the printable TeacherFee list and open the report.
+    const teacherButton = tr.querySelector('.teacher-btn');
+    if (teacherButton) {
+        teacherButton.addEventListener('click', async () => {
+            teacherButton.disabled = true;
+            const saved = await addFamilyToTeacherFee(familyMobile);
+            teacherButton.disabled = false;
+            if (saved) teacherButton.classList.add('active');
         });
     }
 

@@ -15,6 +15,7 @@ const loadBtn = document.getElementById('loadBtn');
 const paidLogBody = document.getElementById('paidLogBody');
 const rowCountEl = document.getElementById('rowCount');
 const totalAmountEl = document.getElementById('totalAmount');
+const totalDiscountEl = document.getElementById('totalDiscount');
 const collectorSummaryEl = document.getElementById('collectorSummary');
 
 const LS_KEYS = {
@@ -61,6 +62,11 @@ function cleanCollectorName(value) {
     return String(value || '').trim().replace(/\s*\([^)]*\)\s*$/, '').trim();
 }
 
+function getDiscountAppliedBy(remarks) {
+    const match = String(remarks || '').match(/(?:^|\|)\s*Applied by:\s*([^|]+?)\s*$/i);
+    return cleanCollectorName(match ? match[1] : '');
+}
+
 function getFilteredRows() {
     const q = (searchTextInput.value || '').trim().toLowerCase();
 
@@ -77,6 +83,8 @@ function getFilteredRows() {
 function getCollectorTotals(rows) {
     const totals = new Map();
     rows.forEach(row => {
+        // Discount-only records are not cash received by an accountant.
+        if (Number(row.amount || 0) <= 0) return;
         const displayName = cleanCollectorName(row.collectedBy) || 'Unknown';
         const key = displayName.toLowerCase();
         const current = totals.get(key) || { name: displayName, amount: 0, rows: 0 };
@@ -85,6 +93,24 @@ function getCollectorTotals(rows) {
         totals.set(key, current);
     });
     return [...totals.values()].sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name));
+}
+
+function getTotalDiscount(rows) {
+    return rows.reduce((sum, row) => sum + Number(row.discountAmount || 0), 0);
+}
+
+function renderAmountCell(row) {
+    const paid = Number(row.amount || 0);
+    const discount = Number(row.discountAmount || 0);
+
+    if (paid <= 0 && discount > 0) {
+        return `<strong class="discount-amount">Rs ${Math.round(discount).toLocaleString()}</strong>
+            <span class="amount-kind discount-kind">Discount</span>`;
+    }
+
+    return `<strong>Rs ${Math.round(paid).toLocaleString()}</strong>${discount > 0
+        ? `<span class="amount-kind discount-kind">Discount: Rs ${Math.round(discount).toLocaleString()}</span>`
+        : ''}`;
 }
 
 function renderCollectorSummary(rows) {
@@ -107,7 +133,7 @@ function renderCollectorSummary(rows) {
 function updatePrintHeader() {
     const selected = feeDateInput.value;
     if (!selected) {
-        printDateHeader.textContent = 'Date:  | Time:  | Total Balance: Rs 0';
+        printDateHeader.textContent = 'Date:  | Time:  | Total Collected: Rs 0 | Total Discount: Rs 0';
         return;
     }
 
@@ -125,10 +151,11 @@ function updatePrintHeader() {
     });
     const filteredRows = getFilteredRows();
     const total = filteredRows.reduce((sum, row) => sum + row.amount, 0);
+    const totalDiscount = getTotalDiscount(filteredRows);
     const collectorText = getCollectorTotals(filteredRows)
         .map(collector => `${collector.name}: ${toCurrencyLabel(collector.amount)}`)
         .join(' | ');
-    printDateHeader.textContent = `Date: ${dateLabel} | Time: ${timeLabel} | Total Collected: ${toCurrencyLabel(total)}${collectorText ? ` | ${collectorText}` : ''}`;
+    printDateHeader.textContent = `Date: ${dateLabel} | Time: ${timeLabel} | Total Collected: ${toCurrencyLabel(total)} | Total Discount: ${toCurrencyLabel(totalDiscount)}${collectorText ? ` | ${collectorText}` : ''}`;
 }
 
 function applyLayoutControls() {
@@ -209,7 +236,7 @@ async function loadPaidFees() {
 
         const { data: txData, error: txErr } = await applySchoolScope(
             db.from('transactions')
-                .select('student_id, roll_number, challan_id, receipt_number, payment_reference, fee_details, amount_paid, payment_method, created_at')
+                .select('student_id, roll_number, challan_id, receipt_number, payment_reference, fee_details, amount_paid, discount_amount, payment_method, remarks, created_at')
                 .gte('created_at', startDate)
                 .lt('created_at', endDate)
                 .order('created_at', { ascending: false })
@@ -307,8 +334,9 @@ async function loadPaidFees() {
                 className: stu.applying_for_class || 'N/A',
                 feeHead,
                 paymentType: tx.payment_method || 'N/A',
-                collectedBy: cleanCollectorName(savedReceipt?.collected_by) || '—',
-                amount: Number(tx.amount_paid || 0)
+                collectedBy: cleanCollectorName(savedReceipt?.collected_by) || getDiscountAppliedBy(tx.remarks) || '—',
+                amount: Number(tx.amount_paid || 0),
+                discountAmount: Number(tx.discount_amount || 0)
             };
         });
 
@@ -318,6 +346,7 @@ async function loadPaidFees() {
         paidLogBody.innerHTML = `<tr><td colspan="9" class="empty" style="color:#dc2626;">Failed to load data: ${err.message}</td></tr>`;
         rowCountEl.textContent = '0';
         totalAmountEl.textContent = 'Rs 0';
+        totalDiscountEl.textContent = 'Rs 0';
         renderCollectorSummary([]);
     } finally {
         loadBtn.disabled = false;
@@ -332,6 +361,7 @@ function renderRows() {
         paidLogBody.innerHTML = '<tr><td colspan="9" class="empty">No paid fee records found for this filter.</td></tr>';
         rowCountEl.textContent = '0';
         totalAmountEl.textContent = 'Rs 0';
+        totalDiscountEl.textContent = 'Rs 0';
         renderCollectorSummary([]);
         updatePrintHeader();
         return;
@@ -349,12 +379,13 @@ function renderRows() {
             <td>${row.feeHead}</td>
             <td>${row.paymentType}</td>
             <td><strong>${row.collectedBy}</strong></td>
-            <td><strong>Rs ${Math.round(row.amount).toLocaleString()}</strong></td>
+            <td class="amount-cell">${renderAmountCell(row)}</td>
         </tr>
     `).join('');
 
     rowCountEl.textContent = filtered.length.toLocaleString();
     totalAmountEl.textContent = toCurrencyLabel(total);
+    totalDiscountEl.textContent = toCurrencyLabel(getTotalDiscount(filtered));
     renderCollectorSummary(filtered);
     updatePrintHeader();
 }

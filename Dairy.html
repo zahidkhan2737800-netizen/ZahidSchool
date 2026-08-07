@@ -38,6 +38,9 @@
   input,select,button{width:100%;padding:10px;border:1px solid #d1d5db;border-radius:10px;margin-top:6px;font-size:14px;box-sizing:border-box}
   .btn{background:var(--primary);color:#fff;border:none;padding:10px;border-radius:10px;cursor:pointer}
   .hint{color:var(--muted);margin-top:8px;font-size:13px}
+  .priority-option{display:flex;align-items:center;gap:9px;margin-top:12px;padding:10px 12px;border:1px solid #d1d5db;border-radius:10px;background:#fff;color:#374151;font-size:14px;font-weight:800;cursor:pointer}
+  .priority-option:has(input:checked){border-color:#f87171;background:#fff1f2;color:#991b1b}
+  .priority-option input{width:19px;height:19px;margin:0;padding:0;accent-color:#dc2626;flex:0 0 auto}
 
   table{width:100%;border-collapse:collapse;margin-top:12px;font-size:16px}
   th,td{padding:10px 10px;border-bottom:1px solid #e6e9ef;text-align:left;vertical-align:middle;font-size:16px}
@@ -54,7 +57,8 @@
   .action-btn:active{transform:translateY(1px)}
   .action-btn .btn-text{display:none}
   .action-btn .btn-icon{display:inline-block}
-  .action-btn.pin{background:#fff7ed;color:#92400e}
+  .action-btn.pin{background:#fff1f2;color:#be123c;font-weight:900}
+  .action-btn.pin.active{background:#dc2626;color:#fff;box-shadow:0 0 0 3px rgba(220,38,38,.16)}
   .action-btn.dash{background:#eff6ff;color:#1d4ed8}
   .action-btn.dash.active{background:#dbeafe;color:#1e3a8a;box-shadow:inset 0 0 0 1px #93c5fd}
   .action-btn.toggle{background:#ecfdf5;color:#065f46}
@@ -81,7 +85,11 @@
 
   .todo-text{ display:inline-block; max-width:100%; white-space: normal; word-break: normal; overflow-wrap: break-word; hyphens: auto; font-size:17px; line-height:1.35; }
   .cat-badge{ display:inline-block;padding:4px 8px;border-radius:8px;font-weight:700;font-size:12px;background:#eef2ff;color:#1e3a8a; }
-  tr.pinned{background: linear-gradient(90deg, rgba(255,249,219,0.6), rgba(255,255,255,0));}
+  tr.pinned{background:linear-gradient(90deg,#fee2e2 0%,#fff1f2 75%,#fff 100%);box-shadow:inset 5px 0 0 #dc2626}
+  tr.pinned td{border-bottom-color:#fecaca}
+  tr.pinned .todo-text{color:#991b1b;font-weight:800}
+  .row-number{display:inline-flex;align-items:center;justify-content:center;min-width:25px;height:25px;border-radius:7px;font-weight:800}
+  .row-number.priority{background:#dc2626;color:#fff;box-shadow:0 2px 6px rgba(220,38,38,.25)}
 </style>
 </head>
 <body>
@@ -108,6 +116,10 @@
     <div>
       <label for="todoDate">Date</label>
       <input type="date" id="todoDate" />
+      <label class="priority-option" for="todoPriority">
+        <input type="checkbox" id="todoPriority" />
+        <span>Mark as priority</span>
+      </label>
     </div>
 
     <div style="display:flex;flex-direction:column;gap:8px;">
@@ -213,6 +225,7 @@ async function waitForAuthContext(timeoutMs = 10000) {
 /* DOM refs */
 const todoText = document.getElementById('todoText');
 const todoDate = document.getElementById('todoDate');
+const todoPriority = document.getElementById('todoPriority');
 const addTodoBtn = document.getElementById('addTodoBtn');
 const clearBtn = document.getElementById('clearBtn');
 const todosBody = document.getElementById('todosBody');
@@ -237,6 +250,7 @@ function setTodayInputs(){
   if(fltStatus) fltStatus.value = 'Pending';
   if(fltTodo) fltTodo.value = '';
   if(todoCategory) todoCategory.value = 'S';
+  if(todoPriority) todoPriority.checked = false;
   if(fltCategory) fltCategory.value = '';
   if(chkShowDate) chkShowDate.checked = false;
   if(chkShowCategory) chkShowCategory.checked = false;
@@ -466,7 +480,7 @@ addTodoBtn.addEventListener('click', async ()=>{
       date_ts: dateStr ? new Date(dateStr + 'T00:00:00').toISOString() : null,
       status: 'Pending',
       category: category,
-      pinned: false,
+      pinned: todoPriority ? todoPriority.checked : false,
       dashboard_pinned: true,
       deleted: false
     };
@@ -531,9 +545,10 @@ function renderTodos(){
     const isDone = t.status === 'Done';
     const days = computeDaysOpen(t);
     const isDashPinned = t.dashboard_pinned === true;
+    const isPriority = t.pinned === true;
 
     tr.innerHTML = `
-      <td style="width:32px">${idx+1}</td>
+      <td style="width:32px"><span class="row-number ${isPriority ? 'priority' : ''}">${idx+1}</span></td>
       <td class="col-date" style="width:120px">${escapeHtml(t.date || '')}</td>
       <td class="todo-cell ${isDone? 'done':''}" data-id="${t.id}"><span class="todo-text">${escapeHtml(t.text || '')}</span></td>
       <td class="col-category" style="width:86px">${escapeHtml(t.category || '')}</td>
@@ -541,7 +556,7 @@ function renderTodos(){
       <td class="col-status" style="width:90px">${escapeHtml(t.status || '')}</td>
       <td class="action-col" style="text-align:center">
         <button class="action-btn dash ${isDashPinned ? 'active' : ''}" type="button" data-id="${t.id}" data-action="dash" title="${isDashPinned ? 'Remove from Dashboard' : 'Show on Dashboard'}"><span class="btn-icon">🗒</span></button>
-        <button class="action-btn pin" type="button" data-id="${t.id}" data-action="pin" title="${t.pinned ? 'Unpin' : 'Pin'}"><span class="btn-icon">📌</span></button>
+        <button class="action-btn pin ${isPriority ? 'active' : ''}" type="button" data-id="${t.id}" data-action="pin" title="${isPriority ? 'Remove priority' : 'Mark as priority'}" aria-label="${isPriority ? 'Remove priority' : 'Mark as priority'}" aria-pressed="${isPriority}"><span class="btn-icon">&#10003;</span></button>
         <button class="action-btn toggle" type="button" data-id="${t.id}" data-action="toggle" title="${isDone ? 'Mark Pending' : 'Mark Done'}"><span class="btn-icon">${isDone ? '↺' : '✔'}</span></button>
         <button class="action-btn edit" type="button" data-id="${t.id}" data-action="edit" title="Edit"><span class="btn-icon">✎</span></button>
         <button class="action-btn del" type="button" data-id="${t.id}" data-action="delete" title="Delete"><span class="btn-icon">🗑</span></button>
@@ -625,10 +640,17 @@ function renderTodos(){
           alert('Dashboard pin update failed: ' + (err.message||err));
         }
       } else if(action === 'pin'){
+        let oldPinned = false;
+        let oldDashboardPinned = false;
         try {
           const tdoc = todosCache.find(x=>x.id===id) || {};
+          oldPinned = tdoc.pinned === true;
+          oldDashboardPinned = tdoc.dashboard_pinned === true;
           const newPinned = !(tdoc && tdoc.pinned);
-          if(tdoc) tdoc.pinned = newPinned;
+          if(tdoc) {
+            tdoc.pinned = newPinned;
+            if(newPinned) tdoc.dashboard_pinned = true;
+          }
           todosCache.sort((a,b) => {
             const ap = a.pinned ? 1 : 0;
             const bp = b.pinned ? 1 : 0;
@@ -637,13 +659,28 @@ function renderTodos(){
           });
           saveCacheToLocal();
           renderTodos();
-          let uq = db().from('todos').update({ pinned: newPinned }).eq('id', id);
+          const priorityPatch = { pinned: newPinned };
+          if(newPinned) priorityPatch.dashboard_pinned = true;
+          let uq = db().from('todos').update(priorityPatch).eq('id', id);
           if (currentSchoolId) uq = uq.eq('school_id', currentSchoolId);
           const { error } = await uq;
           if (error) throw error;
         } catch(err){
+          const tdoc = todosCache.find(x=>x.id===id);
+          if(tdoc) {
+            tdoc.pinned = oldPinned;
+            tdoc.dashboard_pinned = oldDashboardPinned;
+          }
+          todosCache.sort((a,b) => {
+            const ap = a.pinned ? 1 : 0;
+            const bp = b.pinned ? 1 : 0;
+            if(ap !== bp) return bp - ap;
+            return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+          });
+          saveCacheToLocal();
+          renderTodos();
           console.error('pin toggle failed', err);
-          alert('Pin update failed: ' + (err.message||err));
+          alert('Priority update failed: ' + (err.message||err));
         }
       }
     });

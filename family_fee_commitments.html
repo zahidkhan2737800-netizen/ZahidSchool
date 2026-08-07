@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Commitments - Zahid School System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; min-height: 100vh; background: #f1f5f9; color: #0f172a; font-family: Inter, sans-serif; opacity: 0; transition: opacity .2s; }
+        body.auth-ready { opacity: 1; }
+        .page { width: 100%; padding: 18px; }
+        .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 16px; }
+        h1 { margin: 0; font-size: clamp(1.45rem, 3vw, 2.15rem); }
+        .subtitle { color: #64748b; margin: 6px 0 0; }
+        .nav { display: flex; flex-wrap: wrap; gap: 8px; }
+        .nav a { color: #1d4ed8; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 9px; padding: 9px 12px; text-decoration: none; font-weight: 700; font-size: .86rem; }
+        .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px; box-shadow: 0 2px 8px rgba(15,23,42,.05); }
+        button, input, select { font: inherit; }
+        .controls button, .controls input, .controls select { min-height: 40px; border: 1px solid #cbd5e1; border-radius: 9px; background: #fff; padding: 8px 11px; }
+        .controls button { cursor: pointer; font-weight: 700; color: #334155; }
+        .controls button:hover { border-color: #2563eb; color: #1d4ed8; }
+        #commitmentSearch { min-width: 230px; flex: 1; }
+        .date-title { margin: 16px 0 10px; display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; }
+        .date-title h2 { margin: 0; font-size: 1.15rem; }
+        .today-pill { display: none; padding: 3px 8px; border-radius: 999px; background: #dbeafe; color: #1d4ed8; font-size: .72rem; font-weight: 800; }
+        .today-pill.show { display: inline-block; }
+        .stats { display: grid; grid-template-columns: repeat(6, minmax(125px, 1fr)); gap: 10px; margin-bottom: 12px; }
+        .stat { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 13px 15px; }
+        .stat span { display: block; color: #64748b; text-transform: uppercase; font-size: .73rem; font-weight: 800; letter-spacing: .04em; }
+        .stat strong { display: block; margin-top: 4px; font-size: 1.45rem; }
+        .stat.pending strong { color: #dc2626; }
+        .stat.completed strong { color: #16a34a; }
+        .stat.defaulted strong { color: #991b1b; }
+        .stat.amount { border-color: #86efac; background: #f0fdf4; }
+        .stat.amount strong { color: #15803d; font-size: 1.28rem; }
+        .table-wrap { width: 100%; overflow: auto; background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; box-shadow: 0 2px 10px rgba(15,23,42,.05); }
+        table { width: 100%; border-collapse: collapse; min-width: 1050px; }
+        th { position: sticky; top: 0; z-index: 1; background: #f8fafc; color: #334155; text-align: left; font-size: .86rem; text-transform: uppercase; letter-spacing: .035em; padding: 13px 12px; border-bottom: 1px solid #cbd5e1; font-weight: 800; }
+        td { padding: 14px 12px; border-bottom: 1px solid #e2e8f0; vertical-align: top; font-size: 1rem; line-height: 1.45; }
+        tbody tr:last-child td { border-bottom: 0; }
+        tbody tr:hover { background: #f8fafc; }
+        .family-name { font-weight: 800; color: #0f172a; font-size: 1.05rem; }
+        .family-mobile { color: #2563eb; font-size: .9rem; font-weight: 700; }
+        .record-type { display: inline-flex; margin-left: 5px; padding: 2px 6px; border-radius: 999px; background: #e2e8f0; color: #475569; font-size: .67rem; font-weight: 800; vertical-align: middle; }
+        .members { display: grid; gap: 3px; }
+        .member { color: #334155; font-size: .92rem; }
+        .member small { display: block; color: #64748b; font-size: .84rem; margin-top: 1px; }
+        .commitment-balance { color: #15803d; font-weight: 900; white-space: nowrap; }
+        .badge { display: inline-flex; border-radius: 999px; padding: 5px 10px; font-size: .84rem; font-weight: 800; }
+        .badge.Pending { color: #b91c1c; background: #fee2e2; }
+        .badge.Completed { color: #166534; background: #dcfce7; }
+        .badge.PD { color: #fff; background: #b91c1c; box-shadow: 0 2px 6px rgba(185,28,28,.2); }
+        .row-action { border: 0; border-radius: 7px; padding: 6px 8px; color: #fff; background: #16a34a; font-size: .75rem; font-weight: 800; cursor: pointer; white-space: nowrap; }
+        .row-action.reopen { background: #64748b; }
+        .action-buttons { display: flex; align-items: center; gap: 4px; }
+        .next-action { border: 0; border-radius: 7px; padding: 6px 8px; color: #fff; background: #2563eb; font-size: .75rem; font-weight: 800; cursor: pointer; white-space: nowrap; }
+        .whatsapp-action { border: 0; border-radius: 7px; padding: 6px 8px; color: #fff; background: #16a34a; font-size: .75rem; font-weight: 800; cursor: pointer; white-space: nowrap; }
+        .delete-action { border: 0; border-radius: 7px; padding: 6px 8px; color: #fff; background: #dc2626; font-size: .75rem; font-weight: 800; cursor: pointer; white-space: nowrap; }
+        .row-action:disabled, .next-action:disabled, .delete-action:disabled { opacity: .6; cursor: wait; }
+        .next-modal-overlay { display: none; position: fixed; inset: 0; z-index: 4500; background: rgba(15,23,42,.16); align-items: flex-start; justify-content: flex-end; padding: 82px 24px 24px; }
+        .next-modal-overlay.open { display: flex; }
+        .next-modal { width: min(340px, calc(100vw - 32px)); background: #fff; border: 1px solid #bfdbfe; border-radius: 14px; padding: 16px; box-shadow: 0 18px 45px rgba(15,23,42,.24); }
+        .next-modal h3 { margin: 0; font-size: 1.08rem; }
+        .next-family { margin: 5px 0 14px; color: #475569; font-size: .88rem; font-weight: 700; }
+        .next-days-input { width: 100%; padding: 11px 12px; border: 2px solid #bfdbfe; border-radius: 9px; outline: none; font-size: 1.1rem; font-weight: 800; }
+        .next-days-input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+        .next-hint { margin: 6px 0 0; color: #64748b; font-size: .77rem; }
+        .next-preview { margin-top: 11px; padding: 10px 11px; border-radius: 9px; background: #eff6ff; color: #1e3a8a; font-size: .85rem; line-height: 1.5; }
+        .next-modal-actions { display: flex; justify-content: flex-end; gap: 7px; margin-top: 13px; }
+        .next-modal-actions button { border: 0; border-radius: 8px; padding: 9px 13px; font-weight: 800; cursor: pointer; }
+        .next-cancel { background: #e2e8f0; color: #475569; }
+        .next-save { background: #2563eb; color: #fff; }
+        .next-save:disabled { opacity: .6; cursor: wait; }
+        .wa-modal-overlay { display: none; position: fixed; inset: 0; z-index: 4600; background: rgba(15,23,42,.2); align-items: flex-start; justify-content: flex-end; padding: 70px 24px 24px; }
+        .wa-modal-overlay.open { display: flex; }
+        .wa-modal { width: min(440px, calc(100vw - 32px)); background: #fff; border: 1px solid #86efac; border-radius: 15px; padding: 16px; box-shadow: 0 20px 50px rgba(15,23,42,.25); }
+        .wa-modal h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 1.08rem; }
+        .wa-family { margin: 5px 0 13px; color: #475569; font-size: .88rem; font-weight: 700; }
+        .wa-template-row { display: flex; gap: 7px; margin-bottom: 9px; }
+        .wa-template-row select { flex: 1; min-width: 0; padding: 9px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-weight: 700; }
+        .wa-template-row a { display: inline-flex; align-items: center; justify-content: center; padding: 9px 11px; border-radius: 8px; background: #f1f5f9; color: #475569; text-decoration: none; }
+        .wa-message { width: 100%; min-height: 190px; resize: vertical; padding: 11px; border: 1px solid #cbd5e1; border-radius: 9px; font: 500 .91rem/1.45 Inter, sans-serif; outline: none; }
+        .wa-message:focus { border-color: #16a34a; box-shadow: 0 0 0 3px rgba(22,163,74,.1); }
+        .wa-detail-status { min-height: 18px; margin-top: 5px; color: #64748b; font-size: .75rem; }
+        .wa-modal-actions { display: flex; justify-content: flex-end; gap: 7px; margin-top: 9px; }
+        .wa-modal-actions button { border: 0; border-radius: 8px; padding: 9px 13px; font-weight: 800; cursor: pointer; }
+        .wa-cancel { background: #e2e8f0; color: #475569; }
+        .wa-send { display: inline-flex; align-items: center; gap: 6px; background: #16a34a; color: #fff; }
+        .empty { padding: 45px 15px !important; text-align: center; color: #64748b; }
+        .setup-error { color: #991b1b; background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; padding: 12px; line-height: 1.5; }
+        #toast { display: none; position: fixed; right: 18px; top: 18px; z-index: 5000; max-width: 360px; border-radius: 10px; padding: 11px 14px; color: #166534; background: #dcfce7; border: 1px solid #bbf7d0; font-weight: 700; box-shadow: 0 8px 25px rgba(15,23,42,.16); }
+        #toast.error { color: #991b1b; background: #fee2e2; border-color: #fecaca; }
+        @media (max-width: 760px) {
+            .page { padding: 10px; }
+            .top { flex-direction: column; }
+            .stats { grid-template-columns: repeat(2, 1fr); }
+            .stat { padding: 10px; }
+            .stat strong { font-size: 1.15rem; }
+        }
+    </style>
+</head>
+<body>
+    <main class="page">
+        <header class="top">
+            <div>
+                <h1><i class="fas fa-handshake" style="color:#2563eb"></i> Commitments</h1>
+                <p class="subtitle">Date-wise fee-payment promises from families and individual students.</p>
+            </div>
+            <nav class="nav">
+                <a href="dashboard.html"><i class="fas fa-chart-line"></i> Dashboard</a>
+                <a href="family_contacts.html"><i class="fas fa-phone-volume"></i> Family Contacts</a>
+                <a href="fee_contacts.html"><i class="fas fa-user-graduate"></i> Student Contacts</a>
+            </nav>
+        </header>
+
+        <section class="controls" aria-label="Commitment filters">
+            <button id="previousDate" type="button" title="Previous day"><i class="fas fa-chevron-left"></i></button>
+            <input id="commitmentDate" type="date" aria-label="Commitment due date">
+            <button id="nextDate" type="button" title="Next day"><i class="fas fa-chevron-right"></i></button>
+            <button id="todayDate" type="button">Today</button>
+            <select id="commitmentStatus" aria-label="Status filter">
+                <option value="All" selected>All statuses</option>
+                <option value="Pending">Pending only</option>
+                <option value="PD">PD only</option>
+                <option value="Completed">Completed only</option>
+            </select>
+            <input id="commitmentSearch" type="search" placeholder="Search contact, mobile, student or roll...">
+        </section>
+
+        <div class="date-title">
+            <h2 id="selectedDateTitle">Commitments</h2>
+            <span id="todayPill" class="today-pill">Today</span>
+        </div>
+
+        <section class="stats">
+            <div class="stat"><span>All Commitments</span><strong id="allCommitments">0</strong></div>
+            <div class="stat"><span>This Date</span><strong id="totalCommitments">0</strong></div>
+            <div class="stat pending"><span>Pending</span><strong id="pendingCommitments">0</strong></div>
+            <div class="stat defaulted"><span>PD</span><strong id="defaultedCommitments">0</strong></div>
+            <div class="stat completed"><span>Completed</span><strong id="completedCommitments">0</strong></div>
+            <div class="stat amount"><span>Committed Amount</span><strong id="committedAmount">Rs 0</strong></div>
+        </section>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Due Date</th>
+                        <th>Record #</th>
+                        <th>Contact</th>
+                        <th>Students</th>
+                        <th>Balance</th>
+                        <th>Promised</th>
+                        <th>Made On</th>
+                        <th>Registered By</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="commitmentsBody">
+                    <tr><td colspan="10" class="empty">Loading commitments...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+    <div id="nextCommitmentModal" class="next-modal-overlay" aria-hidden="true">
+        <section class="next-modal" role="dialog" aria-modal="true" aria-labelledby="nextCommitmentTitle">
+            <h3 id="nextCommitmentTitle">Next Fee Commitment</h3>
+            <p id="nextCommitmentFamily" class="next-family"></p>
+            <label for="nextCommitmentDays" style="display:block;font-size:.82rem;font-weight:800;color:#334155;margin-bottom:5px;">Days promised</label>
+            <input id="nextCommitmentDays" class="next-days-input" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="0, 1, 2, 3...">
+            <p class="next-hint">0 = today, 1 = tomorrow, 2 = two days later</p>
+            <div id="nextCommitmentPreview" class="next-preview">Enter the number of days.</div>
+            <div class="next-modal-actions">
+                <button id="nextCommitmentCancel" type="button" class="next-cancel">Cancel</button>
+                <button id="nextCommitmentSave" type="button" class="next-save">Save Next</button>
+            </div>
+        </section>
+    </div>
+
+    <div id="commitmentWaModal" class="wa-modal-overlay" aria-hidden="true">
+        <section class="wa-modal" role="dialog" aria-modal="true" aria-labelledby="commitmentWaTitle">
+            <h3 id="commitmentWaTitle"><i class="fab fa-whatsapp" style="color:#16a34a;font-size:1.35rem;"></i> Send WhatsApp Message</h3>
+            <p id="commitmentWaFamily" class="wa-family"></p>
+            <div class="wa-template-row">
+                <select id="commitmentWaTemplate" aria-label="WhatsApp template">
+                    <option value="">Custom commitment message</option>
+                </select>
+                <a href="wa_templates.html" target="_blank" title="Manage WhatsApp templates"><i class="fas fa-gear"></i></a>
+            </div>
+            <textarea id="commitmentWaMessage" class="wa-message" placeholder="Type your WhatsApp message..."></textarea>
+            <div id="commitmentWaDetailStatus" class="wa-detail-status"></div>
+            <div class="wa-modal-actions">
+                <button id="commitmentWaCancel" type="button" class="wa-cancel">Cancel</button>
+                <button id="commitmentWaSend" type="button" class="wa-send"><i class="fab fa-whatsapp"></i> Send</button>
+            </div>
+        </section>
+    </div>
+
+    <div id="toast" role="status"></div>
+
+    <script src="auth.js"></script>
+    <script src="family_fee_commitments.js?v=9"></script>
+</body>
+</html>

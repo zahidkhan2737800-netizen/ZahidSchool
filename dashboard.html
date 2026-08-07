@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>Zahid School - Admin Dashboard</title>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="dashboard new.css">
+  <link rel="stylesheet" href="dashboard new.css?v=3">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -75,6 +75,10 @@
         <div class="stat-icon sky"><i class="fas fa-user-plus"></i></div>
         <div class="stat-info"><div class="stat-val" id="statAdmittedMonth">--</div><div class="stat-label">Admitted This Month</div></div>
       </div>
+      <a id="commitmentsTodayCard" class="stat-card stat-card-link commitment-dashboard-card is-loading" href="family_fee_commitments.html" title="Open today's pending family fee commitments">
+        <div class="stat-icon blue"><i class="fas fa-handshake"></i></div>
+        <div class="stat-info"><div class="stat-val" id="statCommitmentsToday">--</div><div class="stat-label" id="statCommitmentsLabel">Commitments Today</div></div>
+      </a>
     </div>
 
 
@@ -217,6 +221,6 @@
 
   <script src="auth.js"></script>
   <script src="karachi_date.js"></script>
-  <script src="dashboard.js?v=4"></script>
+  <script src="dashboard.js?v=7"></script>
 </body>
 </html>

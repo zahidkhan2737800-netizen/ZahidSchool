@@ -891,7 +891,11 @@
                     </div>
                     <div>
                         <label class="cf-label">Discount (Rs)</label>
-                        <input type="number" id="inputDiscount" class="cf-input" value="0" style="margin-bottom:0;">
+                        <div style="display:flex; gap:0.5rem;">
+                            <input type="number" id="inputDiscount" class="cf-input" value="0" style="margin-bottom:0; flex:1;">
+                            <button id="btnApplyDiscount" class="partial-btn" type="button"
+                                style="padding:0.85rem 1rem; white-space:nowrap; margin-top:0;" disabled>Apply</button>
+                        </div>
                     </div>
                 </div>
 
@@ -1156,7 +1160,7 @@
 
     <script src="auth.js"></script>
     <script src="karachi_date.js"></script>
-    <script src="collect_fee.js?v=2"></script>
+    <script src="collect_fee.js?v=4"></script>
 </body>
 
 </html>

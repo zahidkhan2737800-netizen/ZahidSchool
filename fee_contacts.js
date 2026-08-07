@@ -12,6 +12,9 @@ let recentDates = []; // Last 3 calendar dates (YYYY-MM-DD)
 let allPendingChallans = [];
 let waTemplates = [];
 let currentOpenStudentId = null;
+let currentCommitmentStudentId = null;
+let studentCommitmentsMap = {}; // student_id -> pending shared commitments
+let teacherFeeSelectedStudentIds = new Set(); // shared Supabase TeacherFee rows
 
 function toLocalYmd(d) {
     const y = d.getFullYear();
@@ -75,6 +78,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         renderTable();
     });
 
+    setupStudentCommitmentModal();
+
     // Initial Load
     await loadBaseData();
     await loadData();
@@ -99,6 +104,255 @@ function changeMonth(offset) {
 }
 
 // ─── Fetch Base Data (Students & Classes) ────────────────────────────────────
+function studentCommitmentToday(date = new Date()) {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Karachi', year: 'numeric', month: '2-digit', day: '2-digit'
+    }).formatToParts(date);
+    const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    return `${values.year}-${values.month}-${values.day}`;
+}
+
+function addStudentCommitmentDays(ymd, days) {
+    const [year, month, day] = ymd.split('-').map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    date.setUTCDate(date.getUTCDate() + days);
+    return date.toISOString().slice(0, 10);
+}
+
+function formatStudentCommitmentDate(ymd) {
+    return new Date(`${ymd}T00:00:00Z`).toLocaleDateString('en-GB', {
+        weekday: 'long', day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC'
+    });
+}
+
+function setupStudentCommitmentModal() {
+    const modal = document.getElementById('studentCommitmentModal');
+    const input = document.getElementById('studentCommitmentDays');
+    const cancel = document.getElementById('studentCommitmentCancel');
+    const save = document.getElementById('studentCommitmentSave');
+    if (!modal || !input || !cancel || !save) return;
+
+    input.addEventListener('keydown', event => {
+        if (['e', 'E', '+', '-', '.', ','].includes(event.key)) event.preventDefault();
+        if (event.key === 'Enter') saveStudentCommitment();
+        if (event.key === 'Escape') closeStudentCommitmentModal();
+    });
+    input.addEventListener('input', () => {
+        input.value = input.value.replace(/\D/g, '');
+        updateStudentCommitmentPreview();
+    });
+    input.addEventListener('wheel', event => {
+        event.preventDefault();
+        input.blur();
+    }, { passive: false });
+    cancel.addEventListener('click', closeStudentCommitmentModal);
+    save.addEventListener('click', saveStudentCommitment);
+    modal.addEventListener('click', event => {
+        if (event.target === modal) closeStudentCommitmentModal();
+    });
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && modal.classList.contains('open')) closeStudentCommitmentModal();
+    });
+}
+
+function openStudentCommitmentModal(studentId) {
+    const student = allStudents.find(item => item.id === studentId);
+    if (!student) {
+        showStudentCommitmentToast('Student record was not found.', true);
+        return;
+    }
+    currentCommitmentStudentId = studentId;
+    const modal = document.getElementById('studentCommitmentModal');
+    const input = document.getElementById('studentCommitmentDays');
+    document.getElementById('studentCommitmentName').textContent = `${student.full_name} (Roll ${student.roll_number}) · ${student.father_name || 'Parent'}`;
+    input.value = '';
+    updateStudentCommitmentPreview();
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    setTimeout(() => input.focus(), 30);
+}
+
+function closeStudentCommitmentModal() {
+    const modal = document.getElementById('studentCommitmentModal');
+    if (modal) {
+        modal.classList.remove('open');
+        modal.setAttribute('aria-hidden', 'true');
+    }
+    currentCommitmentStudentId = null;
+}
+
+function updateStudentCommitmentPreview() {
+    const input = document.getElementById('studentCommitmentDays');
+    const preview = document.getElementById('studentCommitmentPreview');
+    if (!input || !preview || !/^\d+$/.test(input.value)) {
+        if (preview) preview.textContent = 'Enter the number of days.';
+        return;
+    }
+    const madeOn = studentCommitmentToday();
+    const dueDate = addStudentCommitmentDays(madeOn, Number(input.value));
+    preview.innerHTML = `Made on <strong>${formatStudentCommitmentDate(madeOn)}</strong><br>Payment due <strong>${formatStudentCommitmentDate(dueDate)}</strong>`;
+}
+
+async function saveStudentCommitment() {
+    const input = document.getElementById('studentCommitmentDays');
+    const saveButton = document.getElementById('studentCommitmentSave');
+    const rawDays = input ? input.value.trim() : '';
+    if (!/^\d+$/.test(rawDays)) {
+        showStudentCommitmentToast('Enter a whole number: 0, 1, 2, 3...', true);
+        if (input) input.focus();
+        return;
+    }
+
+    const days = Number(rawDays);
+    const student = allStudents.find(item => item.id === currentCommitmentStudentId);
+    if (!student || !Number.isSafeInteger(days) || days < 0 || !window.currentSchoolId) {
+        showStudentCommitmentToast('Student, school, or number of days is invalid.', true);
+        return;
+    }
+
+    const madeOn = studentCommitmentToday();
+    const dueDate = addStudentCommitmentDays(madeOn, days);
+    const payload = {
+        school_id: window.currentSchoolId,
+        family_mobile: String(student.father_mobile || '').trim(),
+        family_no: String(student.roll_number || ''),
+        family_name: student.father_name || student.full_name,
+        members: [{
+            student_id: student.id,
+            name: student.full_name,
+            father_name: student.father_name || '',
+            roll: student.roll_number,
+            class_name: student.applying_for_class
+        }],
+        days_promised: days,
+        commitment_made_on: madeOn,
+        due_date: dueDate,
+        created_by_user_id: window.currentUser?.id || null,
+        created_by: window.currentUserFullName || window.currentUser?.email || 'Unknown User',
+        status: 'Pending'
+    };
+
+    saveButton.disabled = true;
+    saveButton.textContent = 'Saving...';
+    try {
+        const { error } = await supabaseClient.from('family_fee_commitments').insert(payload);
+        if (error) throw error;
+        closeStudentCommitmentModal();
+        showStudentCommitmentToast(`Commitment saved for ${formatStudentCommitmentDate(dueDate)}.`);
+        await loadData();
+    } catch (error) {
+        console.error('Could not save student commitment:', error);
+        showStudentCommitmentToast(`Could not save commitment: ${error.message || 'Unknown error'}`, true);
+    } finally {
+        saveButton.disabled = false;
+        saveButton.textContent = 'Save';
+    }
+}
+
+function showStudentCommitmentToast(message, isError = false) {
+    let toast = document.getElementById('studentCommitmentToast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'studentCommitmentToast';
+        toast.style.cssText = 'position:fixed;top:18px;right:18px;z-index:5000;max-width:380px;padding:11px 14px;border-radius:10px;font-weight:700;box-shadow:0 8px 25px rgba(15,23,42,.16);';
+        document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.style.background = isError ? '#fee2e2' : '#dcfce7';
+    toast.style.color = isError ? '#991b1b' : '#166534';
+    toast.style.border = `1px solid ${isError ? '#fecaca' : '#bbf7d0'}`;
+    toast.style.display = 'block';
+    clearTimeout(showStudentCommitmentToast.timer);
+    showStudentCommitmentToast.timer = setTimeout(() => { toast.style.display = 'none'; }, 3200);
+}
+
+async function publishStudentPriorityTodo(studentId, button) {
+    const student = allStudents.find(item => item.id === studentId);
+    if (!student) {
+        showStudentCommitmentToast('Student record was not found.', true);
+        return;
+    }
+
+    const roll = student.roll_number || 'N/A';
+    const father = student.father_name || 'N/A';
+    const className = student.applying_for_class || 'N/A';
+    const today = studentCommitmentToday();
+    const payload = {
+        text: `Student: ${student.full_name}(${roll}) | Father: ${father} | Class: ${className}`,
+        date: today,
+        date_ts: new Date(`${today}T00:00:00+05:00`).toISOString(),
+        status: 'Pending',
+        category: 'S',
+        pinned: true,
+        dashboard_pinned: true,
+        deleted: false
+    };
+    if (window.currentSchoolId) payload.school_id = window.currentSchoolId;
+
+    const oldText = button ? button.textContent : '';
+    if (button) {
+        button.disabled = true;
+        button.textContent = '...';
+    }
+
+    try {
+        const { error } = await window.supabaseClient.from('todos').insert(payload);
+        if (error) throw error;
+        if (button) button.textContent = 'Done';
+        showStudentCommitmentToast(`Priority diary task published for ${student.full_name}.`);
+        setTimeout(() => {
+            if (!button || !button.isConnected) return;
+            button.disabled = false;
+            button.textContent = oldText || 'Now';
+        }, 1800);
+    } catch (error) {
+        console.error('Could not publish student priority todo:', error);
+        if (button) {
+            button.disabled = false;
+            button.textContent = oldText || 'Now';
+        }
+        showStudentCommitmentToast(`Could not publish priority task: ${error.message || 'Unknown error'}`, true);
+    }
+}
+
+function isTeacherFeeStudentSelected(studentId) {
+    return teacherFeeSelectedStudentIds.has(String(studentId));
+}
+
+async function addStudentToTeacherFee(studentId) {
+    const id = String(studentId || '');
+    const student = allStudents.find(item => String(item.id) === id);
+    if (!student) {
+        showStudentCommitmentToast('Student record was not found.', true);
+        return false;
+    }
+    if (teacherFeeSelectedStudentIds.has(id)) {
+        showStudentCommitmentToast(`${student.full_name} is already in TeacherFee.`);
+        return true;
+    }
+    if (!window.currentSchoolId) {
+        showStudentCommitmentToast('School could not be identified. Refresh and try again.', true);
+        return false;
+    }
+    try {
+        const { error } = await window.supabaseClient.from('teacher_fee_rows').upsert({
+            school_id: window.currentSchoolId,
+            student_id: student.id,
+            source: 'Student',
+            added_by: window.currentUser?.id || null,
+            updated_by: window.currentUser?.id || null
+        }, { onConflict: 'school_id,student_id', ignoreDuplicates: true });
+        if (error) throw error;
+        teacherFeeSelectedStudentIds.add(id);
+        showStudentCommitmentToast(`${student.full_name} added to TeacherFee.`);
+        return true;
+    } catch (error) {
+        const missingTable = error?.code === '42P01' || error?.code === 'PGRST205' || String(error?.message || '').includes('teacher_fee_rows');
+        showStudentCommitmentToast(missingTable ? 'TeacherFee storage is not installed. Run teacher_fee_setup.sql in Supabase.' : `Could not add student to TeacherFee: ${error.message || 'Unknown error'}`, true);
+        return false;
+    }
+}
+
 async function loadBaseData() {
     try {
         // Fetch specific columns for speed.
@@ -229,19 +483,54 @@ async function loadData() {
     // We attempt to fetch from the DB. If the table 'fee_contacts' doesn't exist yet, 
     // it will error, and we fallback to an empty in-memory state until SQL is run.
     try {
-        const { data: contacts, error } = await supabaseClient
+        const contactsRequest = supabaseClient
             .from('fee_contacts')
             .select('*')
             .eq('month_key', currentMonth);
+
+        let commitmentsRequest = supabaseClient
+            .from('family_fee_commitments')
+            .select('id, members, days_promised, commitment_made_on, due_date, created_by, created_at')
+            .eq('status', 'Pending')
+            .order('due_date', { ascending: true })
+            .order('created_at', { ascending: true });
+        if (window.currentSchoolId) commitmentsRequest = commitmentsRequest.eq('school_id', window.currentSchoolId);
+
+        let teacherFeeRowsRequest = supabaseClient
+            .from('teacher_fee_rows')
+            .select('student_id');
+        if (window.currentSchoolId) teacherFeeRowsRequest = teacherFeeRowsRequest.eq('school_id', window.currentSchoolId);
+
+        const [contactsResult, commitmentsResult, teacherFeeRowsResult] = await Promise.all([contactsRequest, commitmentsRequest, teacherFeeRowsRequest]);
+        const contacts = contactsResult.data;
+        const error = contactsResult.error;
 
         // Map to lookup dictionary
         monthData = {};
         if (contacts && !error) {
             contacts.forEach(c => monthData[c.student_id] = c);
         }
+
+        studentCommitmentsMap = {};
+        if (!commitmentsResult.error) {
+            (commitmentsResult.data || []).forEach(commitment => {
+                const members = Array.isArray(commitment.members) ? commitment.members : [];
+                if (members.length !== 1 || !members[0].student_id) return;
+                const studentId = members[0].student_id;
+                if (!studentCommitmentsMap[studentId]) studentCommitmentsMap[studentId] = [];
+                studentCommitmentsMap[studentId].push(commitment);
+            });
+        } else {
+            console.warn('Could not load student commitments:', commitmentsResult.error);
+        }
+
+        teacherFeeSelectedStudentIds = new Set((teacherFeeRowsResult.data || []).map(row => String(row.student_id)));
+        if (teacherFeeRowsResult.error) console.warn('Could not load TeacherFee selections:', teacherFeeRowsResult.error);
     } catch (err) {
         console.warn("fee_contacts table might not exist yet. Using empty state.", err);
         monthData = {};
+        studentCommitmentsMap = {};
+        teacherFeeSelectedStudentIds = new Set();
     }
 
     document.getElementById('loader').style.display = 'none';
@@ -339,6 +628,9 @@ function renderTable() {
             <td><button class="action-btn-cell" data-student="${student.id}" title="Send Voice Message" onclick="openAudioChat('${student.id}')">🎙️</button></td>
             <td><button class="action-btn-cell wa-btn" data-student="${student.id}" title="Send WhatsApp Bill" onclick="openWaModal('${student.id}')"><i class="fab fa-whatsapp" style="color:#25D366; font-size:1.3rem;"></i></button></td>
             <td><button class="action-btn-cell cd-btn ${data.complaint ? 'active' : ''}" data-id="${student.id}" title="Complaint">C</button></td>
+            <td><button class="action-btn-cell co-btn" data-id="${student.id}" title="Save payment commitment">Co</button></td>
+            <td><button class="action-btn-cell now-btn" data-id="${student.id}" title="Publish student as a red priority diary task">Now</button></td>
+            <td><button class="action-btn-cell teacher-btn ${isTeacherFeeStudentSelected(student.id) ? 'active' : ''}" data-id="${student.id}" title="Add student to TeacherFee list">T</button></td>
             <td><button class="action-btn-cell pin-btn ${data.pinned ? 'active' : ''}" data-id="${student.id}" title="Pin to top">📌</button></td>
             <td><input type="text" class="commit-input" value="${data.commitment_notes || ''}" placeholder="Add notes..." data-id="${student.id}"></td>
             <td>
@@ -355,7 +647,7 @@ function renderTable() {
     });
 
     if (rowsToRender.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="16" style="padding: 3rem; color: #94a3b8;">No contact records match your filters.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="21" style="padding: 3rem; color: #94a3b8;">No contact records match your filters.</td></tr>';
     }
 
     // Update Counter
@@ -363,9 +655,11 @@ function renderTable() {
     const totalEl = document.getElementById('cardTotalStudents');
     const pendingEl = document.getElementById('cardPendingStudents');
     const solvedEl = document.getElementById('cardSolvedStudents');
+    const commitmentsEl = document.getElementById('cardStudentCommitments');
     if (totalEl) totalEl.textContent = allStudents.length.toLocaleString();
     if (pendingEl) pendingEl.textContent = pendingCount.toLocaleString();
     if (solvedEl) solvedEl.textContent = solvedCount.toLocaleString();
+    if (commitmentsEl) commitmentsEl.textContent = Object.values(studentCommitmentsMap).reduce((sum, rows) => sum + rows.length, 0).toLocaleString();
 }
 
 // ─── Generators & Helpers ────────────────────────────────────────────────────
@@ -376,9 +670,11 @@ function getEmptyContactState(studentId) {
 function generateContactCell(studentId, idx, data) {
     const status = data[`c${idx}_status`] || '';
     const dateLine = data[`c${idx}_date`] ? new Date(data[`c${idx}_date`]).toLocaleDateString('en-GB', {day:'numeric', month:'short'}) : '';
+    const hasCommitment = (studentCommitmentsMap[studentId] || []).length > 0;
+    const commitmentStrip = idx === 1 ? generateStudentCommitmentStrip(studentId) : '';
     
     return `
-        <td class="${idx >= 7 ? `col-c${idx}` : ''}">
+        <td class="${idx >= 7 ? `col-c${idx}` : ''} ${idx === 1 ? 'student-commitment-anchor' : ''} ${hasCommitment && idx <= 6 ? 'student-commitment-space' : ''}">
             <div class="contact-cell">
                 <select class="c-select" data-id="${studentId}" data-idx="${idx}">
                     <option value=""></option>
@@ -391,8 +687,45 @@ function generateContactCell(studentId, idx, data) {
                 <button class="c-btn ${STATUS_COLORS[status] || ''}" title="Status Indicator"></button>
                 <span class="c-date ${!dateLine ? 'hidden' : ''}">${dateLine || '---'}</span>
             </div>
+            ${commitmentStrip}
         </td>
     `;
+}
+
+function generateStudentCommitmentStrip(studentId) {
+    const commitments = studentCommitmentsMap[studentId] || [];
+    if (!commitments.length) return '';
+    const today = studentCommitmentToday();
+    const visible = commitments.slice(0, 5);
+    const chips = visible.map(commitment => {
+        const daysRemaining = studentCommitmentDayDifference(today, commitment.due_date);
+        const state = daysRemaining < 0 ? 'expired' : (daysRemaining === 0 ? 'today' : 'future');
+        const label = daysRemaining < 0 ? `E${Math.abs(daysRemaining)}` : (daysRemaining === 0 ? 'T' : String(daysRemaining));
+        const timing = daysRemaining < 0
+            ? `Expired ${Math.abs(daysRemaining)} day${Math.abs(daysRemaining) === 1 ? '' : 's'} ago`
+            : (daysRemaining === 0 ? 'Due today' : `Due in ${daysRemaining} day${daysRemaining === 1 ? '' : 's'}`);
+        const title = `${timing} | Due ${formatStudentCommitmentDate(commitment.due_date)} | Made ${formatStudentCommitmentDate(commitment.commitment_made_on)} | By ${commitment.created_by || 'Unknown User'}`;
+        return `<a class="student-commitment-chip ${state}" href="family_fee_commitments.html?date=${encodeURIComponent(commitment.due_date)}" target="_blank" title="${escapeStudentCommitmentHtml(title)}">${label}</a>`;
+    }).join('');
+    const extra = commitments.length > visible.length
+        ? `<a class="student-commitment-chip more" href="family_fee_commitments.html?date=${encodeURIComponent(commitments[visible.length].due_date)}" target="_blank" title="${commitments.length - visible.length} more pending commitments">+${commitments.length - visible.length}</a>`
+        : '';
+    return `<div class="student-commitment-strip" title="Pending fee commitments">
+        <span class="student-commitment-label"><i class="fas fa-handshake"></i> Commit</span>
+        <span class="student-commitment-chips">${chips}${extra}</span>
+    </div>`;
+}
+
+function studentCommitmentDayDifference(fromYmd, toYmd) {
+    const [fromYear, fromMonth, fromDay] = String(fromYmd).split('-').map(Number);
+    const [toYear, toMonth, toDay] = String(toYmd).split('-').map(Number);
+    return Math.round((Date.UTC(toYear, toMonth - 1, toDay) - Date.UTC(fromYear, fromMonth - 1, fromDay)) / 86400000);
+}
+
+function escapeStudentCommitmentHtml(value) {
+    return String(value ?? '').replace(/[&<>'"]/g, char => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+    }[char]));
 }
 
 function attachCellEvents(tr, studentId) {
@@ -480,6 +813,29 @@ function attachCellEvents(tr, studentId) {
                     console.error("Failed to auto-log complaint:", err);
                 }
             }
+        });
+    }
+
+    // Dated fee commitment button
+    const commitmentButton = tr.querySelector('.co-btn');
+    if (commitmentButton) {
+        commitmentButton.addEventListener('click', () => openStudentCommitmentModal(studentId));
+    }
+
+    // Publish a red priority Diary/Dashboard task for this student.
+    const nowButton = tr.querySelector('.now-btn');
+    if (nowButton) {
+        nowButton.addEventListener('click', () => publishStudentPriorityTodo(studentId, nowButton));
+    }
+
+    // Add this individual student to the shared printable TeacherFee list.
+    const teacherButton = tr.querySelector('.teacher-btn');
+    if (teacherButton) {
+        teacherButton.addEventListener('click', async () => {
+            teacherButton.disabled = true;
+            const saved = await addStudentToTeacherFee(studentId);
+            teacherButton.disabled = false;
+            if (saved) teacherButton.classList.add('active');
         });
     }
 
@@ -665,4 +1021,3 @@ async function saveContactState(studentId, fieldsToUpdate) {
         console.error("Save error:", err);
     }
 }
-
