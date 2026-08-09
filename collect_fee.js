@@ -418,7 +418,16 @@ function reprintFromHistory(receipt) {
     document.getElementById('rctFather').textContent    = receipt.father_name || 'N/A';
     document.getElementById('rctClass').textContent     = receipt.class_name;
     document.getElementById('rctTotal').textContent     = Number(receipt.total_paid).toLocaleString();
-    document.getElementById('rctRemaining').textContent = Number(receipt.remaining).toLocaleString();
+    // Always show current global remaining from live pendingDues
+    let liveRemaining = 0;
+    if (typeof pendingDues !== 'undefined' && Array.isArray(pendingDues) && pendingDues.length > 0) {
+        pendingDues.forEach(c => {
+            liveRemaining += Math.max(0, parseFloat(c.amount) - parseFloat(c.paid_amount || 0));
+        });
+    } else {
+        liveRemaining = Number(receipt.remaining || 0);
+    }
+    document.getElementById('rctRemaining').textContent = Number(liveRemaining).toLocaleString();
     
     // Ensure visibility
     document.getElementById('rowReceiptNo').style.display = 'flex';

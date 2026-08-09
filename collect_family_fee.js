@@ -525,9 +525,16 @@ function reprintFromHistory(receipt) {
     if(rctFamNode) rctFamNode.textContent = activeFamily.familyNo || 'N/A';
     document.getElementById('rctTotal').textContent     = Number(receipt.total_paid).toLocaleString();
     
-    // Historical receipts must use their saved balance snapshot. Recalculating from
-    // today's dues makes an old receipt change when later fee months are added.
-    document.getElementById('rctRemaining').textContent = Number(receipt.remaining || 0).toLocaleString();
+    // Always show current global remaining from live pendingDues
+    let liveRemaining = 0;
+    if (typeof pendingDues !== 'undefined' && Array.isArray(pendingDues) && pendingDues.length > 0) {
+        pendingDues.forEach(c => {
+            liveRemaining += Math.max(0, parseFloat(c.amount) - parseFloat(c.paid_amount || 0));
+        });
+    } else {
+        liveRemaining = Number(receipt.remaining || 0);
+    }
+    document.getElementById('rctRemaining').textContent = Number(liveRemaining).toLocaleString();
 
     // Ensure visibility
     const rowReceiptNo = document.getElementById('rowReceiptNo');
@@ -577,8 +584,16 @@ window.printDaySummary = function(dateStr, collectorKey = '') {
         allLines.push(...(Array.isArray(r.fee_lines) ? r.fee_lines : []));
     });
     
-    // Keep the printed summary tied to its saved receipt snapshot.
-    const familyRemaining = Number(sorted[sorted.length - 1].remaining || 0);
+    // Calculate remaining from live pendingDues — total across ALL family
+    // members' dues, not from the last receipt's snapshot.
+    let familyRemaining = 0;
+    if (typeof pendingDues !== 'undefined' && Array.isArray(pendingDues)) {
+        pendingDues.forEach(c => {
+            familyRemaining += Math.max(0, parseFloat(c.amount) - parseFloat(c.paid_amount || 0));
+        });
+    } else {
+        familyRemaining = Number(sorted[sorted.length - 1].remaining || 0);
+    }
 
     applyThermalSettings('collect_family_fee');
     document.getElementById('rctNo').textContent        = `DAY-${dateStr.replace(/\//g, '')}`;
