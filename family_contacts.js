@@ -15,6 +15,7 @@ let recentDates = []; // Last 3 calendar dates (YYYY-MM-DD)
 let currentCommitmentMobile = null;
 let familyCommitmentsMap = {}; // family_mobile -> pending dated commitments
 let teacherFeeSelectedStudentIds = new Set(); // shared Supabase TeacherFee rows
+let familyDisplayNamesMap = new Map(); // normalized mobile -> selected family name
 
 const STATUS_COLORS = {
     'C': 'status-C',
@@ -389,14 +390,25 @@ async function loadBaseData() {
             .select('id, roll_number, full_name, father_name, father_mobile, applying_for_class, family_id_manual')
             .eq('status', 'Active')
             .order('roll_number', { ascending: true });
-        const { data: students, error: sErr } = await studentsQ;
+        let displayNamesQ = window.supabaseClient
+            .from('family_display_names')
+            .select('mobile_number, family_name');
+        if (window.currentSchoolId) {
+            studentsQ = studentsQ.eq('school_id', window.currentSchoolId);
+            displayNamesQ = displayNamesQ.eq('school_id', window.currentSchoolId);
+        }
+        const [studentsResult, displayNamesResult] = await Promise.all([studentsQ, displayNamesQ]);
+        const students = studentsResult.data;
+        const sErr = studentsResult.error;
 
         if (sErr) throw sErr;
+        familyDisplayNamesMap = new Map((displayNamesResult.data || []).map(row => [String(row.mobile_number || '').replace(/[\s-]/g, ''), row.family_name]));
+        if (displayNamesResult.error) console.warn('Could not load selected family names:', displayNamesResult.error);
         
         // Group students into families (similar to collect_family_fee)
         const groups = {};
         (students || []).forEach(s => {
-            const mob = (s.father_mobile || '').trim();
+            const mob = String(s.father_mobile || '').replace(/[\s-]/g, '').trim();
             if(!mob) return; 
             if(!groups[mob]) groups[mob] = [];
             groups[mob].push(s);
@@ -408,7 +420,7 @@ async function loadBaseData() {
             // Only include as a family if 2+ active students share the same mobile
             if (members.length < 2) return;
             const names = [...new Set(members.map(m => m.father_name).filter(n => n && n.trim() !== ''))];
-            const primaryName = names.length > 0 ? names[0] : 'Unknown Father';
+            const primaryName = familyDisplayNamesMap.get(mobile) || (names.length > 0 ? names[0] : 'Unknown Family');
             const familyNos = [...new Set(members.map(m => m.family_id_manual).filter(n => n && n.trim() !== ''))];
             const familyNo = familyNos.length > 0 ? familyNos[0] : '';
             
@@ -801,25 +813,38 @@ function generateFamilyCommitmentStrip(familyMobile) {
     if (!commitments.length) return '';
 
     const today = karachiYmd();
-    const visible = commitments.slice(0, 5);
-    const chips = visible.map(commitment => {
+    const commitmentsByDate = groupCommitmentsByDueDate(commitments);
+    const visible = commitmentsByDate.slice(0, 5);
+    const chips = visible.map(dateGroup => {
+        const commitment = dateGroup.entries[0];
         const daysRemaining = ymdDayDifference(today, commitment.due_date);
         const state = daysRemaining < 0 ? 'expired' : (daysRemaining === 0 ? 'today' : 'future');
         const label = daysRemaining < 0 ? `E${Math.abs(daysRemaining)}` : (daysRemaining === 0 ? 'T' : String(daysRemaining));
         const timing = daysRemaining < 0
             ? `Expired ${Math.abs(daysRemaining)} day${Math.abs(daysRemaining) === 1 ? '' : 's'} ago`
             : (daysRemaining === 0 ? 'Due today' : `Due in ${daysRemaining} day${daysRemaining === 1 ? '' : 's'}`);
-        const title = `${timing} | Due ${formatCommitmentDate(commitment.due_date)} | Made ${formatCommitmentDate(commitment.commitment_made_on)} | By ${commitment.created_by || 'Unknown User'}`;
-        return `<a class="commitment-day-chip ${state}" href="family_fee_commitments.html?date=${encodeURIComponent(commitment.due_date)}" target="_blank" title="${escapeFamilyContactHtml(title)}">${label}</a>`;
+        const entryText = dateGroup.entries.length === 1 ? '1 commitment' : `${dateGroup.entries.length} commitments`;
+        const title = `${timing} | Due ${formatCommitmentDate(commitment.due_date)} | ${entryText} — click to view all entries`;
+        return `<a class="commitment-day-chip ${state}" href="family_fee_commitments.html?date=${encodeURIComponent(commitment.due_date)}" target="_blank" title="${escapeFamilyContactHtml(title)}">${label}${dateGroup.entries.length > 1 ? `<sup>${dateGroup.entries.length}</sup>` : ''}</a>`;
     }).join('');
-    const extra = commitments.length > visible.length
-        ? `<a class="commitment-day-chip more" href="family_fee_commitments.html?date=${encodeURIComponent(commitments[visible.length].due_date)}" target="_blank" title="${commitments.length - visible.length} more pending commitments">+${commitments.length - visible.length}</a>`
+    const extra = commitmentsByDate.length > visible.length
+        ? `<a class="commitment-day-chip more" href="family_fee_commitments.html?date=${encodeURIComponent(commitmentsByDate[visible.length].dueDate)}" target="_blank" title="${commitmentsByDate.length - visible.length} more commitment dates">+${commitmentsByDate.length - visible.length}</a>`
         : '';
 
     return `<div class="family-commitment-strip" title="Pending fee commitments">
         <span class="commitment-strip-label"><i class="fas fa-handshake"></i> Commit</span>
         <span class="commitment-strip-chips">${chips}${extra}</span>
     </div>`;
+}
+
+function groupCommitmentsByDueDate(commitments) {
+    const groups = new Map();
+    commitments.forEach(commitment => {
+        const dueDate = commitment.due_date || '';
+        if (!groups.has(dueDate)) groups.set(dueDate, []);
+        groups.get(dueDate).push(commitment);
+    });
+    return [...groups.entries()].map(([dueDate, entries]) => ({ dueDate, entries }));
 }
 
 function ymdDayDifference(fromYmd, toYmd) {

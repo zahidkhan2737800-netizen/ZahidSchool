@@ -5,15 +5,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const statusFilter = document.getElementById('statusFilter');
     const yearFilter = document.getElementById('yearFilter');
     const monthFilter = document.getElementById('monthFilter');
+    const studentSearch = document.getElementById('studentSearch');
+    const classFilter = document.getElementById('classFilter');
+    let loadedRecords = [];
 
     // Load saved filters from localStorage
     const savedStatus = localStorage.getItem('pw_statusFilter');
     const savedYear = localStorage.getItem('pw_yearFilter');
     const savedMonth = localStorage.getItem('pw_monthFilter');
+    const savedSearch = localStorage.getItem('pw_studentSearch');
+    const savedClass = localStorage.getItem('pw_classFilter');
+    let initialClass = savedClass;
 
     if (savedStatus) statusFilter.value = savedStatus;
     if (savedYear) yearFilter.value = savedYear;
     if (savedMonth) monthFilter.value = savedMonth;
+    if (savedSearch) studentSearch.value = savedSearch;
 
     const handleFilterChange = (key, el) => {
         localStorage.setItem(key, el.value);
@@ -23,12 +30,25 @@ document.addEventListener('DOMContentLoaded', () => {
     statusFilter.addEventListener('change', () => handleFilterChange('pw_statusFilter', statusFilter));
     yearFilter.addEventListener('change', () => handleFilterChange('pw_yearFilter', yearFilter));
     monthFilter.addEventListener('change', () => handleFilterChange('pw_monthFilter', monthFilter));
+    classFilter.addEventListener('change', () => {
+        localStorage.setItem('pw_classFilter', classFilter.value);
+        renderRecords();
+    });
+
+    let searchTimer;
+    studentSearch.addEventListener('input', () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => {
+            localStorage.setItem('pw_studentSearch', studentSearch.value);
+            renderRecords();
+        }, 150);
+    });
 
     // Fetch instantly on load
     fetchRecords();
 
     async function fetchRecords() {
-        inactiveBody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:2rem;">🔄 Fetching records...</td></tr>';
+        inactiveBody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:2rem;">🔄 Fetching records...</td></tr>';
         
         try {
             const filterValue = statusFilter.value;
@@ -76,10 +96,48 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
 
-            if (filteredData.length === 0) {
-                inactiveBody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:2rem; color:var(--text-muted);">No records found.</td></tr>';
-                return;
-            }
+            loadedRecords = filteredData;
+            populateClassFilter();
+            renderRecords();
+
+        } catch (error) {
+            console.error('Error fetching records:', error);
+            inactiveBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:2rem; color:red;">Failed to load data: ${escapeHtml(error.message)} <br>(Did you run the ALTER TABLE sql to add updated_at?)</td></tr>`;
+        }
+    }
+
+    function populateClassFilter() {
+        const currentValue = classFilter.value !== 'All' ? classFilter.value : initialClass;
+        const classes = [...new Set(loadedRecords
+            .map(student => student.applying_for_class)
+            .filter(Boolean))]
+            .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+        classFilter.innerHTML = '<option value="All">All Classes</option>';
+        classes.forEach(className => {
+            const option = document.createElement('option');
+            option.value = className;
+            option.textContent = className;
+            classFilter.appendChild(option);
+        });
+        classFilter.value = classes.includes(currentValue) ? currentValue : 'All';
+        initialClass = null;
+    }
+
+    function renderRecords() {
+        const searchTerm = studentSearch.value.trim().toLowerCase();
+        const selectedClass = classFilter.value;
+        const filteredData = loadedRecords.filter(student => {
+            const matchesSearch = !searchTerm || [student.full_name, student.roll_number, student.father_name]
+                .some(value => String(value || '').toLowerCase().includes(searchTerm));
+            const matchesClass = selectedClass === 'All' || student.applying_for_class === selectedClass;
+            return matchesSearch && matchesClass;
+        });
+
+        if (filteredData.length === 0) {
+            inactiveBody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">No matching records found.</td></tr>';
+            return;
+        }
 
             // Clear table
             inactiveBody.innerHTML = '';
@@ -98,10 +156,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const badgeClass = student.status === 'Pending' ? 'pending' : student.status === 'Passed Out' ? 'passed-out' : 'withdrawn';
                 
                 tr.innerHTML = `
-                    <td><strong>${student.roll_number || 'N/A'}</strong></td>
-                    <td>${student.full_name}</td>
-                    <td>${student.father_name || 'N/A'}</td>
-                    <td>${student.applying_for_class || 'N/A'}</td>
+                    <td><strong>${escapeHtml(student.roll_number || 'N/A')}</strong></td>
+                    <td>${escapeHtml(student.full_name || 'N/A')}</td>
+                    <td>${escapeHtml(student.father_name || 'N/A')}</td>
+                    <td>${escapeHtml(student.applying_for_class || 'N/A')}</td>
                     <td><span class="badge ${badgeClass}">${student.status}</span></td>
                     <td>${updateDateText}</td>
                     <td>
@@ -118,11 +176,12 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Attach status change listeners
             attachStatusListeners();
-            
-        } catch (error) {
-            console.error('Error fetching records:', error);
-            inactiveBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:2rem; color:red;">Failed to load data: ${error.message} <br>(Did you run the ALTER TABLE sql to add updated_at?)</td></tr>`;
-        }
+    }
+
+    function escapeHtml(value) {
+        const div = document.createElement('div');
+        div.textContent = String(value || '');
+        return div.innerHTML;
     }
 
     function attachStatusListeners() {

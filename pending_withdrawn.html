@@ -48,13 +48,23 @@
             margin-bottom: 0.4rem;
             display:block;
         }
-        .filter-group select {
+        .filter-group select,
+        .filter-group input {
             width: 100%;
             padding: 0.75rem 1rem;
             border: 1px solid #ccc;
             border-radius: 8px;
             font-size: 0.95rem;
             outline: none;
+        }
+        .filter-group input:focus,
+        .filter-group select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+        }
+        @media (max-width: 900px) {
+            .filter-panel { flex-wrap: wrap; }
+            .filter-group { flex: 1 1 220px; }
         }
         .data-table-container {
             overflow-x: auto;
@@ -130,6 +140,16 @@
         <div class="dashboard-panel">
             <div class="filter-panel">
                 <div class="filter-group">
+                    <label for="studentSearch">Name, Roll # or Father Name</label>
+                    <input id="studentSearch" type="search" placeholder="Type to search..." autocomplete="off">
+                </div>
+                <div class="filter-group">
+                    <label for="classFilter">Filter by Class</label>
+                    <select id="classFilter">
+                        <option value="All" selected>All Classes</option>
+                    </select>
+                </div>
+                <div class="filter-group">
                     <label for="statusFilter">Filter by Status</label>
                     <select id="statusFilter">
                         <option value="All" selected>Show All (Pending, Withdrawn & Passed Out)</option>
@@ -179,6 +199,7 @@
                             <th>Class</th>
                             <th>Status</th>
                             <th>Last Status Update</th>
+                            <th>Change Status</th>
                         </tr>
                     </thead>
                     <tbody id="inactiveBody">

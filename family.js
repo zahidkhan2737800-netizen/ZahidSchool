@@ -1,6 +1,6 @@
 // Uses supabaseClient from auth.js
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     const gridContainer = document.getElementById('familiesTableContainer');
     const tbody = document.getElementById('familiesTbody');
     const spinner = document.getElementById('spinner');
@@ -15,10 +15,16 @@ document.addEventListener('DOMContentLoaded', () => {
     
     let allStudents = [];
     let familiesData = []; // Array of grouped families
+    let familyDisplayNames = new Map(); // normalized mobile -> selected family name
     
     // Variables to track modal state
     let targetFamilyMobile = '';
     let targetFamilyName = '';
+
+    // Authentication must finish before reading the user's school.
+    while (window.authReady !== true) {
+        await new Promise(resolve => setTimeout(resolve, 80));
+    }
 
     // Initialization
     loadFamilies();
@@ -28,15 +34,25 @@ document.addEventListener('DOMContentLoaded', () => {
         spinner.style.display = 'block';
         
         try {
-            const { data, error } = await supabaseClient
+            let studentsQuery = supabaseClient
                 .from('admissions')
                 .select('id, roll_number, full_name, father_name, father_mobile, family_id_manual')
                 .eq('status', 'Active')
                 .order('roll_number', { ascending: true });
-                
-            if (error) throw error;
+            let namesQuery = supabaseClient
+                .from('family_display_names')
+                .select('mobile_number, family_name');
+            if (window.currentSchoolId) {
+                studentsQuery = studentsQuery.eq('school_id', window.currentSchoolId);
+                namesQuery = namesQuery.eq('school_id', window.currentSchoolId);
+            }
+
+            const [studentsResult, namesResult] = await Promise.all([studentsQuery, namesQuery]);
+            if (studentsResult.error) throw studentsResult.error;
+            if (namesResult.error) throw namesResult.error;
             
-            allStudents = data;
+            allStudents = studentsResult.data || [];
+            familyDisplayNames = new Map((namesResult.data || []).map(row => [normalizeMobile(row.mobile_number), row.family_name]));
             processFamilies(allStudents);
             renderFamilies();
             
@@ -46,12 +62,33 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function normalizeMobile(value) {
+        return String(value || '').replace(/[\s\-]/g, '').trim();
+    }
+
+    async function saveFamilyDisplayName(mobile, familyName) {
+        const schoolId = window.currentSchoolId;
+        if (!schoolId) throw new Error('School could not be identified. Refresh and try again.');
+        const normalizedMobile = normalizeMobile(mobile);
+        const { error } = await supabaseClient
+            .from('family_display_names')
+            .upsert({
+                school_id: schoolId,
+                mobile_number: normalizedMobile,
+                family_name: familyName,
+                selected_by: window.currentUser?.id || null,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'school_id,mobile_number' });
+        if (error) throw error;
+        familyDisplayNames.set(normalizedMobile, familyName);
+    }
+
     function processFamilies(students) {
         const groups = {};
         
         // Group by mobile number
         students.forEach(s => {
-            const mob = (s.father_mobile || '').replace(/[\s\-]/g, '').trim();
+            const mob = normalizeMobile(s.father_mobile);
             if(!mob) return; // Skip those with no mobile
             
             // Reassign normalized mobile so child components don't misbehave
@@ -71,14 +108,15 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const uniqueFatherNames = [...new Set(members.map(m => m.father_name).filter(n => n && n.trim() !== ''))];
             const familyNos = [...new Set(members.map(m => m.family_id_manual).filter(n => n && n.trim() !== ''))];
+            const savedFamilyName = familyDisplayNames.get(mobile) || '';
             
             familiesData.push({
                 mobile,
                 members,
                 familyNo: familyNos.length > 0 ? familyNos[0] : '',
-                conflict: uniqueFatherNames.length > 1,
+                conflict: !savedFamilyName && uniqueFatherNames.length > 1,
                 uniqueFatherNames,
-                primaryName: uniqueFatherNames.length === 1 ? uniqueFatherNames[0] : (uniqueFatherNames.length > 0 ? 'Conflict Detected' : 'Unknown Father')
+                primaryName: savedFamilyName || (uniqueFatherNames.length === 1 ? uniqueFatherNames[0] : (uniqueFatherNames.length > 0 ? 'Conflict Detected' : 'Unknown Family'))
             });
         });
         
@@ -228,12 +266,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.target.style.background = '#fef3c7';
 
                 try {
-                    const { error } = await supabaseClient
-                        .from('admissions')
-                        .update({ father_name: newName })
-                        .eq('father_mobile', mobile);
-
-                    if (error) throw error;
+                    await saveFamilyDisplayName(mobile, newName);
 
                     e.target.style.background = '#d1fae5';
                     setTimeout(() => { e.target.style.background = 'transparent'; }, 1500);
@@ -243,7 +276,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (fam) {
                         fam.primaryName = newName;
                         fam.uniqueFatherNames = [newName];
-                        fam.members.forEach(m => { m.father_name = newName; });
                     }
                 } catch (err) {
                     alert('Error saving family name: ' + err.message);
@@ -264,16 +296,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const mobile = e.target.getAttribute('data-mobile');
                 const chosenName = e.target.getAttribute('data-choose');
                 
-                if(confirm(`Apply the father name "${chosenName}" to all students with mobile ${mobile}?`)) {
+                if(confirm(`Use "${chosenName}" as this family's name?\n\nEach student's father name will remain unchanged.`)) {
                     e.target.innerText = 'Updating...';
                     try {
-                        // Bulk update all admissions with this mobile
-                        const { error } = await supabaseClient
-                            .from('admissions')
-                            .update({ father_name: chosenName })
-                            .eq('father_mobile', mobile);
-                            
-                        if(error) throw error;
+                        await saveFamilyDisplayName(mobile, chosenName);
                         await loadFamilies(); // Reload
                     } catch(err) {
                         alert('Error resolving conflict: ' + err.message);
@@ -361,7 +387,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const sId = e.target.getAttribute('data-id');
                 const sName = e.target.getAttribute('data-name');
                 
-                if(confirm(`Move ${sName} into ${targetFamilyName}'s family?\n\nThis will change their Father Name to "${targetFamilyName}" and Mobile to "${targetFamilyMobile}".`)) {
+                if(confirm(`Move ${sName} into ${targetFamilyName}'s family?\n\nOnly the family mobile will change. The student's father name will remain unchanged.`)) {
                     e.target.innerText = 'Linking...';
                     e.target.disabled = true;
                     
@@ -369,8 +395,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const { error } = await supabaseClient
                             .from('admissions')
                             .update({ 
-                                father_mobile: targetFamilyMobile,
-                                father_name: targetFamilyName
+                                father_mobile: targetFamilyMobile
                             })
                             .eq('id', sId);
                         

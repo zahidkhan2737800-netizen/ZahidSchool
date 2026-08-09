@@ -282,7 +282,7 @@
             </div>
         </div>
 
-        <input type="text" class="search-bar" id="searchFamilies" placeholder="🔍 Search families by Mobile #, Father Name, or Student Name...">
+        <input type="text" class="search-bar" id="searchFamilies" placeholder="🔍 Search families by Mobile #, Family Name, or Student Name...">
 
         <div id="spinner">🔄 Scanning & Grouping Families...</div>
         
@@ -291,7 +291,7 @@
                 <thead>
                     <tr>
                         <th style="width: 150px;">Family #</th>
-                        <th>Father Name</th>
+                        <th>Family Name</th>
                         <th style="width: 150px;">Mobile</th>
                         <th style="width: 80px; text-align: center;">Count</th>
                         <th>Students</th>
@@ -311,7 +311,7 @@
             <h3>Add Member to Family</h3>
             <p style="color:#64748b; font-size:0.95rem; margin-bottom:1rem;">
                 Target Family Mobile: <strong id="targetMobileDisplay"></strong><br>
-                This will automatically update the selected student's mobile number and father name.
+                This will update only the selected student's family mobile. The student's father name will remain unchanged.
             </p>
             
             <input type="text" id="studentSearchInput" placeholder="Search unlinked student by Roll # or Name..." style="width:100%; padding:0.8rem; border:1px solid #cbd5e1; border-radius:8px; outline:none; font-size:1rem;">
@@ -325,6 +325,6 @@
     </div>
 
     <script src="auth.js"></script>
-    <script src="family.js?v=2"></script>
+    <script src="family.js?v=3"></script>
 </body>
 </html>

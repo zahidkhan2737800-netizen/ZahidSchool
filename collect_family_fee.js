@@ -1,5 +1,15 @@
 // Supabase client is provided by auth.js (supabaseClient)
 const db = supabaseClient;
+const getCurrentSchoolId = () => window.currentSchoolId || null;
+const applySchoolScope = (query) => getCurrentSchoolId() ? query.eq('school_id', getCurrentSchoolId()) : query;
+
+async function waitForFamilyFeeAuth(timeoutMs = 10000) {
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+        if (window.authReady === true && window.supabaseClient) return;
+        await new Promise(resolve => setTimeout(resolve, 80));
+    }
+}
 
 // ─── State ────────────────────────────────────────────────────────────────────
 let allStudents   = [];   // full admissions cache
@@ -9,6 +19,7 @@ let pendingDues   = [];   // challans for all active family members
 let selectedIds   = new Set();
 let grandTotal    = 0;
 let receiptCache  = [];   // saved receipts for current family (for reprint)
+let familyDisplayNamesMap = new Map(); // normalized mobile -> selected family name
 
 function cleanCollectorName(value) {
     return String(value || '').trim().replace(/\s*\([^)]*\)\s*$/, '').trim();
@@ -115,6 +126,7 @@ function applyThermalSettings(moduleName) {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+    await waitForFamilyFeeAuth();
     await loadFamiliesData();
 
     // Close workspace on button / backdrop / Escape
@@ -249,13 +261,23 @@ window.closeWorkspace = function() {
 async function loadFamiliesData() {
     if(searchStatus) searchStatus.textContent = '⏳ Loading database...';
     try {
-        const { data, error } = await db
+        let studentsQuery = db
             .from('admissions')
             .select('id, roll_number, full_name, father_name, father_mobile, applying_for_class, status, family_id_manual')
             .eq('status', 'Active')
             .order('roll_number');
-        if (error) throw error;
-        allStudents = data || [];
+        let displayNamesQuery = db
+            .from('family_display_names')
+            .select('mobile_number, family_name');
+        if (getCurrentSchoolId()) {
+            studentsQuery = studentsQuery.eq('school_id', getCurrentSchoolId());
+            displayNamesQuery = displayNamesQuery.eq('school_id', getCurrentSchoolId());
+        }
+        const [studentsResult, displayNamesResult] = await Promise.all([studentsQuery, displayNamesQuery]);
+        if (studentsResult.error) throw studentsResult.error;
+        allStudents = studentsResult.data || [];
+        familyDisplayNamesMap = new Map((displayNamesResult.data || []).map(row => [String(row.mobile_number || '').replace(/[\s-]/g, ''), row.family_name]));
+        if (displayNamesResult.error) console.warn('Could not load selected family names:', displayNamesResult.error);
         
         processFamilies(allStudents);
 
@@ -270,7 +292,7 @@ async function loadFamiliesData() {
 function processFamilies(students) {
     const groups = {};
     students.forEach(s => {
-        const mob = (s.father_mobile || '').trim();
+        const mob = String(s.father_mobile || '').replace(/[\s-]/g, '').trim();
         if(!mob) return; 
         if(!groups[mob]) groups[mob] = [];
         groups[mob].push(s);
@@ -281,7 +303,7 @@ function processFamilies(students) {
         const members = groups[mobile];
         if (members.length < 2) return;
         const names = [...new Set(members.map(m => m.father_name).filter(n => n && n.trim() !== ''))];
-        const primaryName = names.length === 1 ? names[0] : (names.length > 0 ? names[0] : 'Unknown Father');
+        const primaryName = familyDisplayNamesMap.get(mobile) || (names.length > 0 ? names[0] : 'Unknown Family');
         const familyNos = [...new Set(members.map(m => m.family_id_manual).filter(n => n && n.trim() !== ''))];
         const familyNo = familyNos.length > 0 ? familyNos[0] : '';
         
@@ -881,7 +903,10 @@ async function submitPayment() {
                 discount_amount:   appliedDisc,
                 payment_method:    method,
                 payment_reference: refCombo,
-                remarks:           remarks || null
+                remarks:           remarks || null,
+                school_id:         getCurrentSchoolId(),
+                collected_by:      collectorName || null,
+                collected_by_user_id: window.currentUser?.id || null
             });
 
             wallet = Math.round((wallet - debit) * 100) / 100;
@@ -950,7 +975,9 @@ async function submitPayment() {
                 payment_method:    method,
                 payment_reference: refCombo, // Can be matched safely via backend
                 remarks:           remarks || 'Paid via Family Group',
-                collected_by:      collectorName || null
+                collected_by:      collectorName || null,
+                school_id:         getCurrentSchoolId(),
+                collected_by_user_id: window.currentUser?.id || null
             });
             rIndex++;
         });
@@ -1187,7 +1214,10 @@ async function applyDiscountToChallans() {
                 discount_amount:   discountToApply,
                 payment_method:    'Discount',
                 payment_reference: 'DISC-' + activeFamily.primaryName,
-                remarks:           discountRemarks
+                remarks:           discountRemarks,
+                school_id:         getCurrentSchoolId(),
+                collected_by:      discountCollector,
+                collected_by_user_id: window.currentUser?.id || null
             });
 
             remainingDiscount = Math.round((remainingDiscount - discountToApply) * 100) / 100;

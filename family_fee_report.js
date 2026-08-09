@@ -10,6 +10,7 @@ let currentMonth = '';
 let allFamilies   = [];       // [{mobile, primaryName, familyNo, members}]
 let familyBalances = {};      // mobile → total unpaid Rs
 let monthData      = {};      // mobile → family_contacts row
+let familyDisplayNamesMap = new Map();
 
 // ── Wait for auth ────────────────────────────────────────────────────────────
 async function waitForAuth(ms = 10000) {
@@ -69,18 +70,29 @@ async function loadBaseData() {
 
     try {
         // 1. Fetch active students
-        const q = window.supabaseClient
+        let q = window.supabaseClient
             .from('admissions')
             .select('id, roll_number, full_name, father_name, father_mobile, applying_for_class, family_id_manual')
             .eq('status', 'Active')
             .order('roll_number', { ascending: true });
-        const { data: students, error: sErr } = await q;
+        let displayNamesQ = window.supabaseClient
+            .from('family_display_names')
+            .select('mobile_number, family_name');
+        if (window.currentSchoolId) {
+            q = q.eq('school_id', window.currentSchoolId);
+            displayNamesQ = displayNamesQ.eq('school_id', window.currentSchoolId);
+        }
+        const [studentsResult, displayNamesResult] = await Promise.all([q, displayNamesQ]);
+        const students = studentsResult.data;
+        const sErr = studentsResult.error;
         if (sErr) throw sErr;
+        familyDisplayNamesMap = new Map((displayNamesResult.data || []).map(row => [String(row.mobile_number || '').replace(/[\s-]/g, ''), row.family_name]));
+        if (displayNamesResult.error) console.warn('Could not load selected family names:', displayNamesResult.error);
 
         // 2. Group into families (2+ students sharing a mobile)
         const groups = {};
         (students || []).forEach(s => {
-            const mob = (s.father_mobile || '').trim();
+            const mob = String(s.father_mobile || '').replace(/[\s-]/g, '').trim();
             if (!mob) return;
             if (!groups[mob]) groups[mob] = [];
             groups[mob].push(s);
@@ -94,7 +106,7 @@ async function loadBaseData() {
             const famNos   = [...new Set(members.map(m => m.family_id_manual).filter(n => n && n.trim()))];
             allFamilies.push({
                 mobile,
-                primaryName: names[0] || 'Unknown',
+                primaryName: familyDisplayNamesMap.get(mobile) || names[0] || 'Unknown',
                 familyNo:    famNos[0] || '',
                 members
             });

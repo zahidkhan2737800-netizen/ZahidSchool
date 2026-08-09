@@ -1,5 +1,4 @@
 const db = window.supabaseClient;
-const currentSchoolId = window.currentSchoolId || null;
 
 let allRows = [];
 
@@ -32,7 +31,8 @@ function fmtDateOnly(dateObj) {
 }
 
 function applySchoolScope(query) {
-    return currentSchoolId ? query.eq('school_id', currentSchoolId) : query;
+    const schoolId = window.currentSchoolId || null;
+    return schoolId ? query.eq('school_id', schoolId) : query;
 }
 
 function to12Hour(dateString) {
@@ -236,7 +236,7 @@ async function loadPaidFees() {
 
         const { data: txData, error: txErr } = await applySchoolScope(
             db.from('transactions')
-                .select('student_id, roll_number, challan_id, receipt_number, payment_reference, fee_details, amount_paid, discount_amount, payment_method, remarks, created_at')
+                .select('student_id, roll_number, challan_id, receipt_number, payment_reference, fee_details, amount_paid, discount_amount, payment_method, remarks, collected_by, collected_by_user_id, created_at')
                 .gte('created_at', startDate)
                 .lt('created_at', endDate)
                 .order('created_at', { ascending: false })
@@ -280,12 +280,14 @@ async function loadPaidFees() {
         }
 
         if (studentIds.length > 0) {
-            const { data: receiptData, error: receiptErr } = await db.from('receipts')
-                .select('receipt_number, student_id, payment_reference, collected_by, created_at')
-                .in('student_id', studentIds)
-                .gte('created_at', startDate)
-                .lt('created_at', endDate)
-                .order('created_at', { ascending: false });
+            const { data: receiptData, error: receiptErr } = await applySchoolScope(
+                db.from('receipts')
+                    .select('receipt_number, student_id, payment_reference, collected_by, collected_by_user_id, created_at')
+                    .in('student_id', studentIds)
+                    .gte('created_at', startDate)
+                    .lt('created_at', endDate)
+                    .order('created_at', { ascending: false })
+            );
 
             if (receiptErr) throw receiptErr;
 
@@ -334,7 +336,7 @@ async function loadPaidFees() {
                 className: stu.applying_for_class || 'N/A',
                 feeHead,
                 paymentType: tx.payment_method || 'N/A',
-                collectedBy: cleanCollectorName(savedReceipt?.collected_by) || getDiscountAppliedBy(tx.remarks) || '—',
+                collectedBy: cleanCollectorName(tx.collected_by) || cleanCollectorName(savedReceipt?.collected_by) || getDiscountAppliedBy(tx.remarks) || '—',
                 amount: Number(tx.amount_paid || 0),
                 discountAmount: Number(tx.discount_amount || 0)
             };

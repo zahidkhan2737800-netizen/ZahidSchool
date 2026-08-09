@@ -1,7 +1,15 @@
 // Supabase client is now provided by auth.js (supabaseClient)
 const db = supabaseClient;
-const currentSchoolId = window.currentSchoolId || null;
-const applySchoolScope = (query) => currentSchoolId ? query.eq('school_id', currentSchoolId) : query;
+const getCurrentSchoolId = () => window.currentSchoolId || null;
+const applySchoolScope = (query) => getCurrentSchoolId() ? query.eq('school_id', getCurrentSchoolId()) : query;
+
+async function waitForFeeAuth(timeoutMs = 10000) {
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+        if (window.authReady === true && window.supabaseClient) return;
+        await new Promise(resolve => setTimeout(resolve, 80));
+    }
+}
 
 // ─── State ────────────────────────────────────────────────────────────────────
 let allStudents   = [];   // full admissions cache
@@ -124,6 +132,7 @@ function closeWorkspace() {
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
+    await waitForFeeAuth();
     await loadStudents();
 
     if (btnCloseWorkspace) {
@@ -730,7 +739,9 @@ async function applyDiscountToSelectedChallans() {
                 payment_method:    'Discount',
                 payment_reference: discountReference,
                 remarks:           discountRemarks,
-                school_id:         currentSchoolId
+                school_id:         getCurrentSchoolId(),
+                collected_by:      collectorName,
+                collected_by_user_id: window.currentUser?.id || null
             });
 
             remainingDiscount = Math.round((remainingDiscount - appliedDiscount) * 100) / 100;
@@ -816,7 +827,9 @@ async function submitPayment() {
                 payment_method:    method,
                 payment_reference: ref || null,
                 remarks:           remarks || null,
-                school_id:         currentSchoolId
+                school_id:         getCurrentSchoolId(),
+                collected_by:      collectorName || null,
+                collected_by_user_id: window.currentUser?.id || null
             });
 
             wallet -= debit;
@@ -853,8 +866,9 @@ async function submitPayment() {
             payment_method:    method,
             payment_reference: ref || null,
             remarks:           remarks || null,
-            school_id:         currentSchoolId,
-            collected_by:      collectorName || null
+            school_id:         getCurrentSchoolId(),
+            collected_by:      collectorName || null,
+            collected_by_user_id: window.currentUser?.id || null
         };
         const { error: rctErr } = await db.from('receipts').insert([receiptRecord]);
         if (rctErr) console.warn('Receipt save warning:', rctErr.message); // non-fatal

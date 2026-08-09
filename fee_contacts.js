@@ -696,24 +696,37 @@ function generateStudentCommitmentStrip(studentId) {
     const commitments = studentCommitmentsMap[studentId] || [];
     if (!commitments.length) return '';
     const today = studentCommitmentToday();
-    const visible = commitments.slice(0, 5);
-    const chips = visible.map(commitment => {
+    const commitmentsByDate = groupStudentCommitmentsByDueDate(commitments);
+    const visible = commitmentsByDate.slice(0, 5);
+    const chips = visible.map(dateGroup => {
+        const commitment = dateGroup.entries[0];
         const daysRemaining = studentCommitmentDayDifference(today, commitment.due_date);
         const state = daysRemaining < 0 ? 'expired' : (daysRemaining === 0 ? 'today' : 'future');
         const label = daysRemaining < 0 ? `E${Math.abs(daysRemaining)}` : (daysRemaining === 0 ? 'T' : String(daysRemaining));
         const timing = daysRemaining < 0
             ? `Expired ${Math.abs(daysRemaining)} day${Math.abs(daysRemaining) === 1 ? '' : 's'} ago`
             : (daysRemaining === 0 ? 'Due today' : `Due in ${daysRemaining} day${daysRemaining === 1 ? '' : 's'}`);
-        const title = `${timing} | Due ${formatStudentCommitmentDate(commitment.due_date)} | Made ${formatStudentCommitmentDate(commitment.commitment_made_on)} | By ${commitment.created_by || 'Unknown User'}`;
-        return `<a class="student-commitment-chip ${state}" href="family_fee_commitments.html?date=${encodeURIComponent(commitment.due_date)}" target="_blank" title="${escapeStudentCommitmentHtml(title)}">${label}</a>`;
+        const entryText = dateGroup.entries.length === 1 ? '1 commitment' : `${dateGroup.entries.length} commitments`;
+        const title = `${timing} | Due ${formatStudentCommitmentDate(commitment.due_date)} | ${entryText} — click to view all entries`;
+        return `<a class="student-commitment-chip ${state}" href="family_fee_commitments.html?date=${encodeURIComponent(commitment.due_date)}" target="_blank" title="${escapeStudentCommitmentHtml(title)}">${label}${dateGroup.entries.length > 1 ? `<sup>${dateGroup.entries.length}</sup>` : ''}</a>`;
     }).join('');
-    const extra = commitments.length > visible.length
-        ? `<a class="student-commitment-chip more" href="family_fee_commitments.html?date=${encodeURIComponent(commitments[visible.length].due_date)}" target="_blank" title="${commitments.length - visible.length} more pending commitments">+${commitments.length - visible.length}</a>`
+    const extra = commitmentsByDate.length > visible.length
+        ? `<a class="student-commitment-chip more" href="family_fee_commitments.html?date=${encodeURIComponent(commitmentsByDate[visible.length].dueDate)}" target="_blank" title="${commitmentsByDate.length - visible.length} more commitment dates">+${commitmentsByDate.length - visible.length}</a>`
         : '';
     return `<div class="student-commitment-strip" title="Pending fee commitments">
         <span class="student-commitment-label"><i class="fas fa-handshake"></i> Commit</span>
         <span class="student-commitment-chips">${chips}${extra}</span>
     </div>`;
+}
+
+function groupStudentCommitmentsByDueDate(commitments) {
+    const groups = new Map();
+    commitments.forEach(commitment => {
+        const dueDate = commitment.due_date || '';
+        if (!groups.has(dueDate)) groups.set(dueDate, []);
+        groups.get(dueDate).push(commitment);
+    });
+    return [...groups.entries()].map(([dueDate, entries]) => ({ dueDate, entries }));
 }
 
 function studentCommitmentDayDifference(fromYmd, toYmd) {
