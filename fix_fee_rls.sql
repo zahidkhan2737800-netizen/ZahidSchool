@@ -21,8 +21,15 @@ CREATE TABLE IF NOT EXISTS transactions (
   payment_method TEXT,
   payment_reference TEXT,
   remarks TEXT,
+  collected_by TEXT,
+  collected_by_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Keep existing installations compatible when this repair is re-run.
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS collected_by TEXT;
+ALTER TABLE public.transactions
+  ADD COLUMN IF NOT EXISTS collected_by_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL;
 
 ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
 
@@ -37,6 +44,10 @@ CREATE POLICY "Allow anon full access to transactions"
 ON transactions FOR ALL TO anon USING (true) WITH CHECK (true);
 
 -- 2. RECEIPTS TABLE (re-run safe — ensures policies exist)
+
+ALTER TABLE public.receipts ADD COLUMN IF NOT EXISTS collected_by TEXT;
+ALTER TABLE public.receipts
+  ADD COLUMN IF NOT EXISTS collected_by_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL;
 
 ALTER TABLE receipts ENABLE ROW LEVEL SECURITY;
 

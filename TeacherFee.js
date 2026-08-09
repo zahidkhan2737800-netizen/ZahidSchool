@@ -2,6 +2,7 @@ let teacherFeeRows = [];
 let filteredTeacherFeeRows = [];
 let allActiveStudents = [];
 let showOnlyUnfilledTeacherFeeRows = false;
+let teacherCommitmentRowId = null;
 
 const teacherFeeBody = document.getElementById('teacherFeeBody');
 const teacherFeeSearch = document.getElementById('teacherFeeSearch');
@@ -107,6 +108,27 @@ function formatTeacherFeeAmount(value) {
     return `Rs ${Math.max(0, Number(value || 0)).toLocaleString('en-PK')}`;
 }
 
+function teacherCommitmentToday(date = new Date()) {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Karachi', year: 'numeric', month: '2-digit', day: '2-digit'
+    }).formatToParts(date);
+    const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    return `${values.year}-${values.month}-${values.day}`;
+}
+
+function addTeacherCommitmentDays(ymd, days) {
+    const [year, month, day] = ymd.split('-').map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    date.setUTCDate(date.getUTCDate() + days);
+    return date.toISOString().slice(0, 10);
+}
+
+function longTeacherCommitmentDate(ymd) {
+    return new Date(`${ymd}T00:00:00Z`).toLocaleDateString('en-GB', {
+        weekday: 'long', day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC'
+    });
+}
+
 async function migrateLegacySelections(existingRows) {
     if (!window.currentSchoolId) return false;
     const legacyIds = new Set(readLegacyArray(legacyStudentSelectionKey()));
@@ -154,6 +176,7 @@ async function fetchTeacherFeeRows() {
     let commitmentsQuery = window.supabaseClient
         .from('family_fee_commitments')
         .select('members, due_date')
+        .eq('month_key', teacherCommitmentToday().slice(0, 7))
         .eq('status', 'Pending')
         .order('due_date', { ascending: true });
     if (window.currentSchoolId) {
@@ -194,34 +217,65 @@ async function fetchTeacherFeeRows() {
     }
 
     const balanceByStudent = new Map();
+    const paymentsByStudent = new Map();
     const selectedStudentIds = [...new Set(rows.map(row => row.student_id).filter(Boolean))];
     for (let index = 0; index < selectedStudentIds.length; index += 40) {
         const batch = selectedStudentIds.slice(index, index + 40);
-        const { data: challans, error: challansError } = await window.supabaseClient
+        let paymentsQuery = window.supabaseClient
+            .from('transactions')
+            .select('student_id, amount_paid, created_at')
+            .in('student_id', batch)
+            .gt('amount_paid', 0)
+            .limit(2000);
+        if (window.currentSchoolId) paymentsQuery = paymentsQuery.eq('school_id', window.currentSchoolId);
+
+        const [challansResult, paymentsResult] = await Promise.all([
+            window.supabaseClient
             .from('challans')
             .select('student_id, amount, paid_amount')
             .in('student_id', batch)
             .in('status', ['Unpaid', 'Partially Paid'])
-            .limit(2000);
+            .limit(2000),
+            paymentsQuery
+        ]);
+        const { data: challans, error: challansError } = challansResult;
         if (challansError) {
             console.warn('Could not load TeacherFee remaining balances:', challansError);
-            break;
+        } else {
+            (challans || []).forEach(challan => {
+                const studentId = String(challan.student_id);
+                const remaining = Math.max(0, Number(challan.amount || 0) - Number(challan.paid_amount || 0));
+                balanceByStudent.set(studentId, (balanceByStudent.get(studentId) || 0) + remaining);
+            });
         }
-        (challans || []).forEach(challan => {
-            const studentId = String(challan.student_id);
-            const remaining = Math.max(0, Number(challan.amount || 0) - Number(challan.paid_amount || 0));
-            balanceByStudent.set(studentId, (balanceByStudent.get(studentId) || 0) + remaining);
-        });
+
+        if (paymentsResult.error) {
+            console.warn('Could not load TeacherFee payment activity:', paymentsResult.error);
+        } else {
+            (paymentsResult.data || []).forEach(payment => {
+                const studentId = String(payment.student_id);
+                if (!paymentsByStudent.has(studentId)) paymentsByStudent.set(studentId, []);
+                paymentsByStudent.get(studentId).push(payment);
+            });
+        }
     }
 
     const studentsById = new Map(allActiveStudents.map(student => [String(student.id), student]));
     return rows
-        .map(row => ({
-            ...row,
-            student: studentsById.get(String(row.student_id)),
-            commitment_due_date: commitmentByStudent.get(String(row.student_id)) || null,
-            remaining_amount: balanceByStudent.get(String(row.student_id)) || 0
-        }))
+        .map(row => {
+            const rowCreatedAt = new Date(row.created_at || 0).getTime();
+            const paymentsSinceAdded = (paymentsByStudent.get(String(row.student_id)) || [])
+                .filter(payment => new Date(payment.created_at || 0).getTime() >= rowCreatedAt);
+            const paidSinceAdded = paymentsSinceAdded.reduce((sum, payment) => sum + Number(payment.amount_paid || 0), 0);
+            return {
+                ...row,
+                student: studentsById.get(String(row.student_id)),
+                commitment_due_date: commitmentByStudent.get(String(row.student_id)) || null,
+                remaining_amount: balanceByStudent.get(String(row.student_id)) || 0,
+                paid_since_added: paidSinceAdded,
+                has_payment: paidSinceAdded > 0
+            };
+        })
         .filter(row => row.student);
 }
 
@@ -284,17 +338,17 @@ function renderTeacherFeeList() {
                 <select class="choice-select screen-only" data-row-id="${escapeTeacherFeeHtml(row.id)}" data-field="${field}">${choiceOptionsHtml(row[field])}</select>
                 <span class="choice-print">${escapeTeacherFeeHtml(row[field] || '—')}</span>
             </td>`).join('');
-        return `<tr>
+        return `<tr class="${row.has_payment ? 'payment-made-row' : ''}">
             <td>${index + 1}</td>
             <td><strong>${escapeTeacherFeeHtml(student.roll_number || '—')}</strong></td>
             <td class="student-name">${escapeTeacherFeeHtml(student.full_name || 'Student')}</td>
             <td class="class-cell">${escapeTeacherFeeHtml(student.applying_for_class || '—')}</td>
             <td>${escapeTeacherFeeHtml(student.father_name || '—')}</td>
             <td>${escapeTeacherFeeHtml(student.family_id_manual || '—')}</td>
-            <td><span class="commitment-date ${row.commitment_due_date ? '' : 'none'}" title="${row.commitment_due_date ? `Payment due ${escapeTeacherFeeHtml(row.commitment_due_date)}` : 'No pending commitment'}">${formatTeacherFeeCommitmentDate(row.commitment_due_date)}</span></td>
-            <td class="remaining-cell screen-only">${formatTeacherFeeAmount(row.remaining_amount)}</td>
+            <td><div class="commitment-cell"><span class="commitment-date ${row.commitment_due_date ? '' : 'none'}" title="${row.commitment_due_date ? `Payment due ${escapeTeacherFeeHtml(row.commitment_due_date)}` : 'No pending commitment'}">${formatTeacherFeeCommitmentDate(row.commitment_due_date)}</span><button type="button" class="teacher-commitment-btn screen-only" data-row-id="${escapeTeacherFeeHtml(row.id)}">Co</button></div></td>
+            <td class="remaining-cell screen-only">${formatTeacherFeeAmount(row.remaining_amount)}${row.has_payment ? `<span class="payment-amount">Paid ${formatTeacherFeeAmount(row.paid_since_added)}</span>` : ''}</td>
             ${choiceCells}
-            <td class="screen-only"><button class="remove-student-btn" data-row-id="${escapeTeacherFeeHtml(row.id)}"><i class="fas fa-xmark"></i> Remove</button></td>
+            <td class="screen-only"><button class="remove-student-btn${row.has_payment ? ' paid' : ''}" data-row-id="${escapeTeacherFeeHtml(row.id)}"><i class="fas fa-xmark"></i> ${row.has_payment ? 'Remove Paid' : 'Remove'}</button></td>
         </tr>`;
     }).join('');
     updateTeacherFeeSummary(filteredTeacherFeeRows);
@@ -303,9 +357,11 @@ function renderTeacherFeeList() {
 function updateTeacherFeeSummary(rows) {
     const classCount = new Set(rows.map(row => String(row.student?.applying_for_class || '')).filter(Boolean)).size;
     const selectedCount = rows.filter(row => row.choice_1 || row.choice_2 || row.choice_3 || row.choice_4).length;
+    const paidCount = rows.filter(row => row.has_payment).length;
     document.getElementById('teacherStudentCount').textContent = rows.length.toLocaleString();
     document.getElementById('teacherClassCount').textContent = classCount.toLocaleString();
     document.getElementById('teacherSelectedCount').textContent = selectedCount.toLocaleString();
+    document.getElementById('teacherPaidCount').textContent = paidCount.toLocaleString();
 
     const printed = new Date().toLocaleString('en-PK', { dateStyle: 'medium', timeStyle: 'short', hour12: true, timeZone: 'Asia/Karachi' });
     const classLabel = teacherClassSelect.value || 'All classes';
@@ -345,7 +401,9 @@ async function saveTeacherFeeChoice(select) {
 
 async function removeTeacherFeeRow(rowId) {
     const row = teacherFeeRows.find(item => String(item.id) === String(rowId));
-    if (!row || !window.confirm(`Remove ${row.student.full_name} from TeacherFee?`)) return;
+    if (!row) return;
+    const paymentNote = row.has_payment ? ` They have paid ${formatTeacherFeeAmount(row.paid_since_added)} since being added.` : '';
+    if (!window.confirm(`Remove ${row.student.full_name} from TeacherFee?${paymentNote}`)) return;
     const { error } = await window.supabaseClient.from('teacher_fee_rows').delete().eq('id', row.id);
     if (error) {
         showTeacherFeeToast(`Could not remove row: ${teacherFeeErrorMessage(error)}`, true);
@@ -371,10 +429,117 @@ async function clearTeacherFeeList() {
     showTeacherFeeToast('TeacherFee list cleared.');
 }
 
+function setupTeacherCommitmentModal() {
+    const modal = document.getElementById('teacherCommitmentModal');
+    const input = document.getElementById('teacherCommitmentDays');
+    document.getElementById('teacherCommitmentCancel').addEventListener('click', closeTeacherCommitmentModal);
+    document.getElementById('teacherCommitmentSave').addEventListener('click', saveTeacherCommitment);
+    input.addEventListener('input', () => {
+        input.value = input.value.replace(/\D/g, '');
+        updateTeacherCommitmentPreview();
+    });
+    input.addEventListener('keydown', event => {
+        if (['e', 'E', '+', '-', '.', ','].includes(event.key)) event.preventDefault();
+        if (event.key === 'Enter') saveTeacherCommitment();
+        if (event.key === 'Escape') closeTeacherCommitmentModal();
+    });
+    modal.addEventListener('click', event => {
+        if (event.target === modal) closeTeacherCommitmentModal();
+    });
+}
+
+function openTeacherCommitmentModal(rowId) {
+    const row = teacherFeeRows.find(item => String(item.id) === String(rowId));
+    if (!row) return;
+    teacherCommitmentRowId = row.id;
+    document.getElementById('teacherCommitmentStudent').textContent = `${row.student.full_name} (Roll ${row.student.roll_number || '—'}) · ${row.student.father_name || 'Parent'}`;
+    const input = document.getElementById('teacherCommitmentDays');
+    input.value = '';
+    updateTeacherCommitmentPreview();
+    const modal = document.getElementById('teacherCommitmentModal');
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    setTimeout(() => input.focus(), 30);
+}
+
+function closeTeacherCommitmentModal() {
+    const modal = document.getElementById('teacherCommitmentModal');
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    teacherCommitmentRowId = null;
+}
+
+function updateTeacherCommitmentPreview() {
+    const input = document.getElementById('teacherCommitmentDays');
+    const preview = document.getElementById('teacherCommitmentPreview');
+    if (!/^\d+$/.test(input.value)) {
+        preview.textContent = 'Enter the number of days.';
+        return;
+    }
+    const madeOn = teacherCommitmentToday();
+    const dueDate = addTeacherCommitmentDays(madeOn, Number(input.value));
+    preview.innerHTML = `Made on <strong>${longTeacherCommitmentDate(madeOn)}</strong><br>Payment due <strong>${longTeacherCommitmentDate(dueDate)}</strong>`;
+}
+
+async function saveTeacherCommitment() {
+    const row = teacherFeeRows.find(item => String(item.id) === String(teacherCommitmentRowId));
+    const input = document.getElementById('teacherCommitmentDays');
+    const saveButton = document.getElementById('teacherCommitmentSave');
+    const rawDays = input.value.trim();
+    if (!row || !/^\d+$/.test(rawDays) || !window.currentSchoolId) {
+        showTeacherFeeToast('Enter a valid whole number of promised days.', true);
+        return;
+    }
+    const days = Number(rawDays);
+    if (!Number.isSafeInteger(days) || days < 0) {
+        showTeacherFeeToast('Enter a valid whole number of promised days.', true);
+        return;
+    }
+    const madeOn = teacherCommitmentToday();
+    const dueDate = addTeacherCommitmentDays(madeOn, days);
+    const student = row.student;
+    const payload = {
+        school_id: window.currentSchoolId,
+        family_mobile: String(student.father_mobile || '').trim(),
+        family_no: String(student.family_id_manual || student.roll_number || ''),
+        family_name: student.father_name || student.full_name,
+        members: [{
+            student_id: student.id,
+            name: student.full_name,
+            father_name: student.father_name || '',
+            roll: student.roll_number,
+            class_name: student.applying_for_class
+        }],
+        days_promised: days,
+        month_key: madeOn.slice(0, 7),
+        commitment_made_on: madeOn,
+        due_date: dueDate,
+        created_by_user_id: window.currentUser?.id || null,
+        created_by: window.currentUserFullName || window.currentUser?.email || 'Unknown User',
+        status: 'Pending'
+    };
+
+    saveButton.disabled = true;
+    saveButton.textContent = 'Saving...';
+    try {
+        const { error } = await window.supabaseClient.from('family_fee_commitments').insert(payload);
+        if (error) throw error;
+        closeTeacherCommitmentModal();
+        showTeacherFeeToast(`Commitment saved for ${longTeacherCommitmentDate(dueDate)}.`);
+        await loadTeacherFeeList();
+    } catch (error) {
+        showTeacherFeeToast(`Could not save commitment: ${teacherFeeErrorMessage(error)}`, true);
+    } finally {
+        saveButton.disabled = false;
+        saveButton.textContent = 'Save';
+    }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     fontSizeRange.value = localStorage.getItem(TEACHER_FEE_LAYOUT_KEYS.fontSize) || '9';
     compactnessRange.value = localStorage.getItem(TEACHER_FEE_LAYOUT_KEYS.compactness) || '75';
     applyTeacherFeeLayout();
+    setupTeacherCommitmentModal();
     await waitForTeacherFeeAuth();
     await loadTeacherFeeList();
 
@@ -397,6 +562,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.print();
     });
     teacherFeeBody.addEventListener('click', event => {
+        const commitmentButton = event.target.closest('.teacher-commitment-btn');
+        if (commitmentButton) {
+            openTeacherCommitmentModal(commitmentButton.dataset.rowId);
+            return;
+        }
         const button = event.target.closest('.remove-student-btn');
         if (button) removeTeacherFeeRow(button.dataset.rowId);
     });

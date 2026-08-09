@@ -4,11 +4,14 @@
 
 let editFeeId = null;
 let allFeeHeadsData = [];
-const currentSchoolId = window.currentSchoolId || null;
-const applySchoolScope = (query) => currentSchoolId ? query.eq('school_id', currentSchoolId) : query;
+const getFeeHeadSchoolId = () => window.currentSchoolId || null;
+const applySchoolScope = (query) => {
+    const schoolId = getFeeHeadSchoolId();
+    return schoolId ? query.eq('school_id', schoolId) : query;
+};
 
 function getTenantScopePatch() {
-    const patch = { school_id: currentSchoolId };
+    const patch = { school_id: getFeeHeadSchoolId() };
     if (window.campusFeatureReady && window.currentCampusId) patch.campus_id = window.currentCampusId;
     return patch;
 }
@@ -82,6 +85,7 @@ window.addFeeType = async function() {
     const input = document.getElementById('newTypeName');
     const name = input.value.trim();
     if (!name) { showToast('Please enter a type name.', 'error'); return; }
+    if (!getFeeHeadSchoolId()) { showToast('School could not be identified. Refresh and try again.', 'error'); return; }
 
     try {
         const { error } = await window.supabaseClient
@@ -89,7 +93,7 @@ window.addFeeType = async function() {
             .insert({ name, created_by: window.currentUser?.id, ...getTenantScopePatch() });
         if (error) {
             if (error.message.includes('unique') || error.code === '23505') {
-                showToast(`"${name}" already exists.`, 'error');
+                showToast(`"${name}" already exists in this school.`, 'error');
             } else { throw error; }
             return;
         }

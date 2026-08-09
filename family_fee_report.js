@@ -157,10 +157,12 @@ async function loadBaseData() {
 // ── Load family_contacts for selected month ───────────────────────────────────
 async function loadMonthData() {
     try {
-        const { data: contacts, error } = await window.supabaseClient
+        let contactsQuery = window.supabaseClient
             .from('family_contacts')
             .select('family_mobile, month_key, pinned, complaint, row_status, commitment_notes')
             .eq('month_key', currentMonth);
+        if (window.currentSchoolId) contactsQuery = contactsQuery.eq('school_id', window.currentSchoolId);
+        const { data: contacts, error } = await contactsQuery;
 
         monthData = {};
         if (!error && contacts) {

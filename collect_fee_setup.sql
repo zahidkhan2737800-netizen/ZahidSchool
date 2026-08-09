@@ -15,8 +15,15 @@ CREATE TABLE IF NOT EXISTS transactions (
   payment_method TEXT NOT NULL,
   payment_reference TEXT, -- for online/bank transaction IDs
   remarks TEXT,
+  collected_by TEXT,
+  collected_by_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Keep older installations compatible when this setup file is run again.
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS collected_by TEXT;
+ALTER TABLE public.transactions
+  ADD COLUMN IF NOT EXISTS collected_by_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL;
 
 -- Enable RLS
 ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;

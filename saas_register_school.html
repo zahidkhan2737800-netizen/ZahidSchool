@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="refresh" content="0; url=saas_campus_users.html">
+    <title>Register School - Zahid SAAS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="saas_pages.css?v=4">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <main class="saas-page">
+        <header class="saas-header">
+            <div class="saas-mark"><i class="fas fa-cloud"></i></div>
+            <div class="saas-title"><h1>SAAS Administration</h1><p>Super Admin tools for school subscriptions</p></div>
+            <nav class="saas-nav">
+                <a href="dashboard.html" data-page="dashboard"><i class="fas fa-chart-line"></i> Dashboard</a>
+                <a href="saas_register_school.html" data-page="register"><i class="fas fa-school"></i> Register School</a>
+                <a href="saas_subscription_access.html" data-page="access"><i class="fas fa-layer-group"></i> Subscription Access</a>
+                <a href="saas_campus_users.html" data-page="users"><i class="fas fa-users-cog"></i> Campus &amp; Users</a>
+            </nav>
+        </header>
+
+        <section class="saas-hero">
+            <div><h2>Register New School</h2><p>Create a new paying school account and its default Main Campus.</p></div>
+            <i class="fas fa-school saas-hero-icon"></i>
+        </section>
+
+        <section class="saas-panel">
+            <div class="saas-panel-head">
+                <div><h2><i class="fas fa-plus-circle"></i> School Information</h2><p>Enter the package capacity and monthly software fee agreed with the school.</p></div>
+            </div>
+            <form id="registerSchoolForm">
+                <div class="saas-form-grid">
+                    <div class="saas-field">
+                        <label for="schoolName">School Name *</label>
+                        <input class="saas-input" id="schoolName" required placeholder="Grammar School Branch 2">
+                    </div>
+                    <div class="saas-field">
+                        <label for="schoolCity">City</label>
+                        <input class="saas-input" id="schoolCity" placeholder="Islamabad">
+                    </div>
+                    <div class="saas-field">
+                        <label for="schoolWhatsapp">WhatsApp Number</label>
+                        <input class="saas-input" id="schoolWhatsapp" inputmode="tel" placeholder="+92 300 0000000">
+                    </div>
+                    <div class="saas-field">
+                        <label for="schoolMaxStudents">Max Students</label>
+                        <input class="saas-input" id="schoolMaxStudents" type="number" min="1" step="1" value="100">
+                    </div>
+                    <div class="saas-field">
+                        <label for="schoolFee">Fee/Month (Rs)</label>
+                        <input class="saas-input" id="schoolFee" type="number" min="0" step="1" value="0">
+                    </div>
+                </div>
+                <div class="saas-note"><i class="fas fa-circle-info"></i> New schools start active with full page access. Configure their purchased pages from Subscription Access.</div>
+                <div class="saas-actions">
+                    <button class="saas-btn primary" id="btnRegisterSchool" type="submit"><i class="fas fa-school"></i> Create School</button>
+                </div>
+            </form>
+        </section>
+    </main>
+    <div class="saas-toast" id="saasToast"></div>
+
+    <script src="auth.js?v=6"></script>
+    <script src="saas_common.js?v=1"></script>
+    <script src="saas_register_school.js?v=1"></script>
+</body>
+</html>

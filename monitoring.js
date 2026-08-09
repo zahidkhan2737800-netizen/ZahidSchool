@@ -112,6 +112,8 @@ async function loadClasses() {
             .from('classes')
             .select('*')
     )
+        .eq('is_active', true)
+        .order('display_order', { ascending: true, nullsFirst: false })
         .order('class_name', { ascending: true })
         .order('section', { ascending: true });
 

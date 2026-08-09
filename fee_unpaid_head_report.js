@@ -1,5 +1,4 @@
 const db = window.supabaseClient;
-const currentSchoolId = window.currentSchoolId || null;
 
 let allRows = [];
 
@@ -26,7 +25,8 @@ const LS_KEYS = {
 };
 
 function applySchoolScope(query) {
-    return currentSchoolId ? query.eq('school_id', currentSchoolId) : query;
+    const schoolId = window.currentSchoolId || null;
+    return schoolId ? query.eq('school_id', schoolId) : query;
 }
 
 function toCurrencyLabel(amount) {
@@ -106,9 +106,11 @@ document.addEventListener('DOMContentLoaded', () => {
 async function initFilters() {
     try {
         // Load Fee Types
-        const { data: feeTypes, error: feeErr } = await db.from('fee_head_types')
+        const { data: feeTypes, error: feeErr } = await applySchoolScope(
+            db.from('fee_head_types')
                 .select('name')
-                .order('name');
+                .order('name')
+        );
         if (feeErr) throw feeErr;
 
         feeTypeFilter.innerHTML = '<option value="" disabled selected>-- Select Fee Head --</option>' + 

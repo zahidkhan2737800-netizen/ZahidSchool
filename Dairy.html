@@ -90,31 +90,130 @@
   tr.pinned .todo-text{color:#991b1b;font-weight:800}
   .row-number{display:inline-flex;align-items:center;justify-content:center;min-width:25px;height:25px;border-radius:7px;font-weight:800}
   .row-number.priority{background:#dc2626;color:#fff;box-shadow:0 2px 6px rgba(220,38,38,.25)}
+
+  /* Spacious desktop diary layout */
+  *{box-sizing:border-box}
+  body{
+    min-height:100%;
+    padding:clamp(16px,2.4vw,36px);
+    font-family:Inter,"Segoe UI",Arial,sans-serif;
+    background:
+      radial-gradient(circle at top left,rgba(37,99,235,.10),transparent 32%),
+      linear-gradient(180deg,#eef4ff 0,#f8fafc 340px,#eef2f7 100%);
+    color:#172033;
+  }
+  .card{
+    width:100%;
+    max-width:1680px;
+    min-height:calc(100vh - clamp(32px,4.8vw,72px));
+    padding:clamp(20px,2.3vw,38px);
+    border:1px solid rgba(148,163,184,.28);
+    border-radius:22px;
+    box-shadow:0 22px 60px rgba(15,23,42,.10);
+  }
+  .page-heading{display:flex;justify-content:space-between;align-items:center;gap:24px;margin-bottom:26px;padding-bottom:22px;border-bottom:1px solid #e2e8f0}
+  .eyebrow{display:block;margin-bottom:7px;color:#2563eb;font-size:12px;font-weight:900;letter-spacing:.16em;text-transform:uppercase}
+  h1{margin:0;font-size:clamp(30px,3vw,44px);line-height:1.08;letter-spacing:-.035em;color:#0f172a}
+  .page-subtitle{max-width:760px;margin:10px 0 0;color:#64748b;font-size:16px;line-height:1.55}
+  .pending-summary{display:flex;align-items:center;gap:13px;min-width:178px;padding:15px 18px;border:1px solid #fecdd3;border-radius:16px;background:#fff1f2;box-shadow:0 8px 22px rgba(190,24,93,.08)}
+  .pending-counter{margin:0;padding:0;color:#be123c;font-size:34px;line-height:1;font-weight:900}
+  .pending-label{display:flex;flex-direction:column;color:#881337;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}
+  .pending-label small{margin-top:3px;color:#9f1239;font-size:11px;font-weight:600;text-transform:none;letter-spacing:0}
+  .controls{grid-template-columns:minmax(420px,1.9fr) minmax(230px,.62fr) minmax(170px,.42fr);gap:18px;padding:22px;border:1px solid #dbeafe;border-radius:18px;background:linear-gradient(145deg,#f8fbff,#eff6ff)}
+  label{display:block;margin-bottom:7px;color:#334155;font-size:13px;font-weight:800;letter-spacing:.01em}
+  textarea,input,select,button{font:inherit}
+  textarea,input,select{width:100%;margin:0;padding:13px 14px;border:1px solid #cbd5e1;border-radius:11px;background:#fff;color:#0f172a;box-shadow:0 1px 2px rgba(15,23,42,.03);transition:border-color .18s,box-shadow .18s}
+  textarea:focus,input:focus,select:focus{outline:none;border-color:#3b82f6;box-shadow:0 0 0 4px rgba(59,130,246,.13)}
+  #todoText{min-height:156px;padding:16px 17px;font-size:19px;line-height:1.6;resize:vertical}
+  #todoCategory{max-width:220px;margin-top:0}
+  .category-field{margin-top:15px}
+  .date-panel{padding:2px 0}
+  #todoDate{min-height:49px;font-size:16px}
+  .priority-option{min-height:50px;margin-top:16px;padding:13px 14px;border-radius:11px}
+  .save-actions{display:flex!important;flex-direction:column;gap:10px!important}
+  .save-actions .btn{min-height:52px;margin:0;padding:13px 16px;border:0;border-radius:11px;background:linear-gradient(135deg,#2563eb,#1d4ed8);font-size:16px;font-weight:850;box-shadow:0 10px 20px rgba(37,99,235,.22);transition:transform .16s,box-shadow .16s,opacity .16s}
+  .save-actions .btn:hover{transform:translateY(-1px);box-shadow:0 13px 25px rgba(37,99,235,.28)}
+  .save-actions .btn:disabled{cursor:wait;opacity:.65;transform:none}
+  .save-actions #clearBtn{min-height:44px;margin:0!important;padding:11px 14px!important;border:1px solid #cbd5e1!important;border-radius:11px!important;background:#fff!important;color:#334155!important;font-weight:750}
+  .keyboard-hint{margin-top:8px;color:#64748b;font-size:12px;line-height:1.45;text-align:left}
+  kbd{display:inline-block;padding:2px 6px;border:1px solid #cbd5e1;border-bottom-width:2px;border-radius:5px;background:#fff;color:#334155;font-family:inherit;font-size:11px;font-weight:800}
+  .filters{display:grid;grid-template-columns:minmax(170px,.75fr) minmax(260px,1.35fr) minmax(145px,.6fr) minmax(310px,1.3fr) auto;gap:14px;align-items:end;margin-top:24px;padding:18px;border:1px solid #e2e8f0;border-radius:16px;background:#f8fafc}
+  .filters>div{min-width:0}
+  .filters input,.filters select,.filters button{min-height:44px;margin:0}
+  .filter-status-wrap{display:grid!important;grid-template-columns:minmax(130px,.65fr) minmax(180px,1fr);gap:14px;align-items:end!important}
+  .col-toggles{display:grid;grid-template-columns:repeat(2,minmax(70px,1fr));gap:7px;margin:0;padding:8px 10px;border:1px solid #e2e8f0;border-radius:10px;background:#fff}
+  .col-toggles label{margin:0;font-size:11px;white-space:nowrap}
+  #refreshBtn{min-width:108px;padding:11px 16px;border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;font-weight:800;cursor:pointer}
+  .task-section-head{display:flex;align-items:end;justify-content:space-between;gap:16px;margin:28px 2px 12px}
+  .task-section-head h2{margin:0;color:#0f172a;font-size:22px;letter-spacing:-.02em}
+  .task-section-head p{margin:0;color:#64748b;font-size:13px}
+  .table-wrap{overflow:auto;max-height:calc(100vh - 410px);min-height:280px;border:1px solid #dbe3ef;border-radius:15px;background:#fff;box-shadow:0 8px 25px rgba(15,23,42,.05)}
+  table{min-width:900px;margin:0;font-size:16px}
+  thead th{position:sticky;top:0;z-index:3;padding:14px 12px;background:#1e40af;color:#fff;font-size:13px;letter-spacing:.035em;text-transform:uppercase}
+  th,td{padding:14px 12px;border-bottom:1px solid #e5eaf1;font-size:16px}
+  tbody tr{transition:background .15s}
+  tbody tr:hover{background:#f8fbff}
+  .todo-text{font-size:19px;line-height:1.55;color:#172033}
+  .cat-badge{font-size:13px}
+  .action-col{width:126px;min-width:126px;max-width:126px;padding:6px!important}
+  .action-btn{display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;margin:4px 3px;padding:0;line-height:1;font-size:17px}
+  .todo-edit-input{min-height:92px;font-size:17px;line-height:1.5}
+  .edit-actions .action-btn{width:auto;min-width:86px;padding:0 14px}
+
+  @media (max-width:1180px){
+    .controls{grid-template-columns:minmax(360px,1.5fr) minmax(210px,.7fr) 170px}
+    .filters{grid-template-columns:repeat(3,minmax(180px,1fr))}
+    .filter-status-wrap{grid-column:span 2}
+  }
+  @media (max-width:760px){
+    body{padding:10px}
+    .card{min-height:calc(100vh - 20px);padding:17px;border-radius:16px}
+    .page-heading{align-items:flex-start;flex-direction:column;margin-bottom:18px}
+    .pending-summary{width:100%}
+    .controls{grid-template-columns:1fr;padding:16px}
+    #todoText{min-height:140px;font-size:17px}
+    #todoCategory{max-width:none}
+    .filters{grid-template-columns:1fr;padding:14px}
+    .filter-status-wrap{grid-column:auto;grid-template-columns:1fr}
+    .col-toggles{grid-template-columns:repeat(2,1fr)}
+    .task-section-head{align-items:flex-start;flex-direction:column}
+    .table-wrap{max-height:none}
+  }
 </style>
 </head>
 <body>
 <main class="card">
-  <h1>Things To Do</h1>
-
-  <div class="hint">Write a todo, pick a date (defaults to today). The page only reads documents changed since your last sync when you open or press <strong>Refresh</strong>.</div>
+  <header class="page-heading">
+    <div>
+      <span class="eyebrow">School Work Diary</span>
+      <h1>Tasks &amp; Reminders</h1>
+      <p class="page-subtitle">Write clear reminders, keep important work at the top, and track everything that still needs attention.</p>
+    </div>
+    <div class="pending-summary" title="Total pending tasks">
+      <div id="pendingCount" class="pending-counter">0</div>
+      <div class="pending-label">Pending<small>tasks remaining</small></div>
+    </div>
+  </header>
 
   <div style="margin-top:12px" class="controls">
     <div>
-      <label for="todoText">Todo</label>
-      <textarea id="todoText" placeholder="Write what you need to do..."></textarea>
+      <label for="todoText">What needs to be done?</label>
+      <textarea id="todoText" placeholder="Write a task, reminder, or follow-up..."></textarea>
 
-      <label for="todoCategory" style="margin-top:6px">Category</label>
-      <select id="todoCategory" aria-label="Todo Category">
-        <option value="S" selected>S</option>
-        <option value="T">T</option>
-        <option value="A">A</option>
-        <option value="Z">Z</option>
-        <option value="O">O</option>
-      </select>
+      <div class="category-field">
+        <label for="todoCategory">Category</label>
+        <select id="todoCategory" aria-label="Todo Category">
+          <option value="S" selected>S</option>
+          <option value="T">T</option>
+          <option value="A">A</option>
+          <option value="Z">Z</option>
+          <option value="O">O</option>
+        </select>
+      </div>
     </div>
 
-    <div>
-      <label for="todoDate">Date</label>
+    <div class="date-panel">
+      <label for="todoDate">Task date</label>
       <input type="date" id="todoDate" />
       <label class="priority-option" for="todoPriority">
         <input type="checkbox" id="todoPriority" />
@@ -122,11 +221,11 @@
       </label>
     </div>
 
-    <div style="display:flex;flex-direction:column;gap:8px;">
+    <div class="save-actions">
       <label style="visibility:hidden">placeholder</label>
-      <button id="addTodoBtn" type="button" class="btn">Save Todo</button>
+      <button id="addTodoBtn" type="button" class="btn">Save Task</button>
       <button id="clearBtn" type="button" class="small" style="background:#e6e9ef;border:0;color:#111">Clear</button>
-      <div class="hint" style="text-align:center;margin-top:8px;font-size:12px">Tap Edit to change only the Todo text inline.</div>
+      <div class="keyboard-hint"><kbd>Enter</kbd> saves the task. Use <kbd>Shift</kbd> + <kbd>Enter</kbd> for a new line.</div>
     </div>
   </div>
 
@@ -153,7 +252,7 @@
       </select>
     </div>
 
-    <div style="display:flex;align-items:center;">
+    <div class="filter-status-wrap">
       <div>
         <label for="fltStatus">Status</label>
         <select id="fltStatus">
@@ -162,8 +261,6 @@
           <option value="Done">Done</option>
         </select>
       </div>
-
-      <div id="pendingCount" class="pending-counter" title="Total pending todos">0</div>
 
       <div class="col-toggles" aria-hidden="false">
         <label title="Show Date"><input id="chkShowDate" type="checkbox" /> Date</label>
@@ -179,20 +276,29 @@
     </div>
   </div>
 
-  <table>
-    <thead>
-      <tr>
-        <th>#</th>
-        <th class="col-date">Date</th>
-        <th>Todo</th>
-        <th class="col-category">Category</th>
-        <th class="col-days">Days</th>
-        <th class="col-status">Status</th>
-        <th class="action-col">Action</th>
-      </tr>
-    </thead>
-    <tbody id="todosBody"></tbody>
-  </table>
+  <div class="task-section-head">
+    <div>
+      <h2>Your task list</h2>
+      <p>Priority items stay at the top. Use the action buttons to complete, edit, or remove a task.</p>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th class="col-date">Date</th>
+          <th>Task</th>
+          <th class="col-category">Category</th>
+          <th class="col-days">Days</th>
+          <th class="col-status">Status</th>
+          <th class="action-col">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="todosBody"></tbody>
+    </table>
+  </div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -243,14 +349,18 @@ const chkShowCategory = document.getElementById('chkShowCategory');
 const chkShowDays = document.getElementById('chkShowDays');
 const chkShowStatus = document.getElementById('chkShowStatus');
 
-function setTodayInputs(){
+function resetComposer(){
   const today = new Date().toISOString().slice(0,10);
   todoDate.value = today;
+  if(todoCategory) todoCategory.value = 'S';
+  if(todoPriority) todoPriority.checked = false;
+}
+
+function setTodayInputs(){
+  resetComposer();
   fltDate.value = '';
   if(fltStatus) fltStatus.value = 'Pending';
   if(fltTodo) fltTodo.value = '';
-  if(todoCategory) todoCategory.value = 'S';
-  if(todoPriority) todoPriority.checked = false;
   if(fltCategory) fltCategory.value = '';
   if(chkShowDate) chkShowDate.checked = false;
   if(chkShowCategory) chkShowCategory.checked = false;
@@ -466,13 +576,18 @@ async function fetchDeltasFromSupabase(lastFetchedMs){
 }
 
 /* ---------- Add Todo ---------- */
-addTodoBtn.addEventListener('click', async ()=>{
+let savingTodo = false;
+
+async function saveTodo(){
+  if(savingTodo) return;
   const text = (todoText.value || '').trim();
   const dateStr = todoDate.value || '';
   const category = (todoCategory && todoCategory.value) ? todoCategory.value : 'S';
-  if(!text){ alert('Write something to do.'); return; }
+  if(!text){ alert('Write a task before saving.'); todoText.focus(); return; }
   try {
+    savingTodo = true;
     addTodoBtn.disabled = true;
+    addTodoBtn.textContent = 'Saving...';
 
     const payload = {
       text,
@@ -506,13 +621,23 @@ addTodoBtn.addEventListener('click', async ()=>{
     updatePendingCounter();
     renderTodos();
     todoText.value = '';
-    setTodayInputs();
+    resetComposer();
     todoText.focus();
   } catch(err){
     console.error('add todo failed', err);
-    alert('Failed to add todo: ' + (err.message||err));
+    alert('Failed to save task: ' + (err.message||err));
   } finally {
+    savingTodo = false;
     addTodoBtn.disabled = false;
+    addTodoBtn.textContent = 'Save Task';
+  }
+}
+
+addTodoBtn.addEventListener('click', saveTodo);
+todoText.addEventListener('keydown', (event) => {
+  if(event.key === 'Enter' && !event.shiftKey && !event.isComposing){
+    event.preventDefault();
+    saveTodo();
   }
 });
 
@@ -715,7 +840,19 @@ function startInlineEdit(id){
   `;
   currentEditingId = id;
   const ta = todoCell.querySelector('textarea.todo-edit-input');
-  if(ta){ ta.focus(); ta.select(); }
+  if(ta){
+    ta.focus();
+    ta.select();
+    ta.addEventListener('keydown', (event) => {
+      if(event.key === 'Enter' && !event.shiftKey && !event.isComposing){
+        event.preventDefault();
+        todoCell.querySelector('button[data-edit-action="save"]')?.click();
+      } else if(event.key === 'Escape'){
+        event.preventDefault();
+        cancelCurrentEdit();
+      }
+    });
+  }
 
   todoCell.querySelectorAll('button[data-edit-action]').forEach(btn => {
     btn.addEventListener('click', async (ev) => {
@@ -776,7 +913,8 @@ function cancelCurrentEdit(){
 /* ---------- Clear button ---------- */
 clearBtn.addEventListener('click', ()=>{
   todoText.value = '';
-  setTodayInputs();
+  resetComposer();
+  todoText.focus();
 });
 
 /* ---------- Filters ---------- */

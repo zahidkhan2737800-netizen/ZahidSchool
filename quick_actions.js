@@ -7,7 +7,7 @@ var NAV_CATEGORIES = [
     items: [
       { href: 'index.html', label: 'Admission Form', icon: 'fas fa-file-signature', key: 'admissions' },
       { href: 'students.html', label: 'Active Students', icon: 'fas fa-users', key: 'students' },
-      { href: 'Dairy.html', label: 'Dairy / Tasks', icon: 'fas fa-clipboard-list', key: 'students' },
+      { href: 'Dairy.html', label: 'Diary / Tasks', icon: 'fas fa-clipboard-list', key: 'students' },
       { href: 'family.html', label: 'Family Management', icon: 'fas fa-home', key: 'family' },
       { href: 'homework.html', label: 'Homework Publisher', icon: 'fas fa-book', key: 'homework' },
       { href: 'publisher_config.html', label: 'Publisher Config', icon: 'fas fa-cog', key: 'homework' },
@@ -129,7 +129,7 @@ var NAV_CATEGORIES = [
   }
 ];
 
-const MAX_SELECTION = 5;
+const MAX_SELECTION = 10;
 let selectedActions = [];
 let userId = 'default';
 
@@ -155,7 +155,7 @@ function initQuickActions() {
             selectedActions = [
                 { href: 'index.html', label: 'New Admission', icon: 'fas fa-user-plus' },
                 { href: 'collect_fee.html', label: 'Collect Fee', icon: 'fas fa-hand-holding-usd' },
-                { href: 'Dairy.html', label: 'Dairy / Tasks', icon: 'fas fa-clipboard-list' }
+                { href: 'Dairy.html', label: 'Diary / Tasks', icon: 'fas fa-clipboard-list' }
             ];
         }
     } catch(e) {
@@ -171,7 +171,7 @@ function renderCategories() {
 
     NAV_CATEGORIES.forEach(cat => {
         // Only show items user has permission to view
-        const visibleItems = cat.items.filter(item => window.canView(item.key));
+        const visibleItems = cat.items.filter(item => window.isSchoolPageAllowed(item.href) && window.canViewPage(item.href, item.key));
         if (visibleItems.length === 0) return;
 
         html += `<div class="qa-category">
@@ -191,6 +191,12 @@ function renderCategories() {
     });
 
     container.innerHTML = html;
+    updateSelectionCount();
+}
+
+function updateSelectionCount() {
+    const counter = document.getElementById('qaSelectionCount');
+    if (counter) counter.textContent = `${selectedActions.length} of ${MAX_SELECTION} selected`;
 }
 
 function toggleSelection(element) {
@@ -206,6 +212,7 @@ function toggleSelection(element) {
         selectedActions.splice(index, 1);
         element.classList.remove('selected');
         limitMsg.style.display = 'none';
+        updateSelectionCount();
     } else {
         // Select
         if (selectedActions.length >= MAX_SELECTION) {
@@ -215,6 +222,7 @@ function toggleSelection(element) {
         }
         selectedActions.push({ href, label, icon });
         element.classList.add('selected');
+        updateSelectionCount();
     }
 }
 

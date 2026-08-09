@@ -47,9 +47,12 @@ async function loadDatabase() {
     document.getElementById('attendanceTable').style.opacity = '0.3';
 
     try {
+        const schoolId = window.currentSchoolId;
+        if (!schoolId) throw new Error('School could not be identified.');
         const { data: staffData, error: sErr } = await window.supabaseClient
             .from('staff')
             .select('id, employee_id, full_name')
+            .eq('school_id', schoolId)
             .eq('status', 'Active')
             .order('employee_id');
         if (sErr) throw sErr;
@@ -57,7 +60,8 @@ async function loadDatabase() {
 
         const { data: attData, error: aErr } = await window.supabaseClient
             .from('staff_attendance')
-            .select('*');
+            .select('*')
+            .eq('school_id', schoolId);
         if (aErr) throw aErr;
         allAttendance = attData || [];
 
@@ -73,6 +77,9 @@ async function loadDatabase() {
 
 async function performUpsert(payloadArray) {
     try {
+        const schoolId = window.currentSchoolId;
+        if (!schoolId) throw new Error('School could not be identified.');
+        payloadArray = payloadArray.map(payload => ({ ...payload, school_id: schoolId }));
         const { error } = await window.supabaseClient
             .from('staff_attendance')
             .upsert(payloadArray, { onConflict: 'staff_id, date' });

@@ -569,6 +569,7 @@ async function saveNextCommitment() {
         family_name: source.family_name,
         members: Array.isArray(source.members) ? source.members : [],
         days_promised: days,
+        month_key: source.month_key || madeOn.slice(0, 7),
         commitment_made_on: madeOn,
         due_date: dueDate,
         created_by_user_id: window.currentUser?.id || null,

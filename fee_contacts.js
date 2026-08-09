@@ -15,12 +15,86 @@ let currentOpenStudentId = null;
 let currentCommitmentStudentId = null;
 let studentCommitmentsMap = {}; // student_id -> pending shared commitments
 let teacherFeeSelectedStudentIds = new Set(); // shared Supabase TeacherFee rows
+let studentPaymentsMap = {}; // student_id -> receipt-level payments for selected month
 
 function toLocalYmd(d) {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
+}
+
+function selectedStudentMonthUtcRange(monthKey) {
+    const [year, month] = String(monthKey || '').split('-').map(Number);
+    const karachiOffsetMs = 5 * 60 * 60 * 1000;
+    return {
+        start: new Date(Date.UTC(year, month - 1, 1) - karachiOffsetMs).toISOString(),
+        end: new Date(Date.UTC(year, month, 1) - karachiOffsetMs).toISOString()
+    };
+}
+
+async function loadStudentPaymentsForMonth() {
+    const studentIds = allStudents.map(student => student.id).filter(Boolean);
+    if (!studentIds.length) return {};
+    const { start, end } = selectedStudentMonthUtcRange(currentMonth);
+    const transactions = [];
+
+    for (let index = 0; index < studentIds.length; index += 40) {
+        let query = supabaseClient
+            .from('transactions')
+            .select('student_id, receipt_number, amount_paid, created_at')
+            .in('student_id', studentIds.slice(index, index + 40))
+            .gt('amount_paid', 0)
+            .gte('created_at', start)
+            .lt('created_at', end)
+            .limit(2000);
+        if (window.currentSchoolId) query = query.eq('school_id', window.currentSchoolId);
+        const { data, error } = await query;
+        if (error) throw error;
+        if (data) transactions.push(...data);
+    }
+
+    const receiptGroups = new Map();
+    transactions.forEach(transaction => {
+        const studentId = String(transaction.student_id || '');
+        if (!studentId) return;
+        const rawReceipt = String(transaction.receipt_number || 'PAYMENT');
+        const parts = rawReceipt.split('-');
+        const receiptBase = /^(FAM|RCT)$/.test(parts[0]) && parts.length >= 2
+            ? parts.slice(0, 2).join('-')
+            : rawReceipt;
+        const key = `${studentId}|${receiptBase}`;
+        if (!receiptGroups.has(key)) {
+            receiptGroups.set(key, { studentId, receipt: receiptBase, amount: 0, created_at: transaction.created_at });
+        }
+        const group = receiptGroups.get(key);
+        group.amount += Number(transaction.amount_paid || 0);
+        if (new Date(transaction.created_at) > new Date(group.created_at)) group.created_at = transaction.created_at;
+    });
+
+    const result = {};
+    receiptGroups.forEach(payment => {
+        if (!result[payment.studentId]) result[payment.studentId] = [];
+        result[payment.studentId].push(payment);
+    });
+    Object.values(result).forEach(payments => payments.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
+    return result;
+}
+
+function generateStudentPaymentSummary(studentId) {
+    const payments = studentPaymentsMap[String(studentId)] || [];
+    if (!payments.length) return '';
+    const visible = payments.slice(0, 3);
+    const chips = visible.map(payment => {
+        const date = new Date(payment.created_at).toLocaleDateString('en-GB', {
+            day: '2-digit', month: '2-digit', timeZone: 'Asia/Karachi'
+        }).replace('/', '-');
+        return `<span class="student-payment-chip" title="${escapeStudentCommitmentHtml(payment.receipt)}"><i class="fas fa-coins"></i> Rs ${Number(payment.amount).toLocaleString()} (${date})</span>`;
+    }).join('');
+    const more = payments.length > visible.length
+        ? `<span class="student-payment-more">+${payments.length - visible.length} more</span>`
+        : '';
+    return `<div class="student-payment-summary">${chips}${more}</div>`;
 }
 
 function normalizeAttendanceStatus(raw) {
@@ -225,6 +299,7 @@ async function saveStudentCommitment() {
             class_name: student.applying_for_class
         }],
         days_promised: days,
+        month_key: currentMonth,
         commitment_made_on: madeOn,
         due_date: dueDate,
         created_by_user_id: window.currentUser?.id || null,
@@ -490,7 +565,8 @@ async function loadData() {
 
         let commitmentsRequest = supabaseClient
             .from('family_fee_commitments')
-            .select('id, members, days_promised, commitment_made_on, due_date, created_by, created_at')
+            .select('id, members, days_promised, month_key, commitment_made_on, due_date, created_by, created_at')
+            .eq('month_key', currentMonth)
             .eq('status', 'Pending')
             .order('due_date', { ascending: true })
             .order('created_at', { ascending: true });
@@ -501,7 +577,15 @@ async function loadData() {
             .select('student_id');
         if (window.currentSchoolId) teacherFeeRowsRequest = teacherFeeRowsRequest.eq('school_id', window.currentSchoolId);
 
-        const [contactsResult, commitmentsResult, teacherFeeRowsResult] = await Promise.all([contactsRequest, commitmentsRequest, teacherFeeRowsRequest]);
+        const [contactsResult, commitmentsResult, teacherFeeRowsResult, paymentsResult] = await Promise.all([
+            contactsRequest,
+            commitmentsRequest,
+            teacherFeeRowsRequest,
+            loadStudentPaymentsForMonth().catch(error => {
+                console.warn('Could not load student payment summaries:', error);
+                return {};
+            })
+        ]);
         const contacts = contactsResult.data;
         const error = contactsResult.error;
 
@@ -526,11 +610,13 @@ async function loadData() {
 
         teacherFeeSelectedStudentIds = new Set((teacherFeeRowsResult.data || []).map(row => String(row.student_id)));
         if (teacherFeeRowsResult.error) console.warn('Could not load TeacherFee selections:', teacherFeeRowsResult.error);
+        studentPaymentsMap = paymentsResult || {};
     } catch (err) {
         console.warn("fee_contacts table might not exist yet. Using empty state.", err);
         monthData = {};
         studentCommitmentsMap = {};
         teacherFeeSelectedStudentIds = new Set();
+        studentPaymentsMap = {};
     }
 
     document.getElementById('loader').style.display = 'none';
@@ -614,6 +700,7 @@ function renderTable() {
             return `<div class="att-pill" style="background:#e2e8f0;color:#94a3b8;font-size:0.62rem;padding:1px 4px;" title="${dateStr}">-</div>`;
         }).reverse().join('');
         const attHtml = `<div style="display:flex;flex-direction:column;gap:2px;align-items:center;">${pills}</div>`;
+        const paymentSummaryHtml = generateStudentPaymentSummary(student.id);
 
         tr.innerHTML = `
             <td class="col-roll">${student.roll_number}</td>
@@ -621,6 +708,7 @@ function renderTable() {
                     <span style="font-size:0.95rem;font-weight:600;display:block;line-height:1.3;">${student.full_name}</span>
                     <small style="color:#475569;font-size:0.78rem;display:block;line-height:1.3;">Father: ${student.father_name || '—'}</small>
                     <small style="color:#64748b;font-size:0.78rem;display:block;line-height:1.3;">${student.father_mobile || ''}</small>
+                    ${paymentSummaryHtml}
                 </td>
             <td>${attHtml}</td>
             ${[1,2,3,4,5,6,7,8].map(idx => generateContactCell(student.id, idx, data)).join('')}

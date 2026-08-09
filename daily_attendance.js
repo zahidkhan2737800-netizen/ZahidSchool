@@ -1,8 +1,8 @@
 const db = window.supabaseClient;
-const currentSchoolId = window.currentSchoolId || null;
 
 let allRows = [];
 let populatedClasses = false;
+let activeClassNames = [];
 
 const attDateInput = document.getElementById('attDate');
 const statusFilterSelect = document.getElementById('statusFilter');
@@ -42,7 +42,7 @@ function fmtDateOnly(dateObj) {
 }
 
 function applySchoolScope(query) {
-    return currentSchoolId ? query.eq('school_id', currentSchoolId) : query;
+    return window.currentSchoolId ? query.eq('school_id', window.currentSchoolId) : query;
 }
 
 function toDateLabel(dateString) {
@@ -241,8 +241,23 @@ async function loadAttendance() {
 
         // Populate class filter options dynamically once
         if (!populatedClasses) {
+            const { data: classData, error: classErr } = await applySchoolScope(
+                db.from('classes')
+                    .select('class_name, section, display_order')
+                    .eq('is_active', true)
+                    .order('display_order', { ascending: true, nullsFirst: false })
+                    .order('class_name', { ascending: true })
+                    .order('section', { ascending: true })
+            );
+
+            if (classErr) throw classErr;
+
+            activeClassNames = [...new Set((classData || [])
+                .map(c => `${c.class_name || ''} ${c.section || ''}`.trim())
+                .filter(Boolean))];
+
             const classSet = new Set(students.map(s => s.applying_for_class).filter(Boolean));
-            const sortedClasses = Array.from(classSet).sort();
+            const sortedClasses = activeClassNames.filter(cls => classSet.has(cls));
             
             sortedClasses.forEach(cls => {
                 const opt = document.createElement('option');
@@ -273,6 +288,7 @@ async function loadAttendance() {
         });
 
         // 3. Build unified rows
+        const classOrder = new Map(activeClassNames.map((name, index) => [name, index]));
         allRows = students.map(s => {
             const att = attMap.get(s.id);
             return {
@@ -285,6 +301,10 @@ async function loadAttendance() {
                 status: att ? att.status : 'Not Marked',
                 date: selectedDate
             };
+        }).sort((a, b) => {
+            const aOrder = classOrder.has(a.className) ? classOrder.get(a.className) : Number.MAX_SAFE_INTEGER;
+            const bOrder = classOrder.has(b.className) ? classOrder.get(b.className) : Number.MAX_SAFE_INTEGER;
+            return aOrder - bOrder || String(a.rollNo).localeCompare(String(b.rollNo), undefined, { numeric: true });
         });
 
         renderRows();

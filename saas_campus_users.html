@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Campus & Global Users - Zahid SAAS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="saas_pages.css?v=4">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <main class="saas-page">
+        <header class="saas-header">
+            <div class="saas-mark"><i class="fas fa-cloud"></i></div>
+            <div class="saas-title"><h1>SAAS Administration</h1><p>Super Admin tools for school subscriptions</p></div>
+            <nav class="saas-nav">
+                <a href="dashboard.html" data-page="dashboard"><i class="fas fa-chart-line"></i> Dashboard</a>
+                <a href="saas_subscription_access.html" data-page="access"><i class="fas fa-layer-group"></i> Subscription Access</a>
+                <a href="saas_campus_users.html" data-page="users"><i class="fas fa-users-cog"></i> Schools, Campuses &amp; Users</a>
+            </nav>
+        </header>
+
+        <section class="saas-hero">
+            <div><h2>Schools, Campuses &amp; Global Users</h2><p>Register schools and manage campuses, administrators, roles, and assignments.</p></div>
+            <i class="fas fa-users-cog saas-hero-icon"></i>
+        </section>
+
+        <section class="saas-panel" data-accent="blue">
+            <div class="saas-panel-head"><div><h2><i class="fas fa-school"></i> Register New School</h2><p>Create a paying school account and its default Main Campus.</p></div></div>
+            <form id="registerSchoolForm">
+                <div class="saas-form-grid">
+                    <div class="saas-field"><label for="schoolName">School Name *</label><input class="saas-input" id="schoolName" required placeholder="Grammar School Branch 2"></div>
+                    <div class="saas-field"><label for="schoolCity">City</label><input class="saas-input" id="schoolCity" placeholder="Islamabad"></div>
+                    <div class="saas-field"><label for="schoolWhatsapp">WhatsApp Number</label><input class="saas-input" id="schoolWhatsapp" inputmode="tel" placeholder="+92 300 0000000"></div>
+                    <div class="saas-field"><label for="schoolMaxStudents">Max Students</label><input class="saas-input" id="schoolMaxStudents" type="number" min="1" step="1" value="100"></div>
+                    <div class="saas-field"><label for="schoolFee">Fee/Month (Rs)</label><input class="saas-input" id="schoolFee" type="number" min="0" step="1" value="0"></div>
+                </div>
+                <div class="saas-note"><i class="fas fa-circle-info"></i> New schools start active with full page access. Their package can be limited from Subscription Access.</div>
+                <div class="saas-actions"><button class="saas-btn primary" id="btnRegisterSchool" type="submit"><i class="fas fa-school"></i> Create School</button></div>
+            </form>
+        </section>
+
+        <section class="saas-panel" data-accent="cyan">
+            <div class="saas-panel-head">
+                <div><h2><i class="fas fa-building"></i> Registered Schools <span class="saas-badge active" id="schoolCount">0 schools</span></h2><p>Review registered school packages and permanently remove a school when required.</p></div>
+                <button class="saas-btn" id="btnRefreshSchools" type="button"><i class="fas fa-rotate"></i> Refresh</button>
+            </div>
+            <div class="saas-table-wrap">
+                <table class="saas-table">
+                    <thead><tr><th>School</th><th>City</th><th>WhatsApp</th><th>Max Students</th><th>Fee/Month</th><th>Status</th><th style="text-align:right;">Actions</th></tr></thead>
+                    <tbody id="schoolsList"><tr><td class="saas-empty" colspan="7"><i class="fas fa-spinner fa-spin"></i> Loading schools...</td></tr></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="saas-panel" data-accent="purple">
+            <div class="saas-panel-head"><div><h2><i class="fas fa-user-shield"></i> Create School Admin</h2><p>Create login credentials and assign the administrator to one school.</p></div></div>
+            <form id="createAdminForm" class="saas-form-grid admin-grid">
+                <div class="saas-field"><label for="newAdminName">Full Name *</label><input class="saas-input" id="newAdminName" required placeholder="School Admin Name"></div>
+                <div class="saas-field"><label for="newAdminEmail">Email *</label><input class="saas-input" id="newAdminEmail" type="email" required placeholder="admin@school.com"></div>
+                <div class="saas-field"><label for="newAdminPassword">Password *</label><input class="saas-input" id="newAdminPassword" type="password" minlength="6" required placeholder="Minimum 6 characters"></div>
+                <div class="saas-field"><label for="newAdminSchool">Assign School *</label><select class="saas-select" id="newAdminSchool" required></select></div>
+                <button class="saas-btn primary" id="btnCreateAdmin" type="submit"><i class="fas fa-user-plus"></i> Create Admin</button>
+            </form>
+        </section>
+
+        <section class="saas-panel" data-accent="green">
+            <div class="saas-panel-head"><div><h2><i class="fas fa-map-marker-alt"></i> Campus Management</h2><p>Add campuses and control whether each campus is active.</p></div></div>
+            <form id="campusForm" class="saas-form-grid campus-grid">
+                <div class="saas-field"><label for="campusSchoolSelect">Select School *</label><select class="saas-select" id="campusSchoolSelect" required></select></div>
+                <div class="saas-field"><label for="campusName">Campus Name *</label><input class="saas-input" id="campusName" required placeholder="North Campus"></div>
+                <div class="saas-field"><label for="campusCode">Campus Code</label><input class="saas-input" id="campusCode" placeholder="NTH"></div>
+                <button class="saas-btn primary" id="btnAddCampus" type="submit"><i class="fas fa-plus"></i> Add Campus</button>
+            </form>
+            <div class="saas-table-wrap" style="margin-top:16px;">
+                <table class="saas-table">
+                    <thead><tr><th>Campus</th><th>Code</th><th>Status</th><th style="text-align:right;">Actions</th></tr></thead>
+                    <tbody id="campusesList"><tr><td class="saas-empty" colspan="4"><i class="fas fa-spinner fa-spin"></i> Loading campuses...</td></tr></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="saas-panel" data-accent="cyan">
+            <div class="saas-panel-head">
+                <div><h2><i class="fas fa-globe"></i> Global User Management <span class="saas-badge active" id="userCount">0 users</span></h2><p>Change each user's school, role, and campus assignment.</p></div>
+                <button class="saas-btn" id="btnRefreshUsers" type="button"><i class="fas fa-rotate"></i> Refresh</button>
+            </div>
+            <div class="saas-table-wrap">
+                <table class="saas-table">
+                    <thead><tr><th>User</th><th>Assigned School</th><th>Role</th><th>Campus</th><th style="text-align:right;">Actions</th></tr></thead>
+                    <tbody id="usersList"><tr><td class="saas-empty" colspan="5"><i class="fas fa-spinner fa-spin"></i> Loading users...</td></tr></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+    <div class="saas-toast" id="saasToast"></div>
+
+    <script src="auth.js?v=6"></script>
+    <script src="saas_common.js?v=1"></script>
+    <script src="saas_campus_users.js?v=5"></script>
+</body>
+</html>

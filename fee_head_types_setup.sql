@@ -12,17 +12,39 @@ CREATE TABLE IF NOT EXISTS public.fee_head_types (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 2. Seed common defaults so the dropdown is not empty on first load
-INSERT INTO public.fee_head_types (name) VALUES
-    ('Monthly Fee'),
-    ('Exam Fee'),
-    ('Transport Fee'),
-    ('Book Fee'),
-    ('Uniform Fee'),
-    ('Admission Fee'),
-    ('Late Payment Fee'),
-    ('Other')
-ON CONFLICT (name) DO NOTHING;
+-- 2. Seed common defaults so the dropdown is not empty on first load.
+-- Supports both the original single-school schema and the school-scoped SaaS schema.
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'fee_head_types'
+          AND column_name = 'school_id'
+    ) THEN
+        EXECUTE $school_seed$
+            INSERT INTO public.fee_head_types (school_id, name)
+            SELECT school_data.id, fee_type.name
+            FROM public.schools AS school_data
+            CROSS JOIN (VALUES
+                ('Monthly Fee'), ('Exam Fee'), ('Transport Fee'), ('Book Fee'),
+                ('Uniform Fee'), ('Admission Fee'), ('Late Payment Fee'), ('Other')
+            ) AS fee_type(name)
+            ON CONFLICT (school_id, name) DO NOTHING
+        $school_seed$;
+    ELSE
+        INSERT INTO public.fee_head_types (name) VALUES
+            ('Monthly Fee'),
+            ('Exam Fee'),
+            ('Transport Fee'),
+            ('Book Fee'),
+            ('Uniform Fee'),
+            ('Admission Fee'),
+            ('Late Payment Fee'),
+            ('Other')
+        ON CONFLICT (name) DO NOTHING;
+    END IF;
+END $$;
 
 -- 3. Make amount optional in fee_heads if not already
 ALTER TABLE public.fee_heads ALTER COLUMN amount DROP NOT NULL;

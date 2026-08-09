@@ -4,6 +4,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const studentsBody = document.getElementById('studentsBody');
     const searchQueryInput = document.getElementById('searchQuery');
     const searchClassSelect = document.getElementById('searchClass');
+    const mobileNumberFilter = document.getElementById('mobileNumberFilter');
+    const whatsappNumberFilter = document.getElementById('whatsappNumberFilter');
     const applySchoolScope = (query) => {
         const sid = window.currentSchoolId || null;
         return sid ? query.eq('school_id', sid) : query;
@@ -27,6 +29,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (searchQueryInput) searchQueryInput.addEventListener('input', handleSearchInput);
     searchClassSelect.addEventListener('change', fetchStudents);
+    mobileNumberFilter.addEventListener('change', fetchStudents);
+    whatsappNumberFilter.addEventListener('change', fetchStudents);
 
     async function waitForAuthContext(timeoutMs = 10000) {
         const start = Date.now();
@@ -46,13 +50,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function fetchStudents() {
-        studentsBody.innerHTML = '<tr><td colspan="6" class="empty-state">🔄 Fetching records...</td></tr>';
+        studentsBody.innerHTML = '<tr><td colspan="10" class="empty-state">🔄 Fetching records...</td></tr>';
         
         try {
             // Start building the query
             let query = applySchoolScope(supabaseClient
                 .from('admissions')
-                .select('id, roll_number, full_name, father_name, father_mobile, father_whatsapp, admission_date, applying_for_class')
+                .select('id, roll_number, full_name, father_name, father_mobile, father_whatsapp, whatsapp_group_status, admission_date, created_at, applying_for_class')
                 .eq('status', 'Active')); // ALWAYS filter by Active status!
 
             // Apply exact filter: Class
@@ -68,29 +72,44 @@ document.addEventListener('DOMContentLoaded', async () => {
                 query = query.or(`full_name.ilike.%${safeQuery}%,father_name.ilike.%${safeQuery}%,roll_number.eq.${safeQuery}`);
             }
 
-            // Order by date
-            query = query.order('admission_date', { ascending: false });
+            // Newly created student records always appear first. Admission date is
+            // retained as a fallback/tie-breaker for older records.
+            query = query
+                .order('created_at', { ascending: false, nullsFirst: false })
+                .order('admission_date', { ascending: false, nullsFirst: false });
 
             const { data, error } = await query;
 
             if (error) throw error;
 
-            // Update Counter
-            document.getElementById('totalActive').textContent = data.length || 0;
+            const filteredStudents = (data || []).filter(student => {
+                const mobileValid = hasValid11DigitNumber(student.father_mobile);
+                const whatsappValid = hasValid11DigitNumber(student.father_whatsapp);
+                const mobileMatches = mobileNumberFilter.value === 'All'
+                    || (mobileNumberFilter.value === 'Valid' ? mobileValid : !mobileValid);
+                const whatsappMatches = whatsappNumberFilter.value === 'All'
+                    || (whatsappNumberFilter.value === 'Valid' ? whatsappValid : !whatsappValid);
+                return mobileMatches && whatsappMatches;
+            });
 
-            if (data.length === 0) {
-                studentsBody.innerHTML = '<tr><td colspan="7" class="empty-state">No active students match your filters.</td></tr>';
+            // Update Counter
+            document.getElementById('totalActive').textContent = filteredStudents.length || 0;
+
+            if (filteredStudents.length === 0) {
+                studentsBody.innerHTML = '<tr><td colspan="10" class="empty-state">No active students match your filters.</td></tr>';
                 return;
             }
 
             // Clear table
             studentsBody.innerHTML = '';
             
-            data.forEach(student => {
+            filteredStudents.forEach(student => {
                 const tr = document.createElement('tr');
                 
                 // Safety fallback for dates and whatsapp which might be null
-                const admDate = student.admission_date ? new Date(student.admission_date).toLocaleDateString() : 'N/A';
+                const addedDate = student.created_at
+                    ? new Date(student.created_at).toLocaleDateString()
+                    : (student.admission_date ? new Date(student.admission_date).toLocaleDateString() : 'N/A');
                 const whatsapp = student.father_whatsapp || 'Not provided';
                 
                 tr.innerHTML = `
@@ -99,13 +118,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <td>
                         <select class="class-inline-select" data-id="${student.id}" style="padding:0.4rem; border-radius:6px; border:1px solid #d1d5db; background:#f9fafb; font-size:0.85rem; cursor:pointer;">
                             <option value="">-- None --</option>
+                            ${student.applying_for_class && !allAvailableClasses.includes(student.applying_for_class)
+                                ? `<option value="${student.applying_for_class}" selected disabled>${student.applying_for_class} (Inactive)</option>`
+                                : ''}
                             ${allAvailableClasses.map(c => `<option value="${c}" ${c === student.applying_for_class ? 'selected' : ''}>${c}</option>`).join('')}
                         </select>
                     </td>
                     <td class="editable-cell" contenteditable="true" data-col="father_name" data-id="${student.id}">${student.father_name || ''}</td>
                     <td class="editable-cell" contenteditable="true" data-col="father_mobile" data-id="${student.id}">${student.father_mobile || ''}</td>
                     <td class="editable-cell" contenteditable="true" data-col="father_whatsapp" data-id="${student.id}">${whatsapp || ''}</td>
-                    <td>${admDate}</td>
+                    <td>
+                        <select class="whatsapp-group-select${student.whatsapp_group_status === 'WG' ? ' is-added' : ''}" data-id="${student.id}" data-saved-value="${student.whatsapp_group_status === 'WG' ? 'WG' : ''}" aria-label="WhatsApp group status">
+                            <option value="" ${student.whatsapp_group_status !== 'WG' ? 'selected' : ''}></option>
+                            <option value="WG" ${student.whatsapp_group_status === 'WG' ? 'selected' : ''}>WG</option>
+                        </select>
+                    </td>
+                    <td>${addedDate}</td>
                     <td>
                         <select class="status-select" data-id="${student.id}" style="padding:0.4rem; border-radius:6px; border:1px solid #d1d5db; background:#f9fafb; font-size:0.85rem; cursor:pointer;">
                             <option value="Active" selected>Active</option>
@@ -125,11 +153,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             attachInlineEditListeners();
             attachDeleteListeners();
             attachClassChangeListeners();
+            attachWhatsAppGroupListeners();
             
         } catch (error) {
             console.error('Error fetching students:', error);
-            studentsBody.innerHTML = `<tr><td colspan="7" class="empty-state" style="color:var(--error);">Failed to load data: ${error.message}</td></tr>`;
+            studentsBody.innerHTML = `<tr><td colspan="10" class="empty-state" style="color:var(--error);">Failed to load data: ${error.message}</td></tr>`;
         }
+    }
+
+    function hasValid11DigitNumber(value) {
+        return String(value || '').replace(/\D/g, '').length === 11;
     }
 
     function attachStatusListeners() {
@@ -252,6 +285,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    function attachWhatsAppGroupListeners() {
+        document.querySelectorAll('.whatsapp-group-select').forEach(select => {
+            select.addEventListener('change', async event => {
+                const control = event.target;
+                const previousValue = control.dataset.savedValue || (control.classList.contains('is-added') ? 'WG' : '');
+                const nextValue = control.value;
+                control.disabled = true;
+
+                try {
+                    const { error } = await applySchoolScope(supabaseClient
+                        .from('admissions')
+                        .update({
+                            whatsapp_group_status: nextValue || null,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', control.dataset.id));
+                    if (error) throw error;
+
+                    control.dataset.savedValue = nextValue;
+                    control.classList.toggle('is-added', nextValue === 'WG');
+                } catch (error) {
+                    alert('Error saving WhatsApp group status: ' + error.message);
+                    control.value = previousValue;
+                } finally {
+                    control.disabled = false;
+                }
+            });
+        });
+    }
+
     function attachDeleteListeners() {
         const deleteBtns = document.querySelectorAll('.delete-btn');
         deleteBtns.forEach(btn => {
@@ -296,20 +359,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function fetchClasses() {
         try {
-            // Fetch unique classes currently active in admissions
+            // Use active classes in the manual order configured on Classes page.
             const { data, error } = await applySchoolScope(supabaseClient
-                .from('admissions')
-                .select('applying_for_class')
-                .eq('status', 'Active'));
+                .from('classes')
+                .select('class_name, section, display_order, is_active')
+                .eq('is_active', true)
+                .order('display_order', { ascending: true, nullsFirst: false })
+                .order('class_name', { ascending: true })
+                .order('section', { ascending: true }));
             
             if (error) throw error;
             
             if (data && data.length > 0) {
-                // Filter out empty/null values and get unique classes
-                allAvailableClasses = [...new Set(data
-                    .map(c => c.applying_for_class)
-                    .filter(c => c && c.trim() !== '')
-                )].sort();
+                allAvailableClasses = data
+                    .map(cls => `${cls.class_name || ''} ${cls.section || ''}`.trim())
+                    .filter(Boolean);
 
                 searchClassSelect.innerHTML = '<option value="">All Classes</option>' + 
                     allAvailableClasses.map(c => `<option value="${c}">${c}</option>`).join('');

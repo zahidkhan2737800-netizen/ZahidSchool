@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subscription Access - Zahid SAAS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="saas_pages.css?v=4">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <main class="saas-page">
+        <header class="saas-header">
+            <div class="saas-mark"><i class="fas fa-cloud"></i></div>
+            <div class="saas-title"><h1>SAAS Administration</h1><p>Super Admin tools for school subscriptions</p></div>
+            <nav class="saas-nav">
+                <a href="dashboard.html" data-page="dashboard"><i class="fas fa-chart-line"></i> Dashboard</a>
+                <a href="saas_subscription_access.html" data-page="access"><i class="fas fa-layer-group"></i> Subscription Access</a>
+                <a href="saas_campus_users.html" data-page="users"><i class="fas fa-users-cog"></i> Schools, Campuses &amp; Users</a>
+            </nav>
+        </header>
+
+        <section class="saas-hero">
+            <div><h2>School Subscription Access</h2><p>Build each school's paid package using complete sections or individual pages.</p></div>
+            <i class="fas fa-layer-group saas-hero-icon"></i>
+        </section>
+
+        <section class="saas-panel" data-accent="pink">
+            <div class="saas-panel-head">
+                <div><h2><i class="fas fa-sliders"></i> Package Permissions</h2><p>Dashboard access always remains available. Only the Super Admin can change these settings.</p></div>
+            </div>
+            <div id="schoolAccessManager"></div>
+        </section>
+    </main>
+    <div class="saas-toast" id="saasToast"></div>
+
+    <script src="auth.js?v=6"></script>
+    <script src="saas_common.js?v=1"></script>
+    <script src="school_access_manager.js?v=2"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!await window.SaasAdmin.ready('access')) return;
+            await window.SchoolAccessManager.mount('schoolAccessManager');
+        });
+    </script>
+</body>
+</html>

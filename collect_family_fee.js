@@ -525,16 +525,9 @@ function reprintFromHistory(receipt) {
     if(rctFamNode) rctFamNode.textContent = activeFamily.familyNo || 'N/A';
     document.getElementById('rctTotal').textContent     = Number(receipt.total_paid).toLocaleString();
     
-    let familyRemaining = 0;
-    if (typeof pendingDues !== 'undefined' && Array.isArray(pendingDues)) {
-        pendingDues.forEach(c => {
-            familyRemaining += parseFloat(c.amount) - parseFloat(c.paid_amount || 0);
-        });
-    } else {
-        familyRemaining = receipt.remaining;
-    }
-    
-    document.getElementById('rctRemaining').textContent = Number(familyRemaining).toLocaleString();
+    // Historical receipts must use their saved balance snapshot. Recalculating from
+    // today's dues makes an old receipt change when later fee months are added.
+    document.getElementById('rctRemaining').textContent = Number(receipt.remaining || 0).toLocaleString();
 
     // Ensure visibility
     const rowReceiptNo = document.getElementById('rowReceiptNo');
@@ -584,14 +577,8 @@ window.printDaySummary = function(dateStr, collectorKey = '') {
         allLines.push(...(Array.isArray(r.fee_lines) ? r.fee_lines : []));
     });
     
-    let familyRemaining = 0;
-    if (typeof pendingDues !== 'undefined' && Array.isArray(pendingDues)) {
-        pendingDues.forEach(c => {
-            familyRemaining += parseFloat(c.amount) - parseFloat(c.paid_amount || 0);
-        });
-    } else {
-        familyRemaining = sorted[sorted.length - 1].remaining;
-    }
+    // Keep the printed summary tied to its saved receipt snapshot.
+    const familyRemaining = Number(sorted[sorted.length - 1].remaining || 0);
 
     applyThermalSettings('collect_family_fee');
     document.getElementById('rctNo').textContent        = `DAY-${dateStr.replace(/\//g, '')}`;
@@ -862,6 +849,7 @@ async function submitPayment() {
         let wallet = Math.round(paying * 100) / 100;
         const txRecords     = [];
         const updateOps     = [];
+        const receiptRemainingByStudent = {};
         
         // This is the family base receipt (e.g. FAM-1234567)
         const baseReceipt   = 'FAM-' + Date.now().toString().slice(-7);
@@ -909,6 +897,13 @@ async function submitPayment() {
                 collected_by_user_id: window.currentUser?.id || null
             });
 
+            // Freeze only the balance of challans included on this receipt. Other
+            // months and unrelated dues must not affect its printed Remaining value.
+            const remainingForThisChallan = Math.round(Math.max(0, adjusted - debit) * 100) / 100;
+            receiptRemainingByStudent[c.student_id] = Math.round(
+                ((receiptRemainingByStudent[c.student_id] || 0) + remainingForThisChallan) * 100
+            ) / 100;
+
             wallet = Math.round((wallet - debit) * 100) / 100;
         }
 
@@ -922,21 +917,6 @@ async function submitPayment() {
         // Insert identical individual line records to transactions
         const { error: txErr } = await db.from('transactions').insert(txRecords);
         if (txErr) throw txErr;
-
-        // Calculate independent remaining balances for each student
-        const memRemains = {};
-        activeFamily.members.forEach(m => {
-             const stuChallans = pendingDues.filter(c => c.student_id === m.id);
-             let totalRem = 0;
-             stuChallans.forEach(c => {
-                 const tx = txRecords.find(t => t.challan_id === c.id);
-                 const oldPaid = parseFloat(c.paid_amount || 0);
-                 const newlyPaid = tx ? tx.amount_paid : 0;
-                 const rem = parseFloat(c.amount) - (oldPaid + newlyPaid);
-                 totalRem += rem;
-             });
-             memRemains[m.id] = totalRem;
-        });
 
         // Group allocated payments into individual `receipts` records 
         // THIS MAKES HISTORY SYNC PERFECTLY BETWEEN SINGLE/FAMILY UI.
@@ -958,22 +938,41 @@ async function submitPayment() {
             studentGroups[tx.student_id].total += tx.amount_paid;
         });
 
+        // Calculate total remaining per student across ALL their pending dues,
+        // not just the selected challans. pendingDues.paid_amount is not yet
+        // updated in memory, so subtract each student's paid portion manually.
+        const paidNowByStudent = {};
+        txRecords.forEach(tx => {
+            paidNowByStudent[tx.student_id] = (paidNowByStudent[tx.student_id] || 0) + tx.amount_paid;
+        });
+        const totalRemainingByStudent = {};
+        for (const c of pendingDues) {
+            const challanRemaining = Math.max(0, parseFloat(c.amount) - parseFloat(c.paid_amount || 0));
+            totalRemainingByStudent[c.student_id] = (totalRemainingByStudent[c.student_id] || 0) + challanRemaining;
+        }
+        // Subtract what was just paid now
+        for (const sid of Object.keys(paidNowByStudent)) {
+            totalRemainingByStudent[sid] = Math.round(
+                Math.max(0, (totalRemainingByStudent[sid] || 0) - paidNowByStudent[sid]) * 100
+            ) / 100;
+        }
+
         const receiptsToInsert = [];
         let rIndex = 1;
         
         Object.values(studentGroups).forEach(grp => {
             receiptsToInsert.push({
-                receipt_number:    baseReceipt + '-' + rIndex, // Individual unique receipt number ending in -1, -2, etc.
+                receipt_number:    baseReceipt + '-' + rIndex,
                 student_id:        grp.student_id,
                 student_name:      grp.student_name,
                 roll_number:       grp.roll_number,
                 father_name:       grp.father_name,
                 class_name:        grp.class_name,
                 fee_lines:         grp.lines,
-                total_paid:        grp.total,     // The portion this student's challans absorbed
-                remaining:         memRemains[grp.student_id] || 0, // This student's independent remaining total
+                total_paid:        grp.total,
+                remaining:         totalRemainingByStudent[grp.student_id] || 0,
                 payment_method:    method,
-                payment_reference: refCombo, // Can be matched safely via backend
+                payment_reference: refCombo,
                 remarks:           remarks || 'Paid via Family Group',
                 collected_by:      collectorName || null,
                 school_id:         getCurrentSchoolId(),
@@ -986,14 +985,12 @@ async function submitPayment() {
         const { error: rctErr } = await db.from('receipts').insert(receiptsToInsert);
         if (rctErr) console.warn('Receipt save warning:', rctErr.message);
 
-        let totalFamilyDues = 0;
-        pendingDues.forEach(c => {
-            totalFamilyDues += parseFloat(c.amount) - parseFloat(c.paid_amount || 0);
-        });
-        const remainingGlobal = Math.max(0, totalFamilyDues - paying);
+        // Total family remaining across ALL dues
+        const totalFamilyRemaining = Object.values(totalRemainingByStudent)
+            .reduce((sum, amount) => sum + Number(amount || 0), 0);
 
         // Print combined physical receipt using UI grouping logic
-        printReceipt(baseReceipt, txRecords, paying, remainingGlobal, fine, discount, collectorName);
+        printReceipt(baseReceipt, txRecords, paying, totalFamilyRemaining, fine, discount, collectorName);
 
         // Reset & Refresh
         if(inputFine) inputFine.value    = '0';

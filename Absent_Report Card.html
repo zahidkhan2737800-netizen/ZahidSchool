@@ -72,6 +72,7 @@
     let currentRows = [];
     let cachedAdmissions = [];
     let cachedAbsentById = new Map();
+    let cachedActiveClassNames = [];
     let cacheLoaded = false;
 
     function escapeHtml(s) {
@@ -151,10 +152,10 @@
 
     function renderClassOptions(students) {
       const prev = classSelect.value;
-      const classes = Array.from(new Set((students || [])
+      const studentClasses = new Set((students || [])
         .map(s => String(s.applying_for_class || "").trim())
-        .filter(Boolean)))
-        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
+        .filter(Boolean));
+      const classes = cachedActiveClassNames.filter(c => studentClasses.has(c));
 
       classSelect.innerHTML = '<option value="">- All classes -</option>';
       classes.forEach(c => {
@@ -176,6 +177,26 @@
       }
 
       summary.textContent = "Loading students...";
+
+      let classesQ = db
+        .from("classes")
+        .select("class_name, section, display_order")
+        .eq("is_active", true)
+        .order("display_order", { ascending: true, nullsFirst: false })
+        .order("class_name", { ascending: true })
+        .order("section", { ascending: true });
+      classesQ = applySchoolScope(classesQ);
+
+      const { data: classRows, error: classesErr } = await classesQ;
+      if (classesErr) {
+        console.error(classesErr);
+        summary.innerHTML = '<span class="text-danger">Failed to load classes.</span>';
+        return false;
+      }
+
+      cachedActiveClassNames = [...new Set((classRows || [])
+        .map(c => `${c.class_name || ""} ${c.section || ""}`.trim())
+        .filter(Boolean))];
 
       // ── Step 1: Fetch admissions first to get active student IDs ──────────
       let admissionsQ = db
@@ -270,10 +291,13 @@
           return classOk && qOk;
         });
 
-        rowsBuilt.sort((a, b) =>
-          String(a.className || "").localeCompare(String(b.className || ""), undefined, { numeric: true, sensitivity: "base" }) ||
-          String(a.roll || "").localeCompare(String(b.roll || ""), undefined, { numeric: true, sensitivity: "base" })
-        );
+        const classOrder = new Map(cachedActiveClassNames.map((name, index) => [name, index]));
+        rowsBuilt.sort((a, b) => {
+          const aOrder = classOrder.has(a.className) ? classOrder.get(a.className) : Number.MAX_SAFE_INTEGER;
+          const bOrder = classOrder.has(b.className) ? classOrder.get(b.className) : Number.MAX_SAFE_INTEGER;
+          return aOrder - bOrder ||
+            String(a.roll || "").localeCompare(String(b.roll || ""), undefined, { numeric: true, sensitivity: "base" });
+        });
 
         return rowsBuilt;
       }

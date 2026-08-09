@@ -48,7 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchRecords();
 
     async function fetchRecords() {
-        inactiveBody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:2rem;">🔄 Fetching records...</td></tr>';
+        inactiveBody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:2rem;">🔄 Fetching records...</td></tr>';
         
         try {
             const filterValue = statusFilter.value;
@@ -96,14 +96,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
 
-            loadedRecords = filteredData;
+            const balancesByStudent = await loadRemainingDues(filteredData.map(student => student.id));
+            loadedRecords = filteredData.map(student => ({
+                ...student,
+                remainingDues: balancesByStudent[student.id] || 0
+            }));
             populateClassFilter();
             renderRecords();
 
         } catch (error) {
             console.error('Error fetching records:', error);
-            inactiveBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:2rem; color:red;">Failed to load data: ${escapeHtml(error.message)} <br>(Did you run the ALTER TABLE sql to add updated_at?)</td></tr>`;
+            inactiveBody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:2rem; color:red;">Failed to load data: ${escapeHtml(error.message)} <br>(Did you run the ALTER TABLE sql to add updated_at?)</td></tr>`;
         }
+    }
+
+    async function loadRemainingDues(studentIds) {
+        const balances = {};
+        const uniqueIds = [...new Set(studentIds.filter(Boolean))];
+
+        for (let index = 0; index < uniqueIds.length; index += 40) {
+            const batch = uniqueIds.slice(index, index + 40);
+            const { data, error } = await supabaseClient
+                .from('challans')
+                .select('student_id, amount, paid_amount')
+                .in('student_id', batch)
+                .in('status', ['Unpaid', 'Partially Paid'])
+                .limit(2000);
+            if (error) throw error;
+
+            (data || []).forEach(challan => {
+                const remaining = Math.max(0, Number(challan.amount || 0) - Number(challan.paid_amount || 0));
+                balances[challan.student_id] = (balances[challan.student_id] || 0) + remaining;
+            });
+        }
+        return balances;
     }
 
     function populateClassFilter() {
@@ -135,7 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         if (filteredData.length === 0) {
-            inactiveBody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">No matching records found.</td></tr>';
+            inactiveBody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:2rem; color:var(--text-muted);">No matching records found.</td></tr>';
             return;
         }
 
@@ -160,6 +186,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td>${escapeHtml(student.full_name || 'N/A')}</td>
                     <td>${escapeHtml(student.father_name || 'N/A')}</td>
                     <td>${escapeHtml(student.applying_for_class || 'N/A')}</td>
+                    <td class="remaining-dues${student.remainingDues <= 0 ? ' cleared' : ''}">Rs ${student.remainingDues.toLocaleString()}</td>
                     <td><span class="badge ${badgeClass}">${student.status}</span></td>
                     <td>${updateDateText}</td>
                     <td>

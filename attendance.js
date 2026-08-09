@@ -1,5 +1,6 @@
 // ─── State ───────────────────────────────────────────────────────────────────
 let allStudents       = [];      // Active admissions (fetched once)
+let activeClassNames  = [];      // Active classes in their configured display order
 let todayAttMap       = {};      // { student_id: {status, ...} } for selectedDate only
 let absenceCountMap   = {};      // { student_id: totalAbsences }  (only absent rows)
 let selectedDate      = '';
@@ -162,6 +163,25 @@ async function scopedQuery(table, selectCols, extraFilters = []) {
     return data || [];
 }
 
+async function loadActiveClasses() {
+    let q = window.supabaseClient
+        .from('classes')
+        .select('class_name, section, display_order')
+        .eq('is_active', true)
+        .order('display_order', { ascending: true, nullsFirst: false })
+        .order('class_name', { ascending: true })
+        .order('section', { ascending: true });
+
+    if (window.currentSchoolId) q = q.eq('school_id', window.currentSchoolId);
+
+    const { data, error } = await q;
+    if (error) throw error;
+
+    return [...new Set((data || [])
+        .map(c => `${c.class_name || ''} ${c.section || ''}`.trim())
+        .filter(Boolean))];
+}
+
 /** Paginated fetch for large datasets (used only for all-time absence counts). */
 async function paginatedQuery(table, selectCols, filters = []) {
     const PAGE = 1000;
@@ -203,7 +223,7 @@ function showLoader(visible) {
 async function loadDatabase() {
     showLoader(true);
     try {
-        const [studentsData, todayData, absentData] = await Promise.all([
+        const [studentsData, todayData, absentData, classNames] = await Promise.all([
             // 1 – Students (fetched once, never re-fetched)
             scopedQuery(
                 'admissions',
@@ -221,10 +241,12 @@ async function loadDatabase() {
                 'attendance',
                 'student_id',
                 [['status', 'Absent']]
-            )
+            ),
+            loadActiveClasses()
         ]);
 
         allStudents = studentsData;
+        activeClassNames = classNames;
 
         // Build today's lookup dict — only keep records for active students
         const activeIds = new Set(allStudents.map(s => s.id));
@@ -429,8 +451,8 @@ async function applyBulkStatus(status) {
 
 function populateClassFilter() {
     const select = document.getElementById('classFilter');
-    const classes = [...new Set(allStudents.map(s => s.applying_for_class).filter(Boolean))]
-        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    const studentClasses = new Set(allStudents.map(s => s.applying_for_class).filter(Boolean));
+    const classes = activeClassNames.filter(cls => studentClasses.has(cls));
 
     select.innerHTML = '<option value="All">📚 All Classes</option>';
     classes.forEach(cls => {
@@ -829,7 +851,12 @@ function generateThermalPrint() {
     `;
 
     let totalAbsent = 0;
-    const classes = Object.keys(absentByClass).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    const orderByClass = new Map(activeClassNames.map((name, index) => [name, index]));
+    const classes = Object.keys(absentByClass).sort((a, b) => {
+        const aOrder = orderByClass.has(a) ? orderByClass.get(a) : Number.MAX_SAFE_INTEGER;
+        const bOrder = orderByClass.has(b) ? orderByClass.get(b) : Number.MAX_SAFE_INTEGER;
+        return aOrder - bOrder || a.localeCompare(b, undefined, { numeric: true });
+    });
     classes.forEach(cls => {
         const count = absentByClass[cls];
         totalAbsent += count;

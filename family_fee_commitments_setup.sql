@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS public.family_fee_commitments (
     family_name TEXT NOT NULL,
     members JSONB NOT NULL DEFAULT '[]'::jsonb,
     days_promised INTEGER NOT NULL CHECK (days_promised >= 0),
+    month_key TEXT NOT NULL CHECK (month_key ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'),
     commitment_made_on DATE NOT NULL,
     due_date DATE NOT NULL,
     created_by_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
@@ -25,6 +26,9 @@ CREATE INDEX IF NOT EXISTS idx_family_fee_commitments_school_due
 
 CREATE INDEX IF NOT EXISTS idx_family_fee_commitments_school_status_due
     ON public.family_fee_commitments (school_id, status, due_date);
+
+CREATE INDEX IF NOT EXISTS idx_family_fee_commitments_school_month_due
+    ON public.family_fee_commitments (school_id, month_key, due_date);
 
 ALTER TABLE public.family_fee_commitments ENABLE ROW LEVEL SECURITY;
 

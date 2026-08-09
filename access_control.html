@@ -7,6 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -158,6 +159,77 @@
         .perm-table tr:nth-child(even) { background: #f8fafc; }
         .perm-table tr:hover td { background-color: #e0f2fe; }
         .page-icon { font-size: 1.2rem; margin-right: 0.5rem; }
+
+        .permission-role-heading {
+            margin-bottom: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            color: #64748b;
+            font-size: 0.92rem;
+        }
+        .categorized-permissions { min-width: 760px; }
+        .categorized-permissions .perm-category-row td {
+            padding: 11px 15px;
+            background: linear-gradient(135deg, #dbeafe, #eff6ff) !important;
+            color: #1e3a8a;
+            border-color: #bfdbfe;
+            text-align: left;
+        }
+        .perm-category-name {
+            display: inline-flex;
+            align-items: center;
+            gap: 9px;
+            font-size: 0.92rem;
+            font-weight: 800;
+        }
+        .perm-category-name i {
+            width: 27px;
+            height: 27px;
+            display: inline-grid;
+            place-items: center;
+            border-radius: 8px;
+            background: var(--cat-accent, #2563eb);
+            color: white;
+            font-size: 0.76rem;
+        }
+        .perm-category-count {
+            float: right;
+            margin-top: 4px;
+            color: #64748b;
+            font-size: 0.72rem;
+            font-weight: 700;
+        }
+        .perm-page-name {
+            display: flex;
+            align-items: center;
+            gap: 11px;
+            font-weight: 700;
+        }
+        .perm-page-icon {
+            width: 30px;
+            height: 30px;
+            flex: 0 0 30px;
+            display: inline-grid;
+            place-items: center;
+            border-radius: 9px;
+            background: color-mix(in srgb, var(--cat-accent, #2563eb) 13%, white);
+            color: var(--cat-accent, #2563eb);
+            border: 1px solid color-mix(in srgb, var(--cat-accent, #2563eb) 28%, white);
+            font-size: 0.78rem;
+        }
+        .categorized-permissions [data-category="students"] { --cat-accent:#60a5fa; }
+        .categorized-permissions [data-category="quality"] { --cat-accent:#fbbf24; }
+        .categorized-permissions [data-category="attendance_tools"] { --cat-accent:#2dd4bf; }
+        .categorized-permissions [data-category="fee_contact"] { --cat-accent:#c084fc; }
+        .categorized-permissions [data-category="fee_reports"] { --cat-accent:#38bdf8; }
+        .categorized-permissions [data-category="whatsapp"] { --cat-accent:#4ade80; }
+        .categorized-permissions [data-category="fees"] { --cat-accent:#fb923c; }
+        .categorized-permissions [data-category="finance"] { --cat-accent:#34d399; }
+        .categorized-permissions [data-category="staff"] { --cat-accent:#818cf8; }
+        .categorized-permissions [data-category="examination"] { --cat-accent:#f472b6; }
+        .categorized-permissions [data-category="inventory"] { --cat-accent:#facc15; }
+        .categorized-permissions [data-category="admin"] { --cat-accent:#a78bfa; }
 
         /* Toggle Switch */
         .toggle {
@@ -374,25 +446,25 @@
         <!-- Header similar to students.html -->
         <header style="display: flex; justify-content: space-between; align-items: center; background: white; padding: 1rem 1.5rem; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 1.5rem; border: 1px solid #e2e8f0; flex-wrap: wrap; gap: 1rem;">
             <div style="display: flex; align-items: center; gap: 1rem;">
-                <div style="font-size: 2rem; background: #e0f2fe; padding: 0.5rem; border-radius: 8px;">🔐</div>
+                <div style="width:46px;height:46px;display:grid;place-items:center;font-size:1.35rem;background:#dbeafe;color:#2563eb;border-radius:10px;"><i class="fas fa-lock"></i></div>
                 <div>
                     <h1 style="margin: 0; font-size: 1.4rem; color: #0f172a; font-weight: 700;">Access Control Panel</h1>
                     <p style="margin: 0.2rem 0 0; font-size: 0.9rem; color: #64748b;">Manage user roles, page permissions, and system access</p>
                 </div>
             </div>
             <div class="nav-links">
-                <a href="dashboard.html">📊 Dashboard</a>
-                <a href="index.html">📝 Admission Form</a>
-                <a href="students.html">👥 Students</a>
-                <a href="classes.html">🏫 Classes</a>
-                <a href="fee_heads.html">⚙️ Fee Configuration</a>
+                <a href="dashboard.html"><i class="fas fa-chart-line"></i> Dashboard</a>
+                <a href="index.html"><i class="fas fa-file-signature"></i> Admission Form</a>
+                <a href="students.html"><i class="fas fa-user-graduate"></i> Students</a>
+                <a href="classes.html"><i class="fas fa-chalkboard"></i> Classes</a>
+                <a href="fee_heads.html"><i class="fas fa-cogs"></i> Fee Configuration</a>
             </div>
         </header>
 
         <!-- Tabs -->
         <div class="tab-bar">
-            <button class="tab-btn active" data-tab="permissions">📋 Permissions Matrix</button>
-            <button class="tab-btn" data-tab="users">👤 User Management</button>
+            <button class="tab-btn active" data-tab="permissions"><i class="fas fa-list-check"></i> Permissions Matrix</button>
+            <button class="tab-btn" data-tab="users"><i class="fas fa-users-cog"></i> User Management</button>
         </div>
 
         <!-- Tab 1: Permissions Matrix -->
@@ -401,7 +473,7 @@
                 <p style="color: #64748b; text-align: center; padding: 3rem; background: white; border-radius: 12px; border: 1px solid #e2e8f0;">Loading permissions...</p>
             </div>
             <div class="save-bar">
-                <button class="btn-save" id="btnSavePerms" disabled>💾 Save All Changes</button>
+                <button class="btn-save" id="btnSavePerms" disabled><i class="fas fa-save"></i> Save All Changes</button>
             </div>
         </div>
 
@@ -478,7 +550,7 @@
         <div class="alert-toast" id="alertToast"></div>
     </div>
 
-    <script src="auth.js"></script>
-    <script src="access_control.js?v=2"></script>
+    <script src="auth.js?v=6"></script>
+    <script src="access_control.js?v=8"></script>
 </body>
 </html>

@@ -118,6 +118,8 @@
         .badge.pending { background: #FDE68A; color: #92400E; }
         .badge.withdrawn { background: #FECACA; color: #991B1B; }
         .badge.passed-out { background: #D1FAE5; color: #065F46; }
+        .remaining-dues { color: #b91c1c; font-weight: 700; white-space: nowrap; }
+        .remaining-dues.cleared { color: #15803d; }
     </style>
 </head>
 <body>
@@ -197,19 +199,20 @@
                             <th>Student Name</th>
                             <th>Father Name</th>
                             <th>Class</th>
+                            <th>Remaining Dues</th>
                             <th>Status</th>
                             <th>Last Status Update</th>
                             <th>Change Status</th>
                         </tr>
                     </thead>
                     <tbody id="inactiveBody">
-                        <tr><td colspan="6" style="text-align:center; padding:2rem;">Loading records...</td></tr>
+                        <tr><td colspan="8" style="text-align:center; padding:2rem;">Loading records...</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
     <script src="auth.js"></script>
-    <script src="pending_withdrawn.js"></script>
+    <script src="pending_withdrawn.js?v=2"></script>
 </body>
 </html>

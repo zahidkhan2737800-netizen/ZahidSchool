@@ -82,10 +82,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function loadClasses() {
     try {
-        const { data, error } = await window.supabaseClient
+        let query = window.supabaseClient
             .from('classes')
-            .select('class_name, section')
-            .order('class_name');
+            .select('class_name, section, display_order')
+            .eq('is_active', true)
+            .order('display_order', { ascending: true, nullsFirst: false })
+            .order('class_name', { ascending: true })
+            .order('section', { ascending: true });
+
+        if (window.currentSchoolId) {
+            query = query.eq('school_id', window.currentSchoolId);
+        }
+
+        const { data, error } = await query;
             
         if (error) throw error;
         

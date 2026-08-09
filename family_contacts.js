@@ -16,6 +16,7 @@ let currentCommitmentMobile = null;
 let familyCommitmentsMap = {}; // family_mobile -> pending dated commitments
 let teacherFeeSelectedStudentIds = new Set(); // shared Supabase TeacherFee rows
 let familyDisplayNamesMap = new Map(); // normalized mobile -> selected family name
+let familyPaymentsMap = {}; // family_mobile -> receipt-level payments for selected month
 
 const STATUS_COLORS = {
     'C': 'status-C',
@@ -30,6 +31,85 @@ function toLocalYmd(d) {
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
+}
+
+function selectedMonthUtcRange(monthKey) {
+    const [year, month] = String(monthKey || '').split('-').map(Number);
+    const karachiOffsetMs = 5 * 60 * 60 * 1000;
+    return {
+        start: new Date(Date.UTC(year, month - 1, 1) - karachiOffsetMs).toISOString(),
+        end: new Date(Date.UTC(year, month, 1) - karachiOffsetMs).toISOString()
+    };
+}
+
+async function loadFamilyPaymentsForMonth() {
+    const studentToFamily = new Map();
+    allFamilies.forEach(family => {
+        (family.members || []).forEach(student => {
+            if (student.id) studentToFamily.set(String(student.id), String(family.mobile || '').trim());
+        });
+    });
+    const studentIds = [...studentToFamily.keys()];
+    if (!studentIds.length) return {};
+
+    const { start, end } = selectedMonthUtcRange(currentMonth);
+    const transactions = [];
+    for (let index = 0; index < studentIds.length; index += 40) {
+        let query = window.supabaseClient
+            .from('transactions')
+            .select('student_id, receipt_number, amount_paid, created_at')
+            .in('student_id', studentIds.slice(index, index + 40))
+            .gt('amount_paid', 0)
+            .gte('created_at', start)
+            .lt('created_at', end)
+            .limit(2000);
+        if (window.currentSchoolId) query = query.eq('school_id', window.currentSchoolId);
+        const { data, error } = await query;
+        if (error) throw error;
+        if (data) transactions.push(...data);
+    }
+
+    const receiptGroups = new Map();
+    transactions.forEach(transaction => {
+        const mobile = studentToFamily.get(String(transaction.student_id));
+        if (!mobile) return;
+        const rawReceipt = String(transaction.receipt_number || 'PAYMENT');
+        const parts = rawReceipt.split('-');
+        const receiptBase = /^(FAM|RCT)$/.test(parts[0]) && parts.length >= 2
+            ? parts.slice(0, 2).join('-')
+            : rawReceipt;
+        const key = `${mobile}|${receiptBase}`;
+        if (!receiptGroups.has(key)) {
+            receiptGroups.set(key, { mobile, receipt: receiptBase, amount: 0, created_at: transaction.created_at });
+        }
+        const group = receiptGroups.get(key);
+        group.amount += Number(transaction.amount_paid || 0);
+        if (new Date(transaction.created_at) > new Date(group.created_at)) group.created_at = transaction.created_at;
+    });
+
+    const result = {};
+    receiptGroups.forEach(payment => {
+        if (!result[payment.mobile]) result[payment.mobile] = [];
+        result[payment.mobile].push(payment);
+    });
+    Object.values(result).forEach(payments => payments.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
+    return result;
+}
+
+function generateFamilyPaymentSummary(familyMobile) {
+    const payments = familyPaymentsMap[String(familyMobile || '').trim()] || [];
+    if (!payments.length) return '';
+    const visible = payments.slice(0, 3);
+    const chips = visible.map(payment => {
+        const date = new Date(payment.created_at).toLocaleDateString('en-GB', {
+            day: '2-digit', month: '2-digit', timeZone: 'Asia/Karachi'
+        }).replace('/', '-');
+        return `<span class="family-payment-chip" title="${escapeFamilyContactHtml(payment.receipt)}"><i class="fas fa-coins"></i> Rs ${Number(payment.amount).toLocaleString()} (${date})</span>`;
+    }).join('');
+    const more = payments.length > visible.length
+        ? `<span class="family-payment-more">+${payments.length - visible.length} more</span>`
+        : '';
+    return `<div class="family-payment-summary">${chips}${more}</div>`;
 }
 
 // ─── Toast Notifications ──────────────────────────────────────────────────────
@@ -358,6 +438,7 @@ async function saveCommitment() {
             class_name: member.applying_for_class
         })),
         days_promised: days,
+        month_key: currentMonth,
         commitment_made_on: madeOn,
         due_date: dueDate,
         created_by_user_id: window.currentUser?.id || null,
@@ -563,14 +644,16 @@ async function loadData() {
     tbody.innerHTML = '';
     
     try {
-        const contactsRequest = window.supabaseClient
+        let contactsRequest = window.supabaseClient
             .from('family_contacts')
             .select('*')
             .eq('month_key', currentMonth);
+        if (window.currentSchoolId) contactsRequest = contactsRequest.eq('school_id', window.currentSchoolId);
 
         let commitmentsRequest = window.supabaseClient
             .from('family_fee_commitments')
-            .select('id, family_mobile, family_name, members, days_promised, commitment_made_on, due_date, created_by, created_at')
+            .select('id, family_mobile, family_name, members, days_promised, month_key, commitment_made_on, due_date, created_by, created_at')
+            .eq('month_key', currentMonth)
             .eq('status', 'Pending')
             .order('due_date', { ascending: true })
             .order('created_at', { ascending: true });
@@ -581,7 +664,15 @@ async function loadData() {
             .select('student_id');
         if (window.currentSchoolId) teacherFeeRowsRequest = teacherFeeRowsRequest.eq('school_id', window.currentSchoolId);
 
-        const [contactsResult, commitmentsResult, teacherFeeRowsResult] = await Promise.all([contactsRequest, commitmentsRequest, teacherFeeRowsRequest]);
+        const [contactsResult, commitmentsResult, teacherFeeRowsResult, paymentsResult] = await Promise.all([
+            contactsRequest,
+            commitmentsRequest,
+            teacherFeeRowsRequest,
+            loadFamilyPaymentsForMonth().catch(error => {
+                console.warn('Could not load family payment summaries:', error);
+                return {};
+            })
+        ]);
         const contacts = contactsResult.data;
         const error = contactsResult.error;
 
@@ -607,11 +698,13 @@ async function loadData() {
 
         teacherFeeSelectedStudentIds = new Set((teacherFeeRowsResult.data || []).map(row => String(row.student_id)));
         if (teacherFeeRowsResult.error) console.warn('Could not load TeacherFee selections:', teacherFeeRowsResult.error);
+        familyPaymentsMap = paymentsResult || {};
     } catch (err) {
         console.warn("family_contacts table might not exist yet. Using empty state.", err);
         monthData = {};
         familyCommitmentsMap = {};
         teacherFeeSelectedStudentIds = new Set();
+        familyPaymentsMap = {};
     }
 
     document.getElementById('loader').style.display = 'none';
@@ -720,12 +813,14 @@ function renderTable() {
             }).reverse().join('');
             return `<div style="display:flex;align-items:center;gap:4px;padding:2px 0;">• <span style="font-size:0.85rem;color:#475569;flex:1;">${m.full_name} <b>(${m.roll_number})</b></span><div style="display:flex;gap:2px;">${pills}</div></div>`;
         }).join('');
+        const paymentSummaryHtml = generateFamilyPaymentSummary(fam.mobile);
 
         tr.innerHTML = `
             <td class="col-roll">${fam.familyNo || '—'}</td>
             <td class="col-name" style="padding-left:0.5rem; vertical-align: top;">
                 <strong style="color:#0f172a; font-size:1.05rem;">${fam.primaryName}</strong><br>
                 <small style="color:#64748b;font-weight:600;">${fam.mobile}</small>
+                ${paymentSummaryHtml}
                 <div style="margin-top: 6px; border-top: 1px dashed #cbd5e1; padding-top: 4px;">
                     ${membersHtml}
                 </div>
@@ -780,7 +875,14 @@ function renderTable() {
 
 // ─── Generators & Helpers ────────────────────────────────────────────────────
 function getEmptyContactState(familyMobile) {
-    return { family_mobile: familyMobile, month_key: currentMonth, pinned: false, complaint: false, row_status: 'Pending' };
+    return {
+        school_id: window.currentSchoolId || null,
+        family_mobile: familyMobile,
+        month_key: currentMonth,
+        pinned: false,
+        complaint: false,
+        row_status: 'Pending'
+    };
 }
 
 function generateContactCell(familyMobile, idx, data) {
@@ -1248,12 +1350,19 @@ async function saveContactState(familyMobile, fieldsToUpdate) {
     Object.assign(monthData[familyMobile], fieldsToUpdate);
 
     // 2. Perform DB Upsert
-    const payload = Object.assign({}, monthData[familyMobile]);
+    const payload = Object.assign({}, monthData[familyMobile], {
+        school_id: window.currentSchoolId || monthData[familyMobile].school_id || null
+    });
+
+    if (!payload.school_id) {
+        console.error('Save failed: school could not be identified.');
+        return;
+    }
 
     try {
         const { error } = await window.supabaseClient
             .from('family_contacts')
-            .upsert(payload, { onConflict: 'family_mobile, month_key' });
+            .upsert(payload, { onConflict: 'school_id,family_mobile,month_key' });
         
         if (error) {
             console.error("Upsert failed:", error);

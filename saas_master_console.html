@@ -219,6 +219,15 @@
             </div>
         </div>
 
+        <!-- School Subscription Access -->
+        <div class="panel" id="schoolAccessPanel">
+            <h2><i class="fas fa-layer-group" style="color:var(--primary);"></i> School Subscription Access</h2>
+            <p style="margin:-0.35rem 0 1.15rem;color:#64748b;font-size:0.88rem;">
+                Build each school's paid package by enabling complete sections or individual HTML pages. Dashboard access always remains available.
+            </p>
+            <div id="schoolAccessManager"></div>
+        </div>
+
         <!-- Campus Management -->
         <div class="panel">
             <h2><i class="fas fa-map-marker-alt" style="color:var(--primary);"></i> Campus Management</h2>
@@ -304,7 +313,8 @@
 
     <div class="toast" id="toast"></div>
 
-    <script src="auth.js"></script>
+    <script src="auth.js?v=6"></script>
+    <script src="school_access_manager.js?v=1"></script>
     <script>
         let allSchools = [];
         let allRoles = [];
@@ -314,6 +324,7 @@
             await checkSuperAdmin();
             await loadMetadata();
             await loadSchools();
+            await window.SchoolAccessManager.mount('schoolAccessManager');
             wireCampusEvents();
             await loadCampusesForSelectedSchool();
             await loadUsers();
@@ -582,6 +593,7 @@
                         </span>
                     </td>
                     <td style="text-align:right; white-space:nowrap;">
+                        <button class="btn-success-sm" onclick="manageSchoolAccess('${s.id}')" style="margin-right:0.3rem;background:#2563eb;"><i class="fas fa-layer-group"></i> Access</button>
                         <button class="btn-success-sm" onclick='openEditModal(${safeData})' style="margin-right:0.3rem;"><i class="fas fa-edit"></i> Edit</button>
                         ${s.is_active 
                             ? `<button class="btn-danger-sm" onclick="toggleStatus('${s.id}', false)"><i class="fas fa-ban"></i> Suspend</button>`
@@ -592,6 +604,18 @@
                 </tr>
                 `;
             }).join('');
+        }
+
+        window.manageSchoolAccess = function(schoolId) {
+            const panel = document.getElementById('schoolAccessPanel');
+            const select = panel?.querySelector('[data-sam="school"]');
+            if (!select) {
+                showToast('School access manager is still loading.', 'error');
+                return;
+            }
+            select.value = schoolId;
+            select.dispatchEvent(new Event('change'));
+            panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
         document.getElementById('btnSaveSchool').addEventListener('click', async () => {

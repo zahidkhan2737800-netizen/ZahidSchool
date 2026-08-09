@@ -520,6 +520,7 @@
     <script>
         const db = window.supabaseClient;
         let allStudents = [];
+        let activeClassNames = [];
         let currentSchoolId = null;
         let currentReportId = null;
 
@@ -567,20 +568,32 @@
         }
 
         async function loadClassesAndStudents() {
-            let q = db.from('admissions').select('id, full_name, roll_number, applying_for_class, father_name, photo_url').eq('status', 'Active');
-            if (currentSchoolId) q = q.eq('school_id', currentSchoolId);
+            let studentsQ = db.from('admissions').select('id, full_name, roll_number, applying_for_class, father_name, photo_url').eq('status', 'Active');
+            let classesQ = db.from('classes')
+                .select('class_name, section, display_order')
+                .eq('is_active', true)
+                .order('display_order', { ascending: true, nullsFirst: false })
+                .order('class_name', { ascending: true })
+                .order('section', { ascending: true });
 
-            const { data, error } = await q;
-            if (error) {
-                console.error(error);
+            if (currentSchoolId) {
+                studentsQ = studentsQ.eq('school_id', currentSchoolId);
+                classesQ = classesQ.eq('school_id', currentSchoolId);
+            }
+
+            const [studentsResult, classesResult] = await Promise.all([studentsQ, classesQ]);
+            if (studentsResult.error || classesResult.error) {
+                console.error(studentsResult.error || classesResult.error);
                 return;
             }
-            allStudents = data || [];
+            allStudents = studentsResult.data || [];
+            activeClassNames = [...new Set((classesResult.data || [])
+                .map(c => `${c.class_name || ''} ${c.section || ''}`.trim())
+                .filter(Boolean))];
 
-            const classes = [...new Set(allStudents.map(s => s.applying_for_class).filter(Boolean))].sort();
             const classSel = document.getElementById('classSelect');
             const printClassSel = document.getElementById('printClassSelect');
-            classes.forEach(c => {
+            activeClassNames.forEach(c => {
                 const o = document.createElement('option');
                 o.value = c; o.textContent = c;
                 classSel.appendChild(o);
@@ -1304,8 +1317,8 @@
             // Pre-select current term if one is chosen
             if (termSelect.value) copyTerm.value = termSelect.value;
 
-            // Populate class lists from all students
-            const classes = [...new Set(allStudents.map(s => s.applying_for_class).filter(Boolean))].sort();
+            // Populate active classes in their configured display order
+            const classes = activeClassNames;
             const buildOpts = (sel) => {
                 sel.innerHTML = '<option value="">- Select Class -</option>';
                 classes.forEach(c => {

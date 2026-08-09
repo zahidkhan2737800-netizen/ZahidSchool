@@ -35,6 +35,8 @@ async function loadPayrollData() {
     tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem;"><i class="fas fa-spinner fa-spin"></i> Processing Salary Data...</td></tr>';
 
     try {
+        const schoolId = window.currentSchoolId;
+        if (!schoolId) throw new Error('School could not be identified.');
         // Parse date boundaries
         const [year, month] = monthInput.split('-');
         const startDate = `${year}-${month}-01`;
@@ -48,6 +50,7 @@ async function loadPayrollData() {
         const { data: staffData, error: staffErr } = await window.supabaseClient
             .from('staff')
             .select('id, full_name, employee_id, base_salary')
+            .eq('school_id', schoolId)
             .eq('status', 'Active')
             .order('employee_id');
         if (staffErr) throw staffErr;
@@ -56,6 +59,7 @@ async function loadPayrollData() {
         const { data: attData, error: attErr } = await window.supabaseClient
             .from('staff_attendance')
             .select('staff_id')
+            .eq('school_id', schoolId)
             .eq('status', 'Absent')
             .gte('date', startDate)
             .lte('date', endDate);
@@ -73,6 +77,7 @@ async function loadPayrollData() {
         const { data: payData, error: payErr } = await window.supabaseClient
             .from('staff_payroll')
             .select('*')
+            .eq('school_id', schoolId)
             .eq('salary_month', currentMonthStr);
         if (payErr) throw payErr;
         
@@ -173,6 +178,7 @@ async function saveAllChallans() {
         if (item.status !== 'Paid') {
             const netPayable = Math.max(0, item.base_salary - item.deduction - item.advance);
             toUpsert.push({
+                school_id: window.currentSchoolId,
                 staff_id: item.staff_id,
                 salary_month: currentMonthStr,
                 base_salary: item.base_salary,

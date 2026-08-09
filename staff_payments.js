@@ -26,6 +26,8 @@ function initPaymentsModule() {
 
 async function loadChallans() {
     try {
+        const schoolId = window.currentSchoolId;
+        if (!schoolId) throw new Error('School could not be identified.');
         // Fetch payroll slips JOINED with staff info
         const { data, error } = await window.supabaseClient
             .from('staff_payroll')
@@ -33,6 +35,7 @@ async function loadChallans() {
                 id, salary_month, base_salary, leave_deductions, advance_given, net_payable, status, payment_date,
                 staff ( id, full_name, employee_id )
             `)
+            .eq('school_id', schoolId)
             .order('created_at', { ascending: false });
 
         if (error) throw error;
@@ -104,19 +107,23 @@ window.processPayment = async function(payrollId, netPayableAmount, monthStr, st
     }
 
     try {
+        const schoolId = window.currentSchoolId;
+        if (!schoolId) throw new Error('School could not be identified.');
         const today = new Date().toISOString().split('T')[0];
 
         // 1. Mark Payroll as Paid
         const { error: payErr } = await window.supabaseClient
             .from('staff_payroll')
             .update({ status: 'Paid', payment_date: today })
-            .eq('id', payrollId);
+            .eq('id', payrollId)
+            .eq('school_id', schoolId);
         if (payErr) throw payErr;
 
         // 2. Inject into Finance Expenses Table (Cross-Module Sync)
         const { error: expErr } = await window.supabaseClient
             .from('expenses')
             .insert({
+                school_id: schoolId,
                 category: 'Salaries',
                 amount: netPayableAmount,
                 expense_date: today,
@@ -149,11 +156,14 @@ window.deleteChallan = async function(id, name, month, status) {
     }
 
     try {
+        const schoolId = window.currentSchoolId;
+        if (!schoolId) throw new Error('School could not be identified.');
         // 1. Delete the payroll challan itself
         const { error } = await window.supabaseClient
             .from('staff_payroll')
             .delete()
-            .eq('id', id);
+            .eq('id', id)
+            .eq('school_id', schoolId);
         if (error) throw error;
 
         // 2. If it was Paid, cascade-delete the matching expense record
@@ -161,7 +171,8 @@ window.deleteChallan = async function(id, name, month, status) {
             const { error: expErr } = await window.supabaseClient
                 .from('expenses')
                 .delete()
-                .eq('reference_id', id);
+                .eq('reference_id', id)
+                .eq('school_id', schoolId);
 
             if (expErr) {
                 console.warn('Challan deleted, but expense cleanup failed:', expErr);

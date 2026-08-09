@@ -16,6 +16,8 @@
         .choice-print { display: none; font-weight: 800; color: #111827; }
         .remove-student-btn { border: 0; border-radius: 7px; padding: 6px 8px; background: #fee2e2; color: #b91c1c; font-size: .76rem; font-weight: 800; cursor: pointer; }
         .remove-student-btn:hover { background: #dc2626; color: #fff; }
+        .remove-student-btn.paid { background: #15803d; color: #fff; }
+        .remove-student-btn.paid:hover { background: #166534; }
         .btn-danger { border: 0; border-radius: 8px; background: #dc2626; color: #fff; font-weight: 700; padding: .68rem 1rem; cursor: pointer; }
         .btn-danger:hover { background: #b91c1c; }
         .btn-unfilled { border: 1px solid #f59e0b; border-radius: 8px; background: #fffbeb; color: #b45309; font-weight: 800; padding: .68rem .9rem; cursor: pointer; white-space: nowrap; }
@@ -24,7 +26,27 @@
         .class-cell { color: #4338ca; font-weight: 800; }
         .commitment-date { display: inline-block; min-width: 52px; padding: 3px 6px; border-radius: 999px; background: #eff6ff; color: #1d4ed8; font-size: .76rem; font-weight: 900; text-align: center; }
         .commitment-date.none { background: transparent; color: #94a3b8; }
+        .commitment-cell { display: flex; align-items: center; gap: 4px; }
+        .teacher-commitment-btn { border: 0; border-radius: 7px; padding: 4px 7px; background: #2563eb; color: #fff; font-size: .72rem; font-weight: 900; cursor: pointer; }
+        .teacher-commitment-btn:hover { background: #1d4ed8; }
+        .teacher-commitment-overlay { display: none; position: fixed; inset: 0; z-index: 4500; background: rgba(15,23,42,.2); align-items: flex-start; justify-content: flex-end; padding: 76px 24px 24px; }
+        .teacher-commitment-overlay.open { display: flex; }
+        .teacher-commitment-dialog { width: min(350px, calc(100vw - 32px)); padding: 16px; border: 1px solid #bfdbfe; border-radius: 14px; background: #fff; box-shadow: 0 18px 45px rgba(15,23,42,.24); }
+        .teacher-commitment-dialog h3 { margin: 0; font-size: 1.08rem; }
+        .teacher-commitment-student { margin: 5px 0 14px; color: #475569; font-size: .86rem; font-weight: 700; }
+        .teacher-commitment-input { width: 100%; padding: 11px 12px; border: 2px solid #bfdbfe; border-radius: 9px; font-size: 1.05rem; font-weight: 800; outline: none; }
+        .teacher-commitment-input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+        .teacher-commitment-preview { margin-top: 10px; padding: 10px; border-radius: 9px; background: #eff6ff; color: #1e3a8a; font-size: .84rem; line-height: 1.5; }
+        .teacher-commitment-actions { display: flex; justify-content: flex-end; gap: 7px; margin-top: 13px; }
+        .teacher-commitment-actions button { border: 0; border-radius: 8px; padding: 9px 13px; font-weight: 800; cursor: pointer; }
+        .teacher-commitment-cancel { background: #e2e8f0; color: #475569; }
+        .teacher-commitment-save { background: #2563eb; color: #fff; }
+        .teacher-commitment-save:disabled { opacity: .6; cursor: wait; }
         .remaining-cell { color: #b91c1c; font-weight: 900; white-space: nowrap; text-align: right; }
+        .payment-made-row td { background: #dcfce7 !important; border-bottom-color: #86efac !important; }
+        .payment-made-row:hover td { background: #bbf7d0 !important; }
+        .payment-made-row .student-name { color: #166534; }
+        .payment-amount { display: block; margin-top: 2px; color: #15803d; font-size: .72rem; font-weight: 900; }
         #teacherFeeToast { position: fixed; top: 18px; right: 18px; z-index: 5000; max-width: 360px; padding: 11px 15px; border-radius: 9px; background: #dcfce7; color: #166534; border: 1px solid #86efac; box-shadow: 0 8px 24px rgba(15,23,42,.18); font-weight: 700; display: none; }
         #teacherFeeToast.error { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
         @media (max-width: 1100px) {
@@ -86,6 +108,7 @@
             <div class="card"><span class="lbl">Student Rows</span><strong id="teacherStudentCount">0</strong></div>
             <div class="card"><span class="lbl">Classes</span><strong id="teacherClassCount">0</strong></div>
             <div class="card"><span class="lbl">Rows With Selection</span><strong id="teacherSelectedCount">0</strong></div>
+            <div class="card"><span class="lbl">Payments Made</span><strong id="teacherPaidCount">0</strong></div>
         </section>
 
         <section class="table-wrap">
@@ -115,7 +138,22 @@
         </section>
     </div>
 
+    <div id="teacherCommitmentModal" class="teacher-commitment-overlay" aria-hidden="true">
+        <section class="teacher-commitment-dialog" role="dialog" aria-modal="true" aria-labelledby="teacherCommitmentTitle">
+            <h3 id="teacherCommitmentTitle">Save Fee Commitment</h3>
+            <p id="teacherCommitmentStudent" class="teacher-commitment-student"></p>
+            <label for="teacherCommitmentDays" style="display:block;font-size:.82rem;font-weight:800;color:#334155;margin-bottom:5px;">Days promised</label>
+            <input id="teacherCommitmentDays" class="teacher-commitment-input" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="0, 1, 2, 3...">
+            <p style="margin:6px 0 0;color:#64748b;font-size:.77rem;">0 = today, 1 = tomorrow, 2 = two days later</p>
+            <div id="teacherCommitmentPreview" class="teacher-commitment-preview">Enter the number of days.</div>
+            <div class="teacher-commitment-actions">
+                <button id="teacherCommitmentCancel" type="button" class="teacher-commitment-cancel">Cancel</button>
+                <button id="teacherCommitmentSave" type="button" class="teacher-commitment-save">Save</button>
+            </div>
+        </section>
+    </div>
+
     <script src="auth.js"></script>
-    <script src="TeacherFee.js?v=10"></script>
+    <script src="TeacherFee.js?v=12"></script>
 </body>
 </html>

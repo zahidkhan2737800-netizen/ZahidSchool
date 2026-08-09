@@ -86,6 +86,8 @@ CREATE TABLE IF NOT EXISTS classes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   class_name TEXT NOT NULL,
   section TEXT NOT NULL,
+  display_order INTEGER NOT NULL CHECK (display_order > 0),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(class_name, section)
 );

@@ -5,16 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <title>Customize Quick Actions - Zahid School</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="dashboard new.css">
+    <link rel="stylesheet" href="dashboard new.css?v=13">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         .quick-actions-settings {
-            max-width: 800px;
-            margin: 2rem auto;
+            width: calc(100% - 2rem);
+            max-width: 1400px;
+            margin: 1.5rem auto;
             background: white;
-            padding: 2rem;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            padding: clamp(1.5rem, 2.5vw, 2.5rem);
+            border: 1px solid #dbe4f0;
+            border-radius: 18px;
+            box-shadow: 0 14px 40px rgba(15, 23, 42, 0.09);
         }
         .qa-header {
             display: flex;
@@ -41,6 +43,17 @@
             cursor: pointer;
             transition: all 0.2s ease;
         }
+        .qa-actions { display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap; justify-content:flex-end; }
+        .qa-selected-count {
+            padding: 0.55rem 0.8rem;
+            border: 1px solid #bfdbfe;
+            border-radius: 999px;
+            background: #eff6ff;
+            color: #1d4ed8;
+            font-size: 0.8rem;
+            font-weight: 800;
+            white-space: nowrap;
+        }
         .btn-cancel {
             background: #f1f5f9;
             color: #475569;
@@ -66,7 +79,7 @@
         }
         .qa-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(245px, 1fr));
             gap: 1rem;
         }
         .qa-item {
@@ -133,6 +146,12 @@
             display: none;
             text-align: right;
         }
+        @media (max-width: 760px) {
+            .quick-actions-settings { width:100%; margin:0; padding:1rem; border-radius:0; }
+            .qa-header { align-items:flex-start; flex-direction:column; }
+            .qa-actions { width:100%; justify-content:flex-start; }
+            .qa-grid { grid-template-columns:1fr; }
+        }
     </style>
 </head>
 <body>
@@ -146,23 +165,24 @@
             <div class="qa-header">
                 <div class="qa-title">
                     <h2>Customize Quick Actions</h2>
-                    <p>Select up to 5 shortcuts to pin to your dashboard header.</p>
+                    <p>Select up to 10 shortcuts to pin to your dashboard header.</p>
                 </div>
                 <div class="qa-actions">
+                    <div id="qaSelectionCount" class="qa-selected-count">0 of 10 selected</div>
                     <button class="btn-cancel" onclick="window.location.href='dashboard.html'">Cancel</button>
                     <button class="btn-save" onclick="saveQuickActions()">Save Changes</button>
                 </div>
             </div>
-            <div id="qaLimitMsg" class="qa-limit-msg"><i class="fas fa-exclamation-circle"></i> You can only select up to 5 quick actions.</div>
+            <div id="qaLimitMsg" class="qa-limit-msg"><i class="fas fa-exclamation-circle"></i> You can only select up to 10 quick actions.</div>
             <div id="qaContainer">
                 <div style="text-align:center; padding:3rem; color:#64748b;"><i class="fas fa-spinner fa-spin fa-2x"></i><br><br>Loading available pages...</div>
             </div>
         </div>
     </main>
 
-    <script src="auth.js"></script>
+    <script src="auth.js?v=6"></script>
     <!-- Include dashboard.js just to get NAV_CATEGORIES without running bootDashboard -->
     <!-- We will extract NAV_CATEGORIES manually or fetch them from a shared script. -->
-    <script src="quick_actions.js?v=4"></script>
+    <script src="quick_actions.js?v=7"></script>
 </body>
 </html>

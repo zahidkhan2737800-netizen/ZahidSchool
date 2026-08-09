@@ -4,8 +4,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('admissionForm');
     const successMessage = document.getElementById('successMessage');
     const formAlert = document.getElementById('formAlert');
-    const currentSchoolId = window.currentSchoolId || null;
-    const applySchoolScope = (query) => currentSchoolId ? query.eq('school_id', currentSchoolId) : query;
+    const getAdmissionSchoolId = () => window.currentSchoolId || null;
+    const applySchoolScope = (query) => {
+        const schoolId = getAdmissionSchoolId();
+        return schoolId ? query.eq('school_id', schoolId) : query;
+    };
     
     let editingStudentRecordId = null;
     let originalSubmitBtnHtml = '';
@@ -18,6 +21,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const { data, error } = await applySchoolScope(supabaseClient
                 .from('classes')
                 .select('*')
+                .eq('is_active', true)
+                .order('display_order', { ascending: true, nullsFirst: false })
                 .order('class_name', { ascending: true })
                 .order('section', { ascending: true }));
                 
@@ -134,11 +139,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Verify the ID doesn't already exist in the DB
             try {
-                const { data } = await supabaseClient
+                const { data } = await applySchoolScope(supabaseClient
                     .from('admissions')
                     .select('id')
                     .eq('student_id', id)
-                    .limit(1);
+                    .limit(1));
                 if (!data || data.length === 0) return id; // ✅ unique
             } catch (_) {
                 return id; // On network error, use it anyway — constraint will catch true dup
@@ -584,7 +589,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         errorSpan.className = 'error-msg';
                         group.appendChild(errorSpan);
                     }
-                    errorSpan.textContent = 'Roll number already exists. Duplicates are not allowed.';
+                    errorSpan.textContent = 'Roll number already exists in this school.';
                     errorSpan.style.display = 'block';
                 } else {
                     // if it was invalid just because of the dup check, remove it (re-run standard validation)
@@ -840,7 +845,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     status: getVal('status') || 'Pending'
                 };
-                if (currentSchoolId) formData.school_id = currentSchoolId;
+                const formSchoolId = getAdmissionSchoolId();
+                if (!formSchoolId) throw new Error('School could not be identified. Refresh and try again.');
+                formData.school_id = formSchoolId;
                 if (window.campusFeatureReady && window.currentCampusId) formData.campus_id = window.currentCampusId;
 
                 // Upload photo if a new one was selected
@@ -853,7 +860,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Final Duplicate Check Before Save
                 const isDuplicate = await isRollNumberDuplicate(formData.roll_number, editingStudentRecordId);
                 if (isDuplicate) {
-                    formAlert.textContent = '❌ Cannot save student: Roll number already exists in the system.';
+                    formAlert.textContent = '❌ Cannot save student: Roll number already exists in this school.';
                     formAlert.style.display = 'block';
                     formAlert.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     
@@ -866,7 +873,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             errorSpan.className = 'error-msg';
                             group.appendChild(errorSpan);
                         }
-                        errorSpan.textContent = 'Roll number already exists. Duplicates are not allowed.';
+                        errorSpan.textContent = 'Roll number already exists in this school.';
                         errorSpan.style.display = 'block';
                     }
                     
@@ -899,7 +906,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         insertError = actionResult.error;
 
                         // Only retry on student_id unique constraint violation
-                        if (!insertError || !insertError.message.includes('admissions_student_id_key')) break;
+                        if (!insertError || !/admissions_(?:school_)?student_id_key/.test(insertError.message)) break;
                     }
                 }
                 const { error } = actionResult;

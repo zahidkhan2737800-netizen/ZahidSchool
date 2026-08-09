@@ -810,14 +810,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                                         
                                         if (oldLines.length === 0) {
                                             // No more lines -> delete receipt entirely
-                                            await supabaseClient.from('receipts').delete().eq('receipt_number', rct.receipt_number);
+                                            await supabaseClient.from('receipts').delete().eq('id', rct.id);
                                         } else {
                                             // Update the receipt
                                             const newTotal = parseFloat(rct.total_paid) - parseFloat(tx.amount_paid);
                                             await supabaseClient.from('receipts').update({
                                                 fee_lines: oldLines,
                                                 total_paid: Math.max(0, newTotal)
-                                            }).eq('receipt_number', rct.receipt_number);
+                                            }).eq('id', rct.id);
                                         }
                                     }
                                 }

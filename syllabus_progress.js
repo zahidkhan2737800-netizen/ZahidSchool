@@ -91,7 +91,9 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       let q = window.supabaseClient
         .from('classes')
-        .select('id, class_name, section')
+        .select('id, class_name, section, display_order')
+        .eq('is_active', true)
+        .order('display_order', { ascending: true, nullsFirst: false })
         .order('class_name', { ascending: true })
         .order('section', { ascending: true });
 

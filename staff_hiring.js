@@ -29,9 +29,11 @@ function initHiringModule() {
 
 async function loadStaff() {
     try {
+        if (!window.currentSchoolId) throw new Error('School could not be identified.');
         const { data, error } = await window.supabaseClient
             .from('staff')
             .select('*')
+            .eq('school_id', window.currentSchoolId)
             .eq('status', 'Active')
             .order('employee_id', { ascending: true });
 
@@ -130,7 +132,8 @@ window.deleteStaff = async function(id, name) {
         const { error } = await window.supabaseClient
             .from('staff')
             .delete()
-            .eq('id', id);
+            .eq('id', id)
+            .eq('school_id', window.currentSchoolId);
         if (error) throw error;
 
         showToast(`${name} deleted successfully.`, 'success');
@@ -149,6 +152,7 @@ async function handleHiring(e) {
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
 
     const payload = {
+        school_id: window.currentSchoolId || null,
         full_name: document.getElementById('fullName').value.trim(),
         father_name: document.getElementById('fatherName').value.trim(),
         job_title: document.getElementById('jobTitle').value,
@@ -161,12 +165,14 @@ async function handleHiring(e) {
     };
 
     try {
+        if (!payload.school_id) throw new Error('School could not be identified. Refresh and try again.');
         if (editingId) {
             // UPDATE mode
             const { error } = await window.supabaseClient
                 .from('staff')
                 .update(payload)
-                .eq('id', editingId);
+                .eq('id', editingId)
+                .eq('school_id', payload.school_id);
             if (error) throw error;
             showToast('Staff record updated successfully!', 'success');
             cancelEdit();
@@ -187,7 +193,7 @@ async function handleHiring(e) {
     } catch (err) {
         console.error(err);
         if (err.message.includes('unique')) {
-            showToast('Error: Employee ID already exists.', 'error');
+            showToast('Error: Employee ID already exists in this school.', 'error');
         } else {
             showToast('Failed: ' + err.message, 'error');
         }

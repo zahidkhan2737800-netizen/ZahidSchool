@@ -336,14 +336,36 @@
 
 
         async function loadClassesAndStudents() {
-            let q = db.from('admissions').select('id, full_name, roll_number, applying_for_class, father_name, photo_url').eq('status', 'Active');
-            if (currentSchoolId) q = q.eq('school_id', currentSchoolId);
-            const { data } = await q;
-            allStudents = data || [];
+            let studentsQ = db.from('admissions').select('id, full_name, roll_number, applying_for_class, father_name, photo_url').eq('status', 'Active');
+            let classesQ = db.from('classes')
+                .select('class_name, section, display_order')
+                .eq('is_active', true)
+                .order('display_order', { ascending: true, nullsFirst: false })
+                .order('class_name', { ascending: true })
+                .order('section', { ascending: true });
 
-            const classes = [...new Set(allStudents.map(s => s.applying_for_class).filter(Boolean))].sort();
+            if (currentSchoolId) {
+                studentsQ = studentsQ.eq('school_id', currentSchoolId);
+                classesQ = classesQ.eq('school_id', currentSchoolId);
+            }
+
+            const [studentsResult, classesResult] = await Promise.all([studentsQ, classesQ]);
+            if (studentsResult.error || classesResult.error) {
+                console.error(studentsResult.error || classesResult.error);
+                return;
+            }
+
+            allStudents = studentsResult.data || [];
+            const classes = [...new Set((classesResult.data || [])
+                .map(c => `${c.class_name || ''} ${c.section || ''}`.trim())
+                .filter(Boolean))];
             const classSel = document.getElementById('classSelect');
-            classes.forEach(c => classSel.insertAdjacentHTML('beforeend', `<option value="${c}">${c}</option>`));
+            classes.forEach(c => {
+                const option = document.createElement('option');
+                option.value = c;
+                option.textContent = c;
+                classSel.appendChild(option);
+            });
         }
 
         function loadStudents() {

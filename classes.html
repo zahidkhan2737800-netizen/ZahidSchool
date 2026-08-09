@@ -84,6 +84,15 @@
         #classesTable tr:hover td {
             background-color: #e0f2fe;
         }
+        #classesTable tr.inactive-class td { background: #f1f5f9; color: #64748b; }
+        .class-order-input { width: 72px; padding: 0.42rem; border: 1px solid #cbd5e1; border-radius: 6px; font-weight: 700; text-align: center; }
+        .class-order-input:focus { outline: 2px solid #bfdbfe; border-color: var(--primary); }
+        .class-status { display: inline-flex; padding: 0.25rem 0.65rem; border-radius: 999px; font-size: .78rem; font-weight: 800; }
+        .class-status.active { background: #dcfce7; color: #166534; }
+        .class-status.inactive { background: #e2e8f0; color: #475569; }
+        .status-toggle-btn { border: none; padding: 0.35rem 0.65rem; border-radius: 6px; color: #fff; font-size: .8rem; font-weight: 700; cursor: pointer; }
+        .status-toggle-btn.make-inactive { background: #64748b; }
+        .status-toggle-btn.make-active { background: #16a34a; }
         
         /* Dashboard panel override for main container */
         .glass-panel {
@@ -123,6 +132,10 @@
                         <label for="classSection">Section <span style="color:red">*</span></label>
                         <input type="text" id="classSection" name="classSection" required placeholder="e.g. A, B, Blue, Red">
                     </div>
+                    <div class="input-group">
+                        <label for="classOrder">Order <span style="color:red">*</span></label>
+                        <input type="number" id="classOrder" name="classOrder" required min="1" step="1" inputmode="numeric" placeholder="e.g. 1, 2, 3">
+                    </div>
                 </div>
             </section>
 
@@ -144,20 +157,22 @@
                 <table id="classesTable">
                     <thead>
                         <tr>
+                            <th>Order</th>
                             <th>Class Name</th>
                             <th>Section</th>
+                            <th>Status</th>
                             <th>Date Added</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="classesBody">
-                        <tr><td colspan="4" style="text-align: center;">Loading classes...</td></tr>
+                        <tr><td colspan="6" style="text-align: center;">Loading classes...</td></tr>
                     </tbody>
                 </table>
             </div>
         </form>
     </div>
-    <script src="auth.js"></script>
-    <script src="classes.js"></script>
+    <script src="auth.js?v=7"></script>
+    <script src="classes.js?v=3"></script>
 </body>
 </html>

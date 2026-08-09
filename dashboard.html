@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>Zahid School - Admin Dashboard</title>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="dashboard new.css?v=3">
+  <link rel="stylesheet" href="dashboard new.css?v=14">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -16,29 +16,22 @@
   <div class="overlay-bg" id="overlayBg"></div>
 
   <aside class="sidebar" id="sidebar">
-    <div class="sidebar-brand">
-      <div class="brand-icon"><i class="fas fa-graduation-cap"></i></div>
-      <div class="brand-text"><h2>Zahid System</h2><p>School Management</p></div>
-    </div>
-    <div class="sidebar-user" id="sidebarUser">
-      <div class="user-avatar" id="userAvatar">??</div>
-      <div class="user-details">
-        <div class="user-name" id="userName">Loading...</div>
-        <div class="user-role" id="userRole">--</div>
-      </div>
-    </div>
     <nav class="sidebar-nav" id="sidebarNav"></nav>
-    <div class="sidebar-footer">
-      <button class="logout-btn" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Sign Out</button>
-    </div>
   </aside>
+  <div class="sidebar-flyout" id="sidebarFlyout" aria-hidden="true"></div>
 
   <main class="main">
     <!-- Top Bar -->
     <div class="top-bar">
       <div class="top-bar-left">
-        <h1 id="welcomeMsg">Welcome back!</h1>
-        <span id="welcomeDate" class="top-bar-date"></span>
+        <div class="topbar-brand">
+          <div class="brand-icon"><i class="fas fa-graduation-cap"></i></div>
+          <div class="brand-text"><h2>Zahid System</h2><p>School Management</p></div>
+        </div>
+        <div class="topbar-welcome">
+          <h1 id="welcomeMsg">Welcome back!</h1>
+          <span id="welcomeDate" class="top-bar-date"></span>
+        </div>
       </div>
       <div class="top-bar-right">
         <div id="quickActionsContainer" class="quick-actions-container">
@@ -217,10 +210,13 @@
         </tbody>
       </table>
     </div>
+    <div class="dashboard-signout-row">
+      <button class="topbar-logout dashboard-signout-btn" id="logoutBtn"><i class="fas fa-sign-out-alt"></i><span>Sign Out</span></button>
+    </div>
   </main>
 
-  <script src="auth.js"></script>
+  <script src="auth.js?v=7"></script>
   <script src="karachi_date.js"></script>
-  <script src="dashboard.js?v=7"></script>
+  <script src="dashboard.js?v=17"></script>
 </body>
 </html>

@@ -42,6 +42,40 @@ const PAGE_LABELS = {
 
 const PAGE_KEYS = Object.keys(PAGE_LABELS);
 
+// Build the role-permission list from the shared dashboard catalogue in auth.js.
+// Each HTML file gets its own permission row, grouped by its dashboard category.
+const PERMISSION_SECTIONS = (window.SCHOOL_ACCESS_SECTIONS || []).map(section => {
+    const seen = new Set();
+    return {
+        id: section.id,
+        label: section.label,
+        icon: section.icon,
+        pages: (section.items || []).filter(item => {
+            const pageKey = window.normalizeSchoolPageHref(item.href);
+            if (!pageKey || item.superAdminOnly || seen.has(pageKey)) return false;
+            seen.add(pageKey);
+            return true;
+        }).map(item => ({
+            pageKey: window.normalizeSchoolPageHref(item.href),
+            legacyKey: item.key,
+            label: item.label,
+            icon: item.icon
+        }))
+    };
+}).filter(section => section.pages.length > 0);
+
+function escapePermissionHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[char]);
+}
+
+function effectiveRolePermission(roleId, page) {
+    return allPermissions.find(permission => permission.role_id === roleId && permission.page_key === page.pageKey)
+        || allPermissions.find(permission => permission.role_id === roleId && permission.page_key === page.legacyKey)
+        || null;
+}
+
 let allRoles = [];
 let allPermissions = [];  // flat array from DB
 let pendingChanges = {};  // track unsaved toggle changes
@@ -133,7 +167,7 @@ async function loadRolesAndPermissions() {
 }
 
 // ─── Render Permissions Matrix ────────────────────────────────────────────────
-function renderPermissionsMatrix() {
+function renderLegacyPermissionsMatrix() {
     const container = document.getElementById('permissionsContainer');
     container.innerHTML = '';
     pendingChanges = {};
@@ -205,10 +239,96 @@ function renderPermissionsMatrix() {
 }
 
 // ─── Save Permissions ─────────────────────────────────────────────────────────
+function renderPermissionsMatrix() {
+    const container = document.getElementById('permissionsContainer');
+    container.innerHTML = '';
+    pendingChanges = {};
+
+    const editableRoles = allRoles.filter(role => role.role_name !== 'admin' && role.role_name !== 'super_admin');
+    if (!editableRoles.length) {
+        container.innerHTML = '<div class="dashboard-panel" style="color:#64748b;">No editable staff roles are available.</div>';
+        return;
+    }
+
+    editableRoles.forEach(role => {
+        const card = document.createElement('div');
+        card.className = 'dashboard-panel permission-role-card';
+        card.innerHTML = `
+            <div class="permission-role-heading">
+                <span class="role-badge ${escapePermissionHtml(role.role_name)}">${escapePermissionHtml(role.role_name.replace('_', ' ').toUpperCase())}</span>
+                <span>${escapePermissionHtml(role.description || 'Set access separately for every HTML page.')}</span>
+            </div>
+            <div class="data-table-container">
+                <table class="perm-table categorized-permissions">
+                    <thead>
+                        <tr>
+                            <th style="width:42%;">Category / HTML Page</th>
+                            <th><i class="fas fa-eye"></i> View</th>
+                            <th><i class="fas fa-plus-circle"></i> Create</th>
+                            <th><i class="fas fa-pen"></i> Edit</th>
+                            <th><i class="fas fa-trash-alt"></i> Delete</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${PERMISSION_SECTIONS.map(section => `
+                            <tr class="perm-category-row" data-category="${section.id}">
+                                <td colspan="5">
+                                    <span class="perm-category-name"><i class="${section.icon}"></i> ${escapePermissionHtml(section.label)}</span>
+                                    <span class="perm-category-count">${section.pages.length} HTML page${section.pages.length === 1 ? '' : 's'}</span>
+                                </td>
+                            </tr>
+                            ${section.pages.map(page => {
+                                const exactPermission = allPermissions.find(permission => permission.role_id === role.id && permission.page_key === page.pageKey);
+                                const permission = exactPermission || effectiveRolePermission(role.id, page);
+                                return `
+                                    <tr class="perm-page-row" data-category="${section.id}">
+                                        <td>
+                                            <div class="perm-page-name"><span class="perm-page-icon"><i class="${page.icon}"></i></span><span>${escapePermissionHtml(page.label)}</span></div>
+                                        </td>
+                                        ${['can_view', 'can_create', 'can_edit', 'can_delete'].map(action => `
+                                            <td>
+                                                <label class="toggle">
+                                                    <input type="checkbox"
+                                                        data-role="${role.id}"
+                                                        data-page="${page.pageKey}"
+                                                        data-legacy="${page.legacyKey}"
+                                                        data-action="${action}"
+                                                        ${permission && permission[action] ? 'checked' : ''}>
+                                                    <span class="toggle-slider"></span>
+                                                </label>
+                                            </td>
+                                        `).join('')}
+                                    </tr>`;
+                            }).join('')}
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>`;
+        container.appendChild(card);
+    });
+
+    container.querySelectorAll('input[data-role][data-page]').forEach(checkbox => {
+        checkbox.addEventListener('change', () => {
+            // Capture the full row so a newly created page permission preserves
+            // the other inherited action values shown on screen.
+            checkbox.closest('tr').querySelectorAll('input[data-action]').forEach(rowCheckbox => {
+                const key = `${rowCheckbox.dataset.role}|${rowCheckbox.dataset.page}|${rowCheckbox.dataset.action}`;
+                pendingChanges[key] = {
+                    role_id: rowCheckbox.dataset.role,
+                    page_key: rowCheckbox.dataset.page,
+                    action: rowCheckbox.dataset.action,
+                    value: rowCheckbox.checked
+                };
+            });
+            document.getElementById('btnSavePerms').disabled = false;
+        });
+    });
+}
+
 async function savePermissions() {
     const btn = document.getElementById('btnSavePerms');
     btn.disabled = true;
-    btn.textContent = '⏳ Saving...';
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
 
     try {
         // Group changes by (role_id, page_key)
@@ -258,7 +378,7 @@ async function savePermissions() {
         console.error('Save error:', err);
         showToast('❌ Error saving: ' + err.message, 'error');
     } finally {
-        btn.textContent = '💾 Save All Changes';
+        btn.innerHTML = '<i class="fas fa-save"></i> Save All Changes';
         btn.disabled = true;
     }
 }

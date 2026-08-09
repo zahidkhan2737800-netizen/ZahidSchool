@@ -1,5 +1,4 @@
 const db = window.supabaseClient;
-const currentSchoolId = window.currentSchoolId || null;
 
 let allRows = [];
 
@@ -26,7 +25,8 @@ const LS_KEYS = {
 };
 
 function applySchoolScope(query) {
-    return currentSchoolId ? query.eq('school_id', currentSchoolId) : query;
+    const schoolId = window.currentSchoolId || null;
+    return schoolId ? query.eq('school_id', schoolId) : query;
 }
 
 function toCurrencyLabel(amount) {
@@ -106,9 +106,11 @@ document.addEventListener('DOMContentLoaded', () => {
 async function initFilters() {
     try {
         // Load Fee Types
-        const { data: feeTypes, error: feeErr } = await db.from('fee_head_types')
+        const { data: feeTypes, error: feeErr } = await applySchoolScope(
+            db.from('fee_head_types')
                 .select('name')
-                .order('name');
+                .order('name')
+        );
         if (feeErr) throw feeErr;
 
         feeTypeFilter.innerHTML = '<option value="" disabled selected>-- Select Fee Type --</option>' + 
@@ -123,23 +125,17 @@ async function initFilters() {
         // Load Classes
         const { data: classData, error: classErr } = await applySchoolScope(
             db.from('classes')
-                .select('class_name, section')
-                .order('class_name')
-                .order('section')
+                .select('class_name, section, display_order')
+                .eq('is_active', true)
+                .order('display_order', { ascending: true, nullsFirst: false })
+                .order('class_name', { ascending: true })
+                .order('section', { ascending: true })
         );
         if (classErr) throw classErr;
 
-        // Extract unique class names based on admissions format
-        const { data: admData } = await applySchoolScope(
-            db.from('admissions')
-                .select('applying_for_class')
-                .eq('status', 'Active')
-        );
-        
-        let uniqueClasses = [];
-        if (admData) {
-            uniqueClasses = [...new Set(admData.map(a => a.applying_for_class).filter(Boolean))].sort();
-        }
+        const uniqueClasses = [...new Set((classData || [])
+            .map(c => `${c.class_name || ''} ${c.section || ''}`.trim())
+            .filter(Boolean))];
 
         classFilter.innerHTML = '<option value="">All Classes</option>' + 
             uniqueClasses.map(c => `<option value="${c}">${c}</option>`).join('');

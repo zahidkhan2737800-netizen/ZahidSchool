@@ -160,3 +160,6 @@ CREATE POLICY "Fee receipts shared within school"
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.transactions TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.receipts TO authenticated;
+
+-- Force PostgREST/Supabase to expose the new columns immediately.
+NOTIFY pgrst, 'reload schema';

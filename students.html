@@ -60,7 +60,8 @@
             margin-bottom: 0.4rem;
         }
 
-        .filter-group input {
+        .filter-group input,
+        .filter-group select {
             padding: 0.75rem 1rem;
             border: 1px solid #ccc;
             border-radius: 8px;
@@ -69,8 +70,26 @@
             transition: border-color 0.3s;
         }
 
-        .filter-group input:focus {
+        .filter-group input:focus,
+        .filter-group select:focus {
             border-color: var(--primary);
+        }
+
+        .whatsapp-group-select {
+            min-width: 68px;
+            padding: 0.42rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 7px;
+            background: #fff;
+            color: #64748b;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .whatsapp-group-select.is-added {
+            border-color: #22c55e;
+            background: #dcfce7;
+            color: #166534;
         }
 
         .search-btn {
@@ -253,6 +272,22 @@
                         <option value="">All Classes</option>
                     </select>
                 </div>
+                <div class="filter-group">
+                    <label for="mobileNumberFilter">Mobile Number</label>
+                    <select id="mobileNumberFilter">
+                        <option value="All" selected>All Mobile Numbers</option>
+                        <option value="Invalid">Missing / Not 11 Digits</option>
+                        <option value="Valid">Valid 11-Digit Numbers</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="whatsappNumberFilter">WhatsApp Number</label>
+                    <select id="whatsappNumberFilter">
+                        <option value="All" selected>All WhatsApp Numbers</option>
+                        <option value="Invalid">Missing / Not 11 Digits</option>
+                        <option value="Valid">Valid 11-Digit Numbers</option>
+                    </select>
+                </div>
             </div>
 
             <div class="data-table-container">
@@ -265,14 +300,15 @@
                             <th>Father Name</th>
                             <th>Father Mobile</th>
                             <th>WhatsApp</th>
-                            <th>Adm. Date</th>
+                            <th>WhatsApp Group</th>
+                            <th>Added On</th>
                             <th>Status Action</th>
                             <th>Delete Action</th>
                         </tr>
                     </thead>
                     <tbody id="studentsBody">
                         <tr>
-                            <td colspan="9" class="empty-state">Loading students...</td>
+                            <td colspan="10" class="empty-state">Loading students...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -280,7 +316,7 @@
         </div>
     </div>
     <script src="auth.js"></script>
-    <script src="students.js"></script>
+    <script src="students.js?v=6"></script>
 </body>
 
 </html>

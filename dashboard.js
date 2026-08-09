@@ -1,13 +1,13 @@
 // Supabase client and auth logic are already loaded via auth.js
 // Wait for authReady flag to be sure auth completes before we render 
 
-var NAV_CATEGORIES = [
+var NAV_CATEGORIES_LEGACY = [
   {
     id: 'students', label: 'Students', icon: 'fas fa-user-graduate',
     items: [
       { href: 'index.html', label: 'Admission Form', icon: 'fas fa-file-signature', key: 'admissions' },
       { href: 'students.html', label: 'Active Students', icon: 'fas fa-users', key: 'students' },
-            { href: 'Dairy.html', label: 'Dairy / Tasks', icon: 'fas fa-clipboard-list', key: 'students' },
+      { href: 'Dairy.html', label: 'Diary / Tasks', icon: 'fas fa-clipboard-list', key: 'students' },
       { href: 'family.html', label: 'Family Management', icon: 'fas fa-home', key: 'family' },
       { href: 'homework.html', label: 'Homework Publisher', icon: 'fas fa-book', key: 'homework' },
       { href: 'publisher_config.html', label: 'Publisher Config', icon: 'fas fa-cog', key: 'homework' },
@@ -126,10 +126,14 @@ var NAV_CATEGORIES = [
       { href: 'class_subjects_assignment.html', label: 'Class Subjects', icon: 'fas fa-link', key: 'classes' },
       { href: 'thermal_print_settings.html', label: 'Thermal Print Settings', icon: 'fas fa-print', key: 'collect_fee' },
       { href: 'access_control.html', label: 'Access Control', icon: 'fas fa-lock', key: 'access_control' },
+      { href: 'saas_master_console.html', label: 'SaaS Master Console', icon: 'fas fa-crown', key: 'access_control', superAdminOnly: true },
       { href: 'quick_actions.html', label: 'Dashboard Shortcuts', icon: 'fas fa-cog', key: 'access_control' }
     ]
   }
 ];
+
+// auth.js owns the subscription catalogue; keep the legacy list only as a safe fallback.
+var NAV_CATEGORIES = window.SCHOOL_ACCESS_SECTIONS || NAV_CATEGORIES_LEGACY;
 
 var QUICK_ACCESS = [
   { href: 'index.html', label: 'New Admission', icon: 'fas fa-user-plus', key: 'admissions' },
@@ -151,16 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function bootDashboard() {
-    document.getElementById('userName').textContent = window.currentUser.email || 'Admin User';
-    document.getElementById('userRole').textContent = (window.userRoleName || 'Staff').toUpperCase();
     document.getElementById('welcomeMsg').textContent = 'Welcome, ' + (window.currentUser.email || 'Admin').split('@')[0] + '!';
-
-    var avatar = document.getElementById('userAvatar');
-    avatar.textContent = (window.currentUser.email || 'A').substring(0, 1).toUpperCase();
-    if (window.userRoleName === 'admin') avatar.style.background = '#2563eb';
-    else if (window.userRoleName === 'teacher') avatar.style.background = '#16a34a';
-    else avatar.style.background = '#d97706';
-    avatar.style.color = 'white';
 
     var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
     var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -430,56 +425,103 @@ async function loadStaffTodayStats() {
 
 function buildSidebar() {
     var nav = document.getElementById('sidebarNav');
-    var html = '';
+    var flyout = document.getElementById('sidebarFlyout');
+    var visibleCategories = NAV_CATEGORIES.map(function (cat) {
+        return {
+            category: cat,
+            items: cat.items.filter(function (item) {
+                if (item.hiddenFromNavigation) return false;
+                if (item.superAdminOnly && window.userRoleName !== 'super_admin') return false;
+                return window.isSchoolPageAllowed(item.href) && window.canViewPage(item.href, item.key);
+            })
+        };
+    }).filter(function (entry) { return entry.items.length > 0; });
 
-    NAV_CATEGORIES.forEach(function (cat) {
-        var visibleItems = cat.items.filter(function (item) {
-            return window.canView(item.key);
-        });
-        if (visibleItems.length === 0) return; // Skip category if empty
+    var html = '<div class="sidebar-nav-heading"><span>Navigation</span></div>';
 
-        html += '<div class="nav-category">'
-            + '<button class="nav-cat-btn" data-cat="' + cat.id + '">'
-            + '<i class="cat-icon ' + cat.icon + '"></i> ' + cat.label
+    visibleCategories.forEach(function (entry) {
+        var cat = entry.category;
+
+        html += '<div class="nav-category" data-category="' + cat.id + '">'
+            + '<button class="nav-cat-btn" data-cat="' + cat.id + '" aria-expanded="false" aria-controls="sidebarFlyout">'
+            + '<i class="cat-icon ' + cat.icon + '"></i>'
+            + '<span class="cat-label">' + cat.label + '</span>'
             + '<i class="cat-arrow fas fa-chevron-right"></i>'
-            + '</button>'
-            + '<div class="nav-items" id="cat-' + cat.id + '">';
-
-        visibleItems.forEach(function (item) {
-            let activeClass = item.href === 'dashboard.html' ? ' active' : ''; // Dashboard specific
-            let target = item.href === 'dashboard.html' ? '' : ' target="_blank"';
-            html += '<a href="' + item.href + '"' + target + ' class="nav-item' + activeClass + '"><i class="' + item.icon + '"></i> ' + item.label + '</a>';
-        });
-
-        html += '</div></div>';
+            + '</button></div>';
     });
 
     nav.innerHTML = html;
 
-    // Expand Students category automatically by default
-    const studentsCatBtn = nav.querySelector('[data-cat="students"]');
-    const studentsCatItems = nav.querySelector('#cat-students');
-    if (studentsCatBtn && studentsCatItems) {
-        studentsCatBtn.classList.add('open');
-        studentsCatItems.classList.add('open');
+    function closeFlyout() {
+        flyout.classList.remove('open');
+        flyout.setAttribute('aria-hidden', 'true');
+        flyout.removeAttribute('data-category');
+        flyout.innerHTML = '';
+        nav.querySelectorAll('.nav-cat-btn').forEach(function (button) {
+            button.classList.remove('open');
+            button.setAttribute('aria-expanded', 'false');
+        });
+    }
+
+    function openFlyout(entry, btn) {
+        var cat = entry.category;
+        if (flyout.classList.contains('open') && flyout.dataset.category === cat.id) {
+            closeFlyout();
+            return;
+        }
+
+        nav.querySelectorAll('.nav-cat-btn').forEach(function (button) {
+            button.classList.remove('open');
+            button.setAttribute('aria-expanded', 'false');
+        });
+
+        var links = entry.items.map(function (item) {
+            var target = item.href === 'dashboard.html' ? '' : ' target="_blank"';
+            return '<a href="' + item.href + '"' + target + ' rel="noopener noreferrer" class="flyout-item">'
+                + '<i class="' + item.icon + '"></i><span>' + item.label + '</span></a>';
+        }).join('');
+
+        flyout.dataset.category = cat.id;
+        flyout.innerHTML = '<div class="flyout-head">'
+            + '<div class="flyout-title"><i class="' + cat.icon + '"></i><span>' + cat.label + '</span></div>'
+            + '<button type="button" class="flyout-close" aria-label="Close menu"><i class="fas fa-times"></i></button>'
+            + '</div><div class="flyout-items">' + links + '</div>';
+        flyout.classList.add('open');
+        flyout.setAttribute('aria-hidden', 'false');
+        btn.classList.add('open');
+        btn.setAttribute('aria-expanded', 'true');
+
+        if (window.innerWidth > 900) {
+            var rect = btn.getBoundingClientRect();
+            var top = Math.max(12, Math.min(rect.top - 6, window.innerHeight - flyout.offsetHeight - 12));
+            flyout.style.top = top + 'px';
+        } else {
+            flyout.style.top = '64px';
+        }
+
+        flyout.querySelector('.flyout-close').addEventListener('click', closeFlyout);
+        flyout.querySelectorAll('.flyout-item').forEach(function (link) {
+            link.addEventListener('click', closeFlyout);
+        });
     }
 
     nav.querySelectorAll('.nav-cat-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
-            var catId = btn.dataset.cat;
-            var items = document.getElementById('cat-' + catId);
-            var isOpen = items.classList.contains('open');
-
-            // Optionally auto-close others (accordion style)
-            nav.querySelectorAll('.nav-items').forEach(function (el) { el.classList.remove('open'); });
-            nav.querySelectorAll('.nav-cat-btn').forEach(function (el) { el.classList.remove('open'); });
-
-            if (!isOpen) {
-                items.classList.add('open');
-                btn.classList.add('open');
-            }
+            var entry = visibleCategories.find(function (candidate) {
+                return candidate.category.id === btn.dataset.cat;
+            });
+            if (entry) openFlyout(entry, btn);
         });
     });
+
+    document.addEventListener('click', function (event) {
+        if (!flyout.classList.contains('open')) return;
+        if (!flyout.contains(event.target) && !nav.contains(event.target)) closeFlyout();
+    });
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') closeFlyout();
+    });
+    window.addEventListener('resize', closeFlyout);
 }
 
 function buildQuickLinks() {
@@ -500,7 +542,7 @@ function buildQuickLinks() {
         savedActions = [
             { href: 'index.html', label: 'New Admission', icon: 'fas fa-user-plus' },
             { href: 'collect_fee.html', label: 'Collect Fee', icon: 'fas fa-hand-holding-usd' },
-            { href: 'Dairy.html', label: 'Dairy / Tasks', icon: 'fas fa-clipboard-list' }
+            { href: 'Dairy.html', label: 'Diary / Tasks', icon: 'fas fa-clipboard-list' }
         ];
     }
 
@@ -562,7 +604,7 @@ async function loadStats() {
                 .select('amount_paid')
                 .gte('created_at', todayStart).lt('created_at', todayEnd)),
             sc(window.supabaseClient.from('challans')
-                .select('amount, paid_amount')
+                .select('student_id, amount, paid_amount')
                 .in('status', ['Unpaid', 'Partially Paid'])),
             // Fetch student_id + status so we can filter to active students only
             sc(window.supabaseClient.from('attendance')
@@ -590,7 +632,13 @@ async function loadStats() {
         const unpaidCount    = unpaidChallansRes.count || 0;
         const totalFees      = (feesRes.data || []).reduce((s, r) => s + (Number(r.amount_paid) || 0), 0);
         const dailyFees      = (dailyFeesRes.data || []).reduce((s, r) => s + (Number(r.amount_paid) || 0), 0);
-        const totalBalance   = (balanceRes.data || []).reduce((s, r) => s + ((Number(r.amount) || 0) - (Number(r.paid_amount) || 0)), 0);
+        // Outstanding fees on the dashboard apply only to currently active students.
+        // Historical challans for withdrawn, pending, or passed-out students are excluded.
+        const totalBalance   = (balanceRes.data || [])
+            .filter(challan => activeStudentIds.has(challan.student_id))
+            .reduce((sum, challan) => sum + Math.max(0,
+                (Number(challan.amount) || 0) - (Number(challan.paid_amount) || 0)
+            ), 0);
         const dailyDiscount  = (dailyDiscountRes.data || []).reduce((s, r) => s + (Number(r.discount_amount) || 0), 0);
 
         // Filter attendance to active students only, count Late as Present (consistent with attendance page)
@@ -701,8 +749,19 @@ async function loadMonthlyFeeBalance() {
 
 // Global Event Listeners for UI
 document.getElementById('logoutBtn').addEventListener('click', async function () {
-    if (window.supabaseClient) await window.supabaseClient.auth.signOut();
-    window.location.href = 'login.html';
+    const confirmed = window.confirm('Are you sure you want to sign out?');
+    if (!confirmed) return;
+
+    const button = document.getElementById('logoutBtn');
+    button.disabled = true;
+    try {
+        if (window.supabaseClient) await window.supabaseClient.auth.signOut();
+        window.location.href = 'login.html';
+    } catch (error) {
+        console.error('Sign out failed:', error);
+        alert('Could not sign out. Please try again.');
+        button.disabled = false;
+    }
 });
 
 async function loadRecentAdmissions() {

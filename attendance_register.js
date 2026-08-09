@@ -96,18 +96,20 @@ async function loadClassOptions() {
   try {
     let q = applySchoolScope(
       window.supabaseClient
-        .from('admissions')
-        .select('applying_for_class, status')
-        .in('status', ['Active', 'active'])
+        .from('classes')
+        .select('class_name, section, display_order')
+        .eq('is_active', true)
+        .order('display_order', { ascending: true, nullsFirst: false })
+        .order('class_name', { ascending: true })
+        .order('section', { ascending: true })
     );
 
     const { data, error } = await q;
     if (error) throw error;
 
     const classes = Array.from(new Set((data || [])
-      .map(r => String(r.applying_for_class || '').trim())
-      .filter(Boolean)))
-      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+      .map(r => `${r.class_name || ''} ${r.section || ''}`.trim())
+      .filter(Boolean)));
 
     classSelect.innerHTML = '<option value="">Select class...</option>' + classes.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
 
