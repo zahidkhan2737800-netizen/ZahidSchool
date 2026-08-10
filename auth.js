@@ -115,7 +115,11 @@ const SCHOOL_ACCESS_SECTIONS = [
 function normalizeSchoolPageHref(value) {
     let page = String(value || '').split('#')[0].split('?')[0].replace(/\\/g, '/').split('/').pop();
     try { page = decodeURIComponent(page); } catch (_) {}
-    return page.trim().toLowerCase();
+    page = page.trim().toLowerCase();
+    // Cloudflare Pages strips .html from URLs (e.g. /dashboard instead of /dashboard.html).
+    // Normalize by appending .html if there's no extension, so checks work on both local and deployed.
+    if (page && !page.includes('.')) page += '.html';
+    return page;
 }
 
 window.SCHOOL_ACCESS_SECTIONS = SCHOOL_ACCESS_SECTIONS;
