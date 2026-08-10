@@ -345,7 +345,9 @@ async function loadSchoolFeatureAccess(schoolId) {
         const pageKey = PAGE_KEY_MAP[currentPage];
         const pagePermission = userPermissions[currentPage] || userPermissions[pageKey];
         // Only restrict if the user is NOT a super admin. Super admins always bypass UI restrictions.
-        if (userRoleName !== 'super_admin' && pageKey && (!pagePermission || !pagePermission.can_view)) {
+        // Always allow the dashboard — it's the landing page for denied redirects; blocking it
+        // would cause an infinite redirect loop (screen blinking).
+        if (userRoleName !== 'super_admin' && pageKey && pageKey !== 'dashboard' && (!pagePermission || !pagePermission.can_view)) {
             window.location.href = 'dashboard.html?denied=1';
             return;
         }
