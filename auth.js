@@ -294,7 +294,7 @@ async function loadSchoolFeatureAccess(schoolId) {
         }
 
         userRole = Array.isArray(roleData.roles) ? roleData.roles[0] : roleData.roles;
-            userRoleName = String(userRole.role_name || '').toLowerCase();
+        userRoleName = String((userRole && userRole.role_name) || '').toLowerCase();
         window.userRoleName = userRoleName;
 
         if (SUPER_ADMIN_ONLY_PAGES.has(currentPage) && userRoleName !== 'super_admin') {
@@ -313,12 +313,16 @@ async function loadSchoolFeatureAccess(schoolId) {
 
         if (permsError) {
             console.error('Permission fetch error:', permsError);
-            redirectToLogin('Error loading permissions.');
-            return;
+            // Don't redirect to login for permission fetch errors on the dashboard.
+            // Let the user see the dashboard with no module permissions instead of a blank screen.
+            if (currentPage !== 'dashboard.html') {
+                redirectToLogin('Error loading permissions.');
+                return;
+            }
         }
 
         // Build permissions map
-        permsData.forEach(p => {
+        (permsData || []).forEach(p => {
             userPermissions[p.page_key] = {
                 can_view: p.can_view,
                 can_create: p.can_create,
@@ -367,7 +371,18 @@ async function loadSchoolFeatureAccess(schoolId) {
 
     } catch (err) {
         console.error('Auth guard error:', err);
-        redirectToLogin('Authentication error. Please try again.');
+        // On the dashboard, show the page with degraded functionality
+        // instead of redirecting to login (which could cause a blank screen loop).
+        const currentPageFallback = normalizeSchoolPageHref(window.location.pathname) || 'dashboard.html';
+        if (currentPageFallback === 'dashboard.html' && window.currentUser) {
+            console.warn('Auth guard error on dashboard — showing page with limited access.');
+            window.userRoleName = window.userRoleName || '';
+            document.body.classList.add('auth-ready');
+            window.authReady = true;
+            window.dispatchEvent(new CustomEvent('authready'));
+        } else {
+            redirectToLogin('Authentication error. Please try again.');
+        }
     }
 })();
 
