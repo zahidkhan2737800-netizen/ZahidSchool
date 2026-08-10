@@ -1,6 +1,9 @@
 // Supabase client is now provided by auth.js (supabaseClient)
 
 document.addEventListener('DOMContentLoaded', () => {
+    const checkAuth = setInterval(() => {
+        if (window.supabaseClient && window.authReady) {
+            clearInterval(checkAuth);
     const form = document.getElementById('admissionForm');
     const successMessage = document.getElementById('successMessage');
     const formAlert = document.getElementById('formAlert');
@@ -30,10 +33,23 @@ document.addEventListener('DOMContentLoaded', () => {
             
             classSelect.innerHTML = '<option value="" disabled selected>Select class</option>';
             if(data && data.length > 0) {
+                const nameCounts = {};
+                data.forEach(cls => {
+                    const val = `${cls.class_name} ${cls.section}`.trim();
+                    nameCounts[val] = (nameCounts[val] || 0) + 1;
+                });
+
                 data.forEach(cls => {
                     const opt = document.createElement('option');
-                    const val = `${cls.class_name} ${cls.section}`;
-                    opt.value = val;
+                    let val = `${cls.class_name} ${cls.section}`.trim();
+                    
+                    if (nameCounts[val] > 1) {
+                        val = `${val} (Duplicate, ID: ${cls.id.substring(0, 4)})`;
+                    }
+                    
+                    // We must keep the option value as the clean name so old students match,
+                    // but if it's a duplicate, the value will be the modified string so the user sees it's broken.
+                    opt.value = `${cls.class_name} ${cls.section}`.trim();
                     opt.textContent = val;
                     opt.dataset.classId = cls.id;
                     classSelect.appendChild(opt);
@@ -51,16 +67,16 @@ document.addEventListener('DOMContentLoaded', () => {
     let baseMonthlyFee = 0;
 
     // Auto-fetch fees when class is selected
-    classSelect.addEventListener('change', async () => {
-        const selectedOption = classSelect.options[classSelect.selectedIndex];
-        const classId = selectedOption.dataset.classId;
-        if (!classId) return;
+    window.isPopulatingForm = false; // Flag to prevent auto-fetch during population
 
+    async function updateFeesForClass(classId, updateInputs = true) {
         try {
             const monthlyFeeInput = document.getElementById('monthlyFee');
             const admissionFeeInput = document.getElementById('admissionFee');
-            if (monthlyFeeInput) monthlyFeeInput.placeholder = "Loading...";
-            if (admissionFeeInput) admissionFeeInput.placeholder = "Loading...";
+            if (updateInputs) {
+                if (monthlyFeeInput) monthlyFeeInput.placeholder = "Loading...";
+                if (admissionFeeInput) admissionFeeInput.placeholder = "Loading...";
+            }
 
             const { data, error } = await supabaseClient
                 .from('fee_heads')
@@ -74,7 +90,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (data && data.length > 0) {
                 data.forEach(fee => {
-                    if (fee.is_monthly) {
+                    const isMonthlyType = fee.is_monthly || (fee.fee_type && fee.fee_type.toLowerCase().includes('monthly'));
+                    if (isMonthlyType) {
                         monthlyTotal += fee.amount;
                     } else {
                         // All non-monthly fees added to Admission Fee
@@ -85,22 +102,46 @@ document.addEventListener('DOMContentLoaded', () => {
             
             baseMonthlyFee = monthlyTotal;
             
-            if (monthlyFeeInput) {
-                monthlyFeeInput.value = monthlyTotal > 0 ? monthlyTotal : '';
-                monthlyFeeInput.placeholder = "";
+            if (updateInputs) {
+                if (monthlyFeeInput) {
+                    monthlyFeeInput.value = monthlyTotal > 0 ? monthlyTotal : '';
+                    monthlyFeeInput.placeholder = "";
+                }
+                if (admissionFeeInput) {
+                    admissionFeeInput.value = admissionTotal > 0 ? admissionTotal : '';
+                    admissionFeeInput.placeholder = "";
+                }
+                
+                // Apply any existing discount immediately
+                applyDiscount();
             }
-            if (admissionFeeInput) {
-                admissionFeeInput.value = admissionTotal > 0 ? admissionTotal : '';
-                admissionFeeInput.placeholder = "";
-            }
-            
-            // Apply any existing discount immediately
-            applyDiscount();
 
         } catch (err) {
             console.error('Error fetching class fee heads:', err);
         }
+    }
+
+    classSelect.addEventListener('change', async () => {
+        if (window.isPopulatingForm) return;
+        const selectedOption = classSelect.options[classSelect.selectedIndex];
+        const classId = selectedOption?.dataset?.classId;
+        if (!classId) return;
+        
+        await updateFeesForClass(classId, true);
     });
+
+    const btnLoadClassFees = document.getElementById('btnLoadClassFees');
+    if (btnLoadClassFees) {
+        btnLoadClassFees.addEventListener('click', async () => {
+            const selectedOption = classSelect.options[classSelect.selectedIndex];
+            const classId = selectedOption?.dataset?.classId;
+            if (!classId) {
+                alert("Please select a class first.");
+                return;
+            }
+            await updateFeesForClass(classId, true);
+        });
+    }
 
     const discountInput = document.getElementById('discount');
     if (discountInput) {
@@ -682,7 +723,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function populateFormForEditing(student) {
+    async function populateFormForEditing(student) {
+        window.isPopulatingForm = true;
         editingStudentRecordId = student.id;
         
         const setVal = (id, val) => {
@@ -690,7 +732,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (el) {
                 el.value = val !== null && val !== undefined ? val : '';
                 // Trigger change to update validation states or cascaded queries
-                el.dispatchEvent(new Event('change', { bubbles: true }));
+                if (id !== 'admissionClass') {
+                    el.dispatchEvent(new Event('change', { bubbles: true }));
+                }
             }
         };
         
@@ -723,20 +767,31 @@ document.addEventListener('DOMContentLoaded', () => {
         setVal('classPassed', student.class_passed);
         setVal('transferCert', student.transfer_cert);
         
-        if (student.applying_for_class) setVal('admissionClass', student.applying_for_class);
+        if (student.applying_for_class) {
+            const el = document.getElementById('admissionClass');
+            if (el) {
+                el.value = student.applying_for_class;
+                if (el.selectedIndex >= 0) {
+                    const selectedOption = el.options[el.selectedIndex];
+                    if (selectedOption && selectedOption.dataset.classId) {
+                        await updateFeesForClass(selectedOption.dataset.classId, false);
+                    }
+                }
+            }
+        }
         setVal('session', student.session);
         setVal('admissionDate', student.admission_date);
         setVal('campus', student.campus);
         setVal('medicalCondition', student.medical_condition);
         
-        // Fee fields might be overwritten by the class Select trigger, wait a bit
-        setTimeout(() => {
-            setVal('admissionFee', student.admission_fee);
-            setVal('monthlyFee', student.monthly_fee);
-            setVal('discount', student.discount);
-        }, 300);
+        // Set fee fields after class defaults are loaded safely
+        setVal('admissionFee', student.admission_fee);
+        setVal('monthlyFee', student.monthly_fee);
+        setVal('discount', student.discount);
         
         setVal('siblingInSchool', student.sibling_in_school);
+        
+        window.isPopulatingForm = false;
 
         // Show saved photo if exists
         if (student.photo_url) {
@@ -1000,4 +1055,6 @@ document.addEventListener('DOMContentLoaded', () => {
             successMessage.classList.add('hidden');
         }, 8000);
     }
+        }
+    }, 50);
 });

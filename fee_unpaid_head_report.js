@@ -77,7 +77,7 @@ function applyLayoutControls() {
     compactnessValue.textContent = `${Math.round(compact)}%`;
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+window.onAppReady(() => {
     fontSizeRange.value = localStorage.getItem(LS_KEYS.fontSize) || '8.5';
     compactnessRange.value = localStorage.getItem(LS_KEYS.compactness) || '80';
     applyLayoutControls();

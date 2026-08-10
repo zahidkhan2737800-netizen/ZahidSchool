@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', async () => {
+window.onAppReady(async () => {
     if (!await window.SaasAdmin.ready('register')) return;
     document.getElementById('registerSchoolForm').addEventListener('submit', registerSchool);
 });

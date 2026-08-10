@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', () => {
+window.onAppReady(() => {
   const classSelect = document.getElementById('classSelect');
   const sessionInput = document.getElementById('sessionInput');
   const classButtons = document.getElementById('classButtons');

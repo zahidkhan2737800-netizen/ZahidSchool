@@ -75,7 +75,7 @@ function updateUIForFilterType() {
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+window.onAppReady(() => {
     // Init state
     const now = new Date();
     const currMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;

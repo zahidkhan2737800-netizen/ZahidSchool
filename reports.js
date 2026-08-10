@@ -21,7 +21,7 @@ fontSlider.addEventListener('input', () => {
 });
 
 // ─── Wait for Auth Before Loading ─────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
+window.onAppReady(() => {
     const checkAuth = setInterval(() => {
         if (window.authReady && window.supabaseClient) {
             clearInterval(checkAuth);

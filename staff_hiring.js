@@ -5,7 +5,7 @@
 let allStaff = [];
 let editingId = null; // Track if we're in edit mode
 
-document.addEventListener('DOMContentLoaded', () => {
+window.onAppReady(() => {
     const checkAuth = setInterval(() => {
         if (window.authReady) {
             clearInterval(checkAuth);

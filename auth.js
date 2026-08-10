@@ -10,6 +10,16 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 window.supabaseClient = supabaseClient; // EXPORT FOR JS
 
+// Helper: Ensure both DOM and Auth are fully loaded before executing callbacks
+window.onAppReady = function(callback) {
+    let authReady = window.authReady || false;
+    let domReady = document.readyState !== 'loading';
+    const check = () => { if (authReady && domReady) callback(); };
+    if (!authReady) window.addEventListener('authready', () => { authReady = true; check(); });
+    if (!domReady) document.addEventListener('DOMContentLoaded', () => { domReady = true; check(); });
+    check();
+};
+
 // School subscription catalogue. This is separate from role permissions:
 // a page must be enabled for the school AND allowed for the user's role.
 const SCHOOL_ACCESS_SECTIONS = [

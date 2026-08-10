@@ -1,6 +1,6 @@
 // Supabase client is now provided by auth.js (supabaseClient)
 
-document.addEventListener('DOMContentLoaded', () => {
+window.onAppReady(() => {
     const classForm = document.getElementById('classForm');
     const classesBody = document.getElementById('classesBody');
     const formAlert = document.getElementById('formAlert');

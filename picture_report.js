@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', async () => {
+window.onAppReady(async () => {
     const classFilter = document.getElementById('classFilter');
     const photoFilter = document.getElementById('photoFilter');
     const reportTableBody = document.getElementById('reportTableBody');

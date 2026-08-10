@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', async () => {
+window.onAppReady(async () => {
   const classList = document.getElementById('classList');
   const classStatus = document.getElementById('classStatus');
   const currSelect = document.getElementById('currSelect');

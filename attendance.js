@@ -77,7 +77,7 @@ async function getRealDate() {
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', async () => {
+window.onAppReady(async () => {
     await waitForAuthContext();
 
     const picker = document.getElementById('globalDate');

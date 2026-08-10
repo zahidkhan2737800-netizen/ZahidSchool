@@ -318,7 +318,7 @@ async function loadAttendance() {
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+window.onAppReady(() => {
     const today = fmtDateOnly(new Date());
     attDateInput.value = localStorage.getItem(LS_KEYS.date) || today;
     statusFilterSelect.value = localStorage.getItem(LS_KEYS.status) || 'ALL';

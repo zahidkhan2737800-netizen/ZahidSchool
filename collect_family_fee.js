@@ -125,7 +125,7 @@ function applyThermalSettings(moduleName) {
     root.style.setProperty('--tp-footer-font', `${settings.footerFontPx}px`);
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
+window.onAppReady(async () => {
     await waitForFamilyFeeAuth();
     await loadFamiliesData();
 

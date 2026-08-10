@@ -224,4 +224,4 @@ deselectAllBtn.addEventListener('click', () => {
 promoteBtn.addEventListener('click', promoteStudents);
 passedOutBtn.addEventListener('click', passedOutStudents);
 
-document.addEventListener('DOMContentLoaded', loadClasses);
+window.onAppReady(loadClasses);

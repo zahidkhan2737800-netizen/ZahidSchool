@@ -284,7 +284,7 @@ compactnessRange.addEventListener('input', applyLayoutControls);
 fontSizeRange.addEventListener('change', () => localStorage.setItem(layoutStorageKeys.fontSize, fontSizeRange.value));
 compactnessRange.addEventListener('change', () => localStorage.setItem(layoutStorageKeys.compactness, compactnessRange.value));
 
-document.addEventListener('DOMContentLoaded', async () => {
+window.onAppReady(async () => {
     fontSizeRange.value = localStorage.getItem(layoutStorageKeys.fontSize) || '8.5';
     compactnessRange.value = localStorage.getItem(layoutStorageKeys.compactness) || '80';
     applyLayoutControls();

@@ -1,6 +1,6 @@
 let dailyChartInstance = null;
 
-document.addEventListener('DOMContentLoaded', () => {
+window.onAppReady(() => {
     const checkAuth = setInterval(() => {
         if (window.authReady && window.currentUser) {
             clearInterval(checkAuth);

@@ -144,7 +144,7 @@ var QUICK_ACCESS = [
   { href: 'students.html', label: 'Search Student', icon: 'fas fa-search', key: 'students' }
 ];
 
-document.addEventListener('DOMContentLoaded', () => {
+window.onAppReady(() => {
     // Wait for auth.js to finish setting up window.currentUser and window.userPermissions
     const checkAuth = setInterval(() => {
         if (window.authReady && window.currentUser) {
@@ -691,32 +691,47 @@ async function loadMonthlyFeeBalance() {
             months.push(`${monthNames[d.getMonth()]} ${d.getFullYear()}`);
         }
 
-        // Fetch challans scoped to this school
+        // Fetch challans for each month separately to avoid Supabase's default
+        // 1000-row limit which silently truncates results when total challans
+        // across all 6 months exceed 1000.
         const schoolId = window.currentSchoolId;
-        let q = window.supabaseClient
-            .from('challans')
-            .select('fee_month, amount, paid_amount, status')
-            .in('fee_month', months);
-        if (schoolId) q = q.eq('school_id', schoolId);
-        const { data, error } = await q;
-
-        if (error) throw error;
-
-        if (!data || data.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#94a3b8; padding:1.5rem;">No challan data for the last 6 months.</td></tr>`;
-            return;
-        }
-
-        // Group by fee_month
         const grouped = {};
         months.forEach(m => grouped[m] = { count: 0, billed: 0, collected: 0 });
 
-        data.forEach(c => {
-            if (!grouped[c.fee_month]) return;
-            grouped[c.fee_month].count++;
-            grouped[c.fee_month].billed    += Number(c.amount) || 0;
-            grouped[c.fee_month].collected += Number(c.paid_amount) || 0;
-        });
+        let hasAnyData = false;
+
+        await Promise.all(months.map(async (month) => {
+            let q = window.supabaseClient
+                .from('challans')
+                .select('amount, paid_amount')
+                .eq('fee_month', month);
+            if (schoolId) q = q.eq('school_id', schoolId);
+
+            // Paginate in chunks of 1000 to handle months with many challans
+            let allRows = [];
+            let from = 0;
+            const pageSize = 1000;
+            while (true) {
+                const { data: page, error } = await q.range(from, from + pageSize - 1);
+                if (error) throw error;
+                if (!page || page.length === 0) break;
+                allRows = allRows.concat(page);
+                if (page.length < pageSize) break;
+                from += pageSize;
+            }
+
+            if (allRows.length > 0) hasAnyData = true;
+            grouped[month].count = allRows.length;
+            allRows.forEach(c => {
+                grouped[month].billed    += Number(c.amount) || 0;
+                grouped[month].collected += Number(c.paid_amount) || 0;
+            });
+        }));
+
+        if (!hasAnyData) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#94a3b8; padding:1.5rem;">No challan data for the last 6 months.</td></tr>`;
+            return;
+        }
 
         const rows = months.map(month => {
             const g = grouped[month];
@@ -746,6 +761,7 @@ async function loadMonthlyFeeBalance() {
         tbody.innerHTML = `<tr><td colspan="6" style="color:red;">Error loading monthly data: ${e.message}</td></tr>`;
     }
 }
+
 
 // Global Event Listeners for UI
 document.getElementById('logoutBtn').addEventListener('click', async function () {

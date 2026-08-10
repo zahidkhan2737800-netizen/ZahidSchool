@@ -633,7 +633,7 @@ function downloadBlob(content, filename, type) {
 }
 
 // ─── Init ─────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', async () => {
+window.onAppReady(async () => {
     setDefaults();
     await loadWaTemplates();
     await loadStudents();

@@ -18,7 +18,7 @@ function getTenantScopePatch() {
 
 document.addEventListener('DOMContentLoaded', () => {
     const checkAuth = setInterval(() => {
-        if (window.authReady) {
+        if (window.supabaseClient && window.authReady) {
             clearInterval(checkAuth);
             initFeeHeads();
         }
@@ -28,6 +28,13 @@ document.addEventListener('DOMContentLoaded', () => {
 function initFeeHeads() {
     document.getElementById('feeForm').addEventListener('submit', handleFeeFormSubmit);
     document.getElementById('searchFee').addEventListener('input', (e) => renderFeeHeads(e.target.value.toLowerCase()));
+
+    document.getElementById('feeType').addEventListener('change', (e) => {
+        const val = e.target.value.toLowerCase();
+        if (val.includes('monthly')) {
+            document.getElementById('isMonthly').checked = true;
+        }
+    });
 
     loadFeeHeadTypes();
     loadClasses();

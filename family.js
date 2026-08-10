@@ -1,6 +1,6 @@
 // Uses supabaseClient from auth.js
 
-document.addEventListener('DOMContentLoaded', async () => {
+window.onAppReady(async () => {
     const gridContainer = document.getElementById('familiesTableContainer');
     const tbody = document.getElementById('familiesTbody');
     const spinner = document.getElementById('spinner');

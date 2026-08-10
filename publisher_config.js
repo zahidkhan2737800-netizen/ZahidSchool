@@ -307,6 +307,6 @@ if (copyConfigBtn) {
 }
 
 // ─── Init ─────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
+window.onAppReady(() => {
     loadClasses();
 });

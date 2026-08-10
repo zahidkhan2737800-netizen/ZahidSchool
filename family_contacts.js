@@ -245,7 +245,7 @@ async function addFamilyToTeacherFee(familyMobile) {
     }
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
+window.onAppReady(async () => {
     await waitForAuthContext();
 
     // 1. Initialize Month Picker

@@ -131,7 +131,7 @@ function closeWorkspace() {
 }
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', async () => {
+window.onAppReady(async () => {
     await waitForFeeAuth();
     await loadStudents();
 

@@ -240,7 +240,7 @@ function renderTable(rows) {
 }
 
 // ── Boot ───────────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
+window.onAppReady(() => {
     populateSelects();
 
     // Restore slider values from localStorage

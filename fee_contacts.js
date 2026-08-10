@@ -115,7 +115,7 @@ const STATUS_COLORS = {
     'NN': 'status-NN'
 };
 
-document.addEventListener('DOMContentLoaded', async () => {
+window.onAppReady(async () => {
     await waitForAuthContext();
 
     // 1. Initialize Month Picker

@@ -535,7 +535,7 @@ async function saveTeacherCommitment() {
     }
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
+window.onAppReady(async () => {
     fontSizeRange.value = localStorage.getItem(TEACHER_FEE_LAYOUT_KEYS.fontSize) || '9';
     compactnessRange.value = localStorage.getItem(TEACHER_FEE_LAYOUT_KEYS.compactness) || '75';
     applyTeacherFeeLayout();

@@ -6,7 +6,7 @@ let allStaff = [];
 let allAttendance = [];
 let selectedDate = '';
 
-document.addEventListener('DOMContentLoaded', async () => {
+window.onAppReady(async () => {
     const checkAuth = setInterval(() => {
         if (window.authReady) {
             clearInterval(checkAuth);

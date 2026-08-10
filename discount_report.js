@@ -7,7 +7,7 @@ let allRows     = [];    // raw transaction rows from DB
 let members     = {};    // student_id → {full_name, father_name, applying_for_class, roll_number}
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
+window.onAppReady(() => {
     // Default dates
     const today = todayStr();
     document.getElementById('inputDay').value   = today;

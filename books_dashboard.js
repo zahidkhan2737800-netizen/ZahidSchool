@@ -1,4 +1,4 @@
-document.addEventListener("DOMContentLoaded", () => {
+window.onAppReady(() => {
     // Wait for auth to complete
     const checkAuth = setInterval(() => {
         if (window.authReady && window.supabaseClient) {

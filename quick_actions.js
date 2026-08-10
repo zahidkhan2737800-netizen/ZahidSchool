@@ -133,7 +133,7 @@ const MAX_SELECTION = 10;
 let selectedActions = [];
 let userId = 'default';
 
-document.addEventListener('DOMContentLoaded', () => {
+window.onAppReady(() => {
     // Wait for auth to be ready to get correct user ID for saving preferences
     const checkAuth = setInterval(() => {
         if (window.authReady && window.currentUser) {

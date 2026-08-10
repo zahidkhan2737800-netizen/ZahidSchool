@@ -59,7 +59,7 @@ function applySchoolScope(query) {
 }
 
 // ── Boot ─────────────────────────────────────
-document.addEventListener('DOMContentLoaded', async () => {
+window.onAppReady(async () => {
     // Dropdown toggle
     toggleColsBtn.addEventListener('click', () => {
         colToggleMenu.style.display = colToggleMenu.style.display === 'flex' ? 'none' : 'flex';

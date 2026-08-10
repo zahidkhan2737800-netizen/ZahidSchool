@@ -22,7 +22,7 @@ async function waitForAuth(ms = 10000) {
 }
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', async () => {
+window.onAppReady(async () => {
     await waitForAuth();
 
     // Set current month

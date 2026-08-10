@@ -369,7 +369,7 @@ clearAllBtn.addEventListener('click', () => {
 });
 
 // ─── Init ─────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', async () => {
+window.onAppReady(async () => {
     await loadClasses();
     loadRecentHomework();
 });

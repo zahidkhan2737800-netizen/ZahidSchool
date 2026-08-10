@@ -1,6 +1,6 @@
 const saasDirectory = { schools: [], roles: [], campuses: [], users: [] };
 
-document.addEventListener('DOMContentLoaded', async () => {
+window.onAppReady(async () => {
     if (!await window.SaasAdmin.ready('users')) return;
 
     document.getElementById('registerSchoolForm').addEventListener('submit', registerSchool);

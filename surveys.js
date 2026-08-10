@@ -5,7 +5,7 @@ let currentSchoolId = null;
 
 let currentStudentId = null; // Store for WA sending
 
-document.addEventListener('DOMContentLoaded', async () => {
+window.onAppReady(async () => {
     await waitForAuthContext();
     await loadWaTemplates();
     await loadClassesAndStudents();

@@ -1,6 +1,6 @@
 // Supabase client is now provided by auth.js (supabaseClient)
 
-document.addEventListener('DOMContentLoaded', () => {
+window.onAppReady(() => {
     const inactiveBody = document.getElementById('inactiveBody');
     const statusFilter = document.getElementById('statusFilter');
     const yearFilter = document.getElementById('yearFilter');

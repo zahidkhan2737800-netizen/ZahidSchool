@@ -624,7 +624,12 @@
 
             <!-- 10. Fee Information -->
             <section class="form-section">
-                <h2>💰 Fee Information</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h2 style="margin: 0;">💰 Fee Information</h2>
+                    <button type="button" id="btnLoadClassFees" style="background: var(--primary); color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 6px; font-size: 0.8rem; cursor: pointer; font-weight: 600;">
+                        <i class="fas fa-sync-alt"></i> Load Class Defaults
+                    </button>
+                </div>
                 <div class="input-grid">
                     <div class="input-group">
                         <label for="admissionFee">Admission Fee (Rs)</label>

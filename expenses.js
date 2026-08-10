@@ -1,6 +1,6 @@
 let expenseChart = null;
 
-document.addEventListener('DOMContentLoaded', () => {
+window.onAppReady(() => {
     const checkAuth = setInterval(() => {
         if (window.authReady) {
             clearInterval(checkAuth);

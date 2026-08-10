@@ -38,7 +38,7 @@ function applyLayoutControls() {
     compactnessValue.textContent = `${Math.round(compact)}%`;
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
+window.onAppReady(async () => {
     // Restore UI preferences
     fontSizeRange.value = localStorage.getItem(LS_KEYS.fontSize) || '8.5';
     compactnessRange.value = localStorage.getItem(LS_KEYS.compactness) || '80';

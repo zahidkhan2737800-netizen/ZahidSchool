@@ -14,7 +14,8 @@ const PAGE_SIZE = 20;
 let currentChallanPage = 0;
 let totalChallanCount = 0;
 
-document.addEventListener('DOMContentLoaded', async () => {
+window.onAppReady(async () => {
+    const applySchoolScope = (query) => window.currentSchoolId ? query.eq('school_id', window.currentSchoolId) : query;
     // Basic DOM elements
     const uiLoading = document.getElementById('loadingOverlay');
     const uiMain = document.getElementById('mainUI');
@@ -595,9 +596,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function initializeCaches() {
         try {
             const [classesRes, feeHeadsRes, admissionsRes] = await Promise.all([
-                supabaseClient.from('classes').select('id, class_name, section').order('class_name'),
-                supabaseClient.from('fee_heads').select('id, class_id, fee_type, amount, is_monthly'),
-                supabaseClient.from('admissions').select('id, roll_number, full_name, father_name, applying_for_class, monthly_fee, discount').eq('status', 'Active')
+                applySchoolScope(supabaseClient.from('classes').select('id, class_name, section').order('class_name')),
+                applySchoolScope(supabaseClient.from('fee_heads').select('id, class_id, fee_type, amount, is_monthly')),
+                applySchoolScope(supabaseClient.from('admissions').select('id, roll_number, full_name, father_name, applying_for_class, monthly_fee, discount').eq('status', 'Active'))
             ]);
 
             if (classesRes.error) throw new Error("Classes Table: " + classesRes.error.message);
@@ -657,9 +658,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         updatePaginationUI(null); // Clear during load
 
         try {
-            let query = supabaseClient
+            let query = applySchoolScope(supabaseClient
                 .from('challans')
-                .select('*', { count: 'exact' })
+                .select('*', { count: 'exact' }))
                 .order('created_at', { ascending: false })
                 .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 

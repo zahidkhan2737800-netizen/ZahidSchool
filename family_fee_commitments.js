@@ -9,7 +9,7 @@ let commitmentBalancesById = {};
 let commitmentTotalAmount = 0;
 let commitmentBalancesLoaded = false;
 
-document.addEventListener('DOMContentLoaded', async () => {
+window.onAppReady(async () => {
     await waitForCommitmentAuth();
 
     const params = new URLSearchParams(window.location.search);

@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', () => {
+window.onAppReady(() => {
   const examForm = document.getElementById('examForm');
   const examName = document.getElementById('examName');
   const examSession = document.getElementById('examSession');

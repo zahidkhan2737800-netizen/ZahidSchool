@@ -58,7 +58,7 @@ const regHead      = document.getElementById('regHead');
 const regBody      = document.getElementById('regBody');
 
 // ─── Boot ────────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
+window.onAppReady(() => {
     const checkAuth = setInterval(() => {
         if (window.authReady !== false && window.supabaseClient) {
             clearInterval(checkAuth);

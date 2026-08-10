@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', async () => {
+window.onAppReady(async () => {
   const currForm = document.getElementById('currForm');
   const currName = document.getElementById('currName');
   const currDesc = document.getElementById('currDesc');

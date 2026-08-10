@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', () => {
+window.onAppReady(() => {
   const monthPicker = document.getElementById('monthPicker');
   const classFilter = document.getElementById('classFilter');
   const absentCriteria = document.getElementById('absentCriteria');

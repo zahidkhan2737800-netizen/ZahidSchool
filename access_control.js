@@ -83,7 +83,7 @@ let campuses = [];
 let campusFeatureReady = false;
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', async () => {
+window.onAppReady(async () => {
     // Wait for auth to be ready
     await waitForAuth();
 

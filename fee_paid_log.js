@@ -185,7 +185,7 @@ function applyLayoutControls() {
     compactnessValue.textContent = `${Math.round(compact)}%`;
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+window.onAppReady(() => {
     const today = fmtDateOnly(new Date());
     feeDateInput.value = localStorage.getItem(LS_KEYS.date) || today;
     fontSizeRange.value = localStorage.getItem(LS_KEYS.fontSize) || '8.5';

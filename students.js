@@ -1,6 +1,6 @@
 // Supabase client is now provided by auth.js (supabaseClient)
 
-document.addEventListener('DOMContentLoaded', async () => {
+window.onAppReady(async () => {
     const studentsBody = document.getElementById('studentsBody');
     const searchQueryInput = document.getElementById('searchQuery');
     const searchClassSelect = document.getElementById('searchClass');
