@@ -77,6 +77,7 @@ const SCHOOL_ACCESS_SECTIONS = [
         { href: 'create_challan.html', label: 'Create Challans', icon: 'fas fa-file-invoice-dollar', key: 'challans' },
         { href: 'collect_fee.html', label: 'Collect Student Fee', icon: 'fas fa-hand-holding-usd', key: 'collect_fee' },
         { href: 'collect_family_fee.html', label: 'Collect Family Fee', icon: 'fas fa-users-cog', key: 'collect_family_fee' },
+        { href: 'bulk_print_family_bills.html', label: 'Bulk Print Family Bills', icon: 'fas fa-print', key: 'collect_family_fee' },
         { href: 'Family Bill.html', label: 'Family Bill', icon: 'fas fa-file-invoice', key: 'collect_family_fee', hiddenFromNavigation: true },
         { href: 'fee_heads.html', label: 'Fee Config', icon: 'fas fa-cogs', key: 'fee_heads' },
         { href: 'fee_complaint_msg.html', label: 'Fee Complaint Msg', icon: 'fas fa-comment-dots', key: 'collect_fee' }
@@ -172,6 +173,7 @@ const PAGE_KEY_MAP = {
     'access_control.html':      'access_control',
     'family.html':              'family',
     'collect_family_fee.html':  'collect_family_fee',
+    'bulk_print_family_bills.html': 'collect_family_fee',
     'homework.html':            'homework',
     'complaint_diary.html':     'complaints',
     'student_complaints.html':  'complaints',
@@ -471,6 +473,7 @@ function filterSidebarNav() {
         'access_control.html':      'access_control',
         'family.html':              'family',
         'collect_family_fee.html':  'collect_family_fee',
+        'bulk_print_family_bills.html': 'collect_family_fee',
         'homework.html':            'homework',
         'complaint_diary.html':     'complaints',
         'student_complaints.html':  'complaints',

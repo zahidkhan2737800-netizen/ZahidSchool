@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bulk Print Family Bills - Zahid School System</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .container {
+            max-width: 900px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .header h2 {
+            margin: 0;
+            color: #1e293b;
+        }
+
+        .input-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #475569;
+            font-weight: 500;
+        }
+
+        .input-group textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-family: inherit;
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .input-group textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn:hover {
+            background: #2563eb;
+        }
+
+        .btn-success {
+            background: #10b981;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+        }
+
+        .btn:disabled {
+            background: #cbd5e1;
+            cursor: not-allowed;
+        }
+
+        .results-section {
+            margin-top: 2rem;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 1.5rem;
+        }
+
+        .results-list {
+            margin-top: 1rem;
+        }
+
+        .family-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
+        }
+
+        .family-info strong {
+            display: block;
+            color: #0f172a;
+        }
+
+        .family-info span {
+            color: #64748b;
+            font-size: 0.9rem;
+        }
+
+        .family-status {
+            font-weight: 600;
+        }
+
+        .status-ready { color: #10b981; }
+        .status-empty { color: #94a3b8; }
+        .status-error { color: #ef4444; }
+
+        /* Print Specific CSS copied from collect_family_fee.html */
+        .print-receipt-wrapper {
+            page-break-after: always;
+            margin-bottom: 20px; /* spacing for display if visible */
+        }
+        
+        .print-receipt-wrapper:last-child {
+            page-break-after: auto;
+        }
+
+        .printArea {
+            /* Fallback defaults before JS overrides */
+            --tp-page-margin: 3mm;
+            --tp-print-pad-top: 4mm;
+            --tp-print-pad-right: 3mm;
+            --tp-print-pad-bottom: 4mm;
+            --tp-print-pad-left: 3mm;
+            --tp-max-width: 320px;
+            --tp-font-size: 14px;
+            --tp-line-height: 1.45;
+            --tp-receipt-pad-y: 10px;
+            --tp-receipt-pad-x: 8px;
+            --tp-school-font: 20px;
+            --tp-phone-font: 12px;
+            --tp-date-font: 11px;
+            --tp-row-font: 14px;
+            --tp-fee-row-font: 14px;
+            --tp-total-font: 16px;
+            --tp-remain-font: 14px;
+            --tp-footer-font: 11px;
+        }
+
+        @page {
+            size: auto;
+            margin: var(--tp-page-margin);
+        }
+
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+
+            .printArea {
+                display: block !important;
+                visibility: visible;
+                position: relative; /* relative for flow in bulk print */
+                left: 0;
+                top: 0;
+                width: 100%;
+                padding: var(--tp-print-pad-top) var(--tp-print-pad-right) var(--tp-print-pad-bottom) var(--tp-print-pad-left);
+                box-sizing: border-box;
+            }
+
+            .printArea * {
+                visibility: visible;
+            }
+
+            #printContainer, #printContainer * {
+                visibility: visible;
+            }
+            #printContainer {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                margin: 0;
+                padding: 0;
+            }
+            html, body {
+                margin: 0;
+                padding: 0;
+                background: white;
+            }
+        }
+
+        .printArea {
+            display: none;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: var(--tp-font-size);
+            font-weight: bold;
+            line-height: var(--tp-line-height);
+            color: #000;
+            background: #fff;
+            width: 100%;
+            max-width: var(--tp-max-width);
+            margin: 0 auto;
+            padding: var(--tp-receipt-pad-y) var(--tp-receipt-pad-x);
+            box-sizing: border-box;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        .printArea .th-center {
+            text-align: center;
+        }
+
+        .printArea .th-school {
+            font-size: var(--tp-school-font);
+            font-weight: 900;
+            letter-spacing: 1px;
+            margin-bottom: 3px;
+            color: #000;
+        }
+
+        .printArea .th-phone {
+            font-size: var(--tp-phone-font);
+            font-weight: bold;
+            margin-bottom: 2px;
+            color: #000;
+        }
+
+        .printArea .th-date {
+            font-size: var(--tp-date-font);
+            font-weight: bold;
+            color: #000;
+            margin-bottom: 4px;
+        }
+
+        .printArea .th-divider {
+            border: none;
+            border-top: 2px dashed #000;
+            margin: 8px 0;
+        }
+
+        .printArea .th-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 6px 0;
+            font-size: var(--tp-row-font);
+            font-weight: bold;
+            color: #000;
+        }
+
+        .printArea .th-label {
+            flex: 0 0 40%;
+            font-weight: bold;
+            color: #000;
+            white-space: nowrap;
+        }
+
+        .printArea .th-value {
+            flex: 0 0 60%;
+            text-align: right;
+            font-weight: 900;
+            color: #000;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+        }
+
+        .printArea .th-fee-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 6px 0;
+            font-size: var(--tp-fee-row-font);
+            font-weight: bold;
+            color: #000;
+        }
+
+        .printArea .th-fee-desc {
+            flex: 0 0 65%;
+            word-break: break-word;
+            padding-right: 4px;
+            font-weight: bold;
+            color: #000;
+        }
+
+        .printArea .th-fee-amt {
+            flex: 0 0 35%;
+            text-align: right;
+            font-weight: 900;
+            color: #000;
+            white-space: nowrap;
+        }
+
+        .printArea .th-total-row {
+            display: flex;
+            justify-content: space-between;
+            font-weight: 900;
+            font-size: var(--tp-total-font);
+            margin: 8px 0;
+            color: #000;
+        }
+
+        .printArea .th-remain-row {
+            display: flex;
+            justify-content: space-between;
+            font-weight: 900;
+            font-size: var(--tp-remain-font);
+            margin: 6px 0;
+            color: #000;
+        }
+
+        .printArea .th-total-row span:last-child,
+        .printArea .th-remain-row span:last-child {
+            white-space: nowrap;
+        }
+
+        .printArea .th-footer {
+            text-align: center;
+            font-size: var(--tp-footer-font);
+            font-weight: bold;
+            color: #000;
+            margin-top: 14px;
+        }
+
+        .printArea .student-subhead {
+            font-weight: 900;
+            text-decoration: underline;
+            margin-top: 8px;
+            font-size: var(--tp-phone-font);
+            color: #000;
+            text-align: left;
+        }
+
+    </style>
+</head>
+
+<body>
+    <div id="sidebar-container"></div>
+    
+    <div class="main-content" id="mainContent">
+        <div class="top-nav">
+            <button id="sidebarToggle" class="menu-toggle"><i class="fas fa-bars"></i></button>
+            <div class="user-info">
+                <span id="userSchoolName" style="margin-right: 15px; font-weight: 600; color: #1e293b;"></span>
+                <span id="userName">User</span>
+                <button onclick="logout()" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            </div>
+        </div>
+
+        <div class="container">
+            <div class="header">
+                <h2>Bulk Print Family Bills</h2>
+            </div>
+            
+            <p style="color: #64748b; margin-bottom: 1.5rem;">Enter comma-separated family numbers to fetch and print their outstanding bills. Each family's bill will be printed on a separate receipt.</p>
+            
+            <div class="input-group">
+                <label for="familyNumbersInput">Family Numbers (e.g., 12, 13, 45)</label>
+                <textarea id="familyNumbersInput" placeholder="Enter family numbers separated by commas..."></textarea>
+            </div>
+            
+            <div style="display: flex; gap: 1rem;">
+                <button class="btn" id="btnFetch">Fetch Bills</button>
+                <button class="btn btn-success" id="btnPrintAll" style="display: none;"><i class="fas fa-print"></i> Print All Bills</button>
+            </div>
+            
+            <div class="results-section" id="resultsSection" style="display: none;">
+                <h3 style="margin-top: 0;">Results</h3>
+                <div id="resultsStatus" style="margin-bottom: 1rem; color: #475569;"></div>
+                <div class="results-list" id="resultsList"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden container for all print receipts -->
+    <div id="printContainer"></div>
+
+    <script src="auth.js"></script>
+    <script src="dashboard.js"></script>
+    <script src="bulk_print_family_bills.js"></script>
+</body>
+
+</html>
