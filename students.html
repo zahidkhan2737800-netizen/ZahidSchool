@@ -241,14 +241,34 @@
         }
 
         @media print {
-            body { background: white !important; }
+            body { background: white !important; margin: 0; padding: 0; }
             header, .dashboard-stats, .filter-panel, .delete-btn, .nav-links { display: none !important; }
             .dashboard-panel { border: none !important; box-shadow: none !important; padding: 0 !important; }
-            th, td {
-                font-size: var(--print-font-size, 9px) !important;
-                padding: var(--print-td-pad, 2px 4px) !important;
+            
+            table {
+                width: 100% !important;
+                border-collapse: collapse !important;
             }
-            th { padding: var(--print-th-pad, 3px 4px) !important; }
+            th, td {
+                font-size: var(--print-font-size, 11px) !important;
+                padding: var(--print-td-pad, 4px 6px) !important;
+                border: 1px solid #0f172a !important;
+                color: #0f172a !important;
+            }
+            th { 
+                padding: var(--print-th-pad, 4px 6px) !important; 
+                background-color: #f1f5f9 !important;
+                font-weight: 700 !important;
+                text-transform: uppercase !important;
+            }
+            
+            /* Hide the action columns and icons when printing */
+            th:nth-child(7), td:nth-child(7),
+            th:nth-child(9), td:nth-child(9),
+            th:nth-child(10), td:nth-child(10) {
+                display: none !important;
+            }
+
             @page { margin: 10mm; }
         }
     </style>

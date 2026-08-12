@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>School Bell Alarm System</title>
+    <!-- Use Inter font for modern aesthetics -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Supabase JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <style>
+        :root {
+            --primary: #4F46E5;
+            --primary-hover: #4338CA;
+            --bg-color: #F9FAFB;
+            --card-bg: #FFFFFF;
+            --text-main: #111827;
+            --text-muted: #6B7280;
+            --border-color: #E5E7EB;
+            --danger: #EF4444;
+            --danger-hover: #DC2828;
+            --success: #10B981;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            transition: background-color 0.3s;
+        }
+
+        .alarm-active {
+            background-color: var(--danger) !important;
+            animation: flash 1s infinite alternate;
+        }
+
+        @keyframes flash {
+            0% { background-color: var(--danger); }
+            100% { background-color: #7f1d1d; }
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            background: var(--card-bg);
+            padding: 20px 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            color: var(--primary);
+        }
+
+        .clock-container {
+            text-align: right;
+        }
+
+        .clock {
+            font-size: 2rem;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: 1px;
+            color: var(--text-main);
+        }
+
+        .timezone {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-bottom: 25px;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 15px;
+        }
+        
+        .card-header h2 {
+            margin: 0;
+            font-size: 1.25rem;
+            color: var(--text-main);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: #F3F4F6;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+        }
+
+        input[type="text"], input[type="time"], select {
+            padding: 10px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 0.875rem;
+            width: 100%;
+            box-sizing: border-box;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        input[type="text"]:focus, input[type="time"]:focus, select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.875rem;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-1px);
+        }
+
+        .btn-danger {
+            background-color: var(--danger);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background-color: var(--danger-hover);
+            transform: translateY(-1px);
+        }
+
+        .btn-small {
+            padding: 8px 12px;
+            font-size: 0.75rem;
+        }
+
+        /* Stop Alarm Overlay */
+        #alarm-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            color: white;
+        }
+
+        #alarm-overlay.active {
+            display: flex;
+        }
+
+        #alarm-overlay h1 {
+            color: var(--danger);
+            font-size: 5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        #stop-alarm-btn {
+            font-size: 1.25rem;
+            padding: 20px 50px;
+            border-radius: 50px;
+            box-shadow: 0 10px 25px rgba(239, 68, 68, 0.4);
+            margin-top: 20px;
+        }
+
+        .period-row {
+            transition: background-color 0.2s;
+        }
+
+        .period-row:hover {
+            background-color: #F9FAFB;
+        }
+
+        .next-bell {
+            background: #EFF6FF;
+            border: 1px solid #BFDBFE;
+            color: #1E40AF;
+            padding: 15px 20px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .next-bell svg {
+            width: 24px; height: 24px;
+            color: #3B82F6;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            overflow-x: auto;
+            padding-bottom: 5px;
+        }
+
+        .tab {
+            padding: 8px 20px;
+            background: #F3F4F6;
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: 500;
+            color: var(--text-muted);
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+        
+        .tab:hover {
+            background: #E5E7EB;
+        }
+
+        .tab.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+            box-shadow: 0 2px 4px rgba(79, 70, 229, 0.2);
+        }
+        
+        #loading-indicator {
+            text-align: center;
+            padding: 30px;
+            color: var(--text-muted);
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div id="alarm-overlay">
+        <h1 id="alarm-period-name">ALARM!</h1>
+        <p style="font-size: 1.5rem; margin-bottom: 30px; color: #E5E7EB;">Time to ring the school bell.</p>
+        <button id="stop-alarm-btn" class="btn-danger">ACKNOWLEDGE & STOP ALARM</button>
+    </div>
+
+    <div class="container">
+        <header>
+            <div>
+                <h1>School Bell Alarm</h1>
+                <p style="margin: 5px 0 0 0; color: var(--text-muted); font-size: 0.875rem;">Automated bell system synchronized with Supabase & Karachi Time.</p>
+            </div>
+            <div class="clock-container">
+                <div class="clock" id="current-time">00:00:00</div>
+                <div class="timezone" id="current-date">Loading date...</div>
+            </div>
+        </header>
+
+        <div class="next-bell" id="next-bell-alert" style="display: none;">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+            </svg>
+            <span id="next-bell-text">Next Bell: -</span>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2>Schedule Configuration</h2>
+                <button class="btn-primary" onclick="addPeriod()">+ Add Period</button>
+            </div>
+            
+            <div class="tabs" id="day-tabs">
+                <!-- Tabs generated dynamically -->
+            </div>
+
+            <table id="schedule-table" style="display:none;">
+                <thead>
+                    <tr>
+                        <th width="35%">Period Name (e.g. 1st Period, Break)</th>
+                        <th width="25%">Time</th>
+                        <th width="20%">Status</th>
+                        <th width="20%">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="schedule-body">
+                    <!-- Rows will be rendered here -->
+                </tbody>
+            </table>
+            
+            <div id="loading-indicator">Loading schedule from database...</div>
+            
+            <div style="margin-top: 25px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color); padding-top: 15px;">
+                <p style="color: var(--text-muted); font-size: 0.875rem; margin: 0;">
+                    <svg style="width:16px; height:16px; vertical-align:text-bottom; margin-right:4px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                    Changes are automatically saved to the database.
+                </p>
+                <button class="btn-primary" onclick="testAlarm()" style="background-color: var(--text-main);">Test Alarm Now</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Include standard auth file to inject window.supabaseClient and window.onAppReady -->
+    <script src="auth.js"></script>
+
+    <script>
+        // State
+        const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        let currentDayTab = new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone: 'Asia/Karachi' });
+        if (!DAYS.includes(currentDayTab)) currentDayTab = 'Monday';
+
+        let schedule = {};
+        DAYS.forEach(day => schedule[day] = []);
+
+        let audioContext = null;
+        let oscillator = null;
+        let isAlarmRinging = false;
+        
+        // We still use local storage to avoid ringing multiple times on refresh within the same minute
+        let lastTriggeredDate = localStorage.getItem('lastTriggeredDate') || '';
+        let triggeredAlarms = JSON.parse(localStorage.getItem('triggeredAlarms')) || [];
+
+        // UI Elements
+        const timeEl = document.getElementById('current-time');
+        const dateEl = document.getElementById('current-date');
+        const tbody = document.getElementById('schedule-body');
+        const scheduleTable = document.getElementById('schedule-table');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const overlay = document.getElementById('alarm-overlay');
+        const stopBtn = document.getElementById('stop-alarm-btn');
+        const periodNameEl = document.getElementById('alarm-period-name');
+        const nextBellAlert = document.getElementById('next-bell-alert');
+        const nextBellText = document.getElementById('next-bell-text');
+
+        // Initialization (using onAppReady from auth.js)
+        window.onAppReady(async () => {
+            renderTabs();
+            await fetchScheduleFromDB();
+            startClock();
+            
+            // Browsers block audio until the user interacts with the page.
+            document.body.addEventListener('click', initAudio, { once: true });
+        });
+
+        function initAudio() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        async function fetchScheduleFromDB() {
+            try {
+                loadingIndicator.style.display = 'block';
+                scheduleTable.style.display = 'none';
+
+                const { data, error } = await window.supabaseClient
+                    .from('alarm_schedules')
+                    .select('*')
+                    .order('ring_time', { ascending: true });
+
+                if (error) throw error;
+                
+                // Clear and repopulate
+                DAYS.forEach(day => schedule[day] = []);
+                
+                if (data && data.length > 0) {
+                    data.forEach(row => {
+                        const timeStr = row.ring_time.substring(0, 5); // get HH:MM
+                        if (schedule[row.day_of_week]) {
+                            schedule[row.day_of_week].push({
+                                id: row.id,
+                                name: row.period_name,
+                                time: timeStr,
+                                active: row.is_active
+                            });
+                        }
+                    });
+                }
+                
+                loadingIndicator.style.display = 'none';
+                scheduleTable.style.display = 'table';
+                renderTable();
+
+            } catch(err) {
+                console.error("Error fetching schedules:", err);
+                alert("Failed to load schedule from database.");
+            }
+        }
+
+        // Render Tabs
+        function renderTabs() {
+            const tabsContainer = document.getElementById('day-tabs');
+            tabsContainer.innerHTML = '';
+            DAYS.forEach(day => {
+                const tab = document.createElement('div');
+                tab.className = `tab ${day === currentDayTab ? 'active' : ''}`;
+                tab.textContent = day;
+                tab.onclick = () => switchDay(day);
+                tabsContainer.appendChild(tab);
+            });
+        }
+
+        function switchDay(day) {
+            currentDayTab = day;
+            renderTabs();
+            renderTable();
+        }
+
+        // Render Table
+        function renderTable() {
+            tbody.innerHTML = '';
+            const daySchedule = schedule[currentDayTab];
+            
+            // Sort by time locally to ensure exact order on UI changes
+            daySchedule.sort((a, b) => a.time.localeCompare(b.time));
+
+            if (daySchedule.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 20px;">No periods scheduled for this day.</td></tr>';
+            }
+
+            daySchedule.forEach(period => {
+                const tr = document.createElement('tr');
+                tr.className = 'period-row';
+                
+                tr.innerHTML = `
+                    <td>
+                        <input type="text" value="${period.name}" onchange="updatePeriod('${period.id}', 'name', this.value)" placeholder="e.g. Break Time">
+                    </td>
+                    <td>
+                        <input type="time" value="${period.time}" onchange="updatePeriod('${period.id}', 'time', this.value)">
+                    </td>
+                    <td>
+                        <select onchange="updatePeriod('${period.id}', 'active', this.value === 'true')">
+                            <option value="true" ${period.active ? 'selected' : ''}>Active</option>
+                            <option value="false" ${!period.active ? 'selected' : ''}>Disabled</option>
+                        </select>
+                    </td>
+                    <td>
+                        <button class="btn-danger btn-small" onclick="deletePeriod('${period.id}')">Remove</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            updateNextBell();
+        }
+
+        async function addPeriod() {
+            const newPeriod = {
+                day_of_week: currentDayTab,
+                period_name: 'New Period',
+                ring_time: '12:00:00',
+                is_active: true
+            };
+            
+            try {
+                // Optimistic visual feedback can be added here if needed
+                const { data, error } = await window.supabaseClient
+                    .from('alarm_schedules')
+                    .insert([newPeriod])
+                    .select();
+                    
+                if (error) throw error;
+                
+                if (data && data[0]) {
+                    const row = data[0];
+                    schedule[currentDayTab].push({
+                        id: row.id,
+                        name: row.period_name,
+                        time: row.ring_time.substring(0, 5),
+                        active: row.is_active
+                    });
+                    renderTable();
+                }
+            } catch(err) {
+                console.error("Failed to add period:", err);
+                alert("Failed to add period to database.");
+            }
+        }
+
+        async function updatePeriod(id, field, value) {
+            const period = schedule[currentDayTab].find(p => p.id === id);
+            if (!period) return;
+            
+            // Update local state immediately for fast UI
+            period[field] = value;
+            renderTable(); 
+            
+            // Map local field to DB column
+            let dbColumn = '';
+            let dbValue = value;
+            if (field === 'name') dbColumn = 'period_name';
+            if (field === 'time') { dbColumn = 'ring_time'; dbValue = value + ':00'; } 
+            if (field === 'active') dbColumn = 'is_active';
+
+            try {
+                const { error } = await window.supabaseClient
+                    .from('alarm_schedules')
+                    .update({ [dbColumn]: dbValue })
+                    .eq('id', id);
+                    
+                if (error) throw error;
+            } catch(err) {
+                console.error("Update error:", err);
+                alert("Failed to update database.");
+            }
+        }
+
+        async function deletePeriod(id) {
+            if(confirm("Are you sure you want to remove this period?")) {
+                // Remove locally for immediate UI response
+                schedule[currentDayTab] = schedule[currentDayTab].filter(p => p.id !== id);
+                renderTable();
+                
+                try {
+                    const { error } = await window.supabaseClient
+                        .from('alarm_schedules')
+                        .delete()
+                        .eq('id', id);
+                        
+                    if (error) throw error;
+                } catch(err) {
+                    console.error("Delete error:", err);
+                    alert("Failed to delete period from database.");
+                    // In a perfect world, we would re-fetch to restore state here.
+                }
+            }
+        }
+
+        // Clock & Alarm Logic
+        function startClock() {
+            setInterval(checkTime, 1000);
+            checkTime(); // initial call
+        }
+
+        function checkTime() {
+            const now = new Date();
+            // Convert to Karachi Time reliably
+            const karachiTimeStr = now.toLocaleString('en-US', { timeZone: 'Asia/Karachi' });
+            const karachiDate = new Date(karachiTimeStr);
+            
+            // Format time display (HH:MM:SS)
+            const hours = String(karachiDate.getHours()).padStart(2, '0');
+            const minutes = String(karachiDate.getMinutes()).padStart(2, '0');
+            const seconds = String(karachiDate.getSeconds()).padStart(2, '0');
+            const timeString = `${hours}:${minutes}:${seconds}`;
+            
+            const currentDay = karachiDate.toLocaleDateString('en-US', { weekday: 'long' });
+            const dateString = karachiDate.toLocaleDateString('en-US', { 
+                weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+            }) + ' (Asia/Karachi)';
+
+            timeEl.textContent = timeString;
+            dateEl.textContent = dateString;
+
+            // Check if day changed to reset triggered alarms list
+            const todayStr = karachiDate.toLocaleDateString('en-US');
+            if (lastTriggeredDate !== todayStr) {
+                lastTriggeredDate = todayStr;
+                triggeredAlarms = [];
+                localStorage.setItem('lastTriggeredDate', lastTriggeredDate);
+                localStorage.setItem('triggeredAlarms', JSON.stringify(triggeredAlarms));
+                // Automatically switch to current day tab if a new day begins and the app is open
+                if(DAYS.includes(currentDay) && currentDayTab !== currentDay) {
+                    switchDay(currentDay);
+                } else {
+                    updateNextBell(); // Refresh next bell calculation on new day
+                }
+            }
+
+            // Trigger Alarm Check
+            if (!isAlarmRinging) {
+                const todaySchedule = schedule[currentDay] || [];
+                const currentTimeHM = `${hours}:${minutes}`;
+
+                const matchedPeriod = todaySchedule.find(p => 
+                    p.active && 
+                    p.time === currentTimeHM && 
+                    !triggeredAlarms.includes(p.id)
+                );
+
+                if (matchedPeriod) {
+                    triggerAlarm(matchedPeriod);
+                }
+            }
+        }
+
+        function updateNextBell() {
+            const now = new Date();
+            const karachiTimeStr = now.toLocaleString('en-US', { timeZone: 'Asia/Karachi' });
+            const karachiDate = new Date(karachiTimeStr);
+            const currentDay = karachiDate.toLocaleDateString('en-US', { weekday: 'long' });
+            const hours = String(karachiDate.getHours()).padStart(2, '0');
+            const minutes = String(karachiDate.getMinutes()).padStart(2, '0');
+            const currentTimeHM = `${hours}:${minutes}`;
+
+            const todaySchedule = schedule[currentDay] || [];
+            
+            // Find the next upcoming active period today
+            const nextPeriods = todaySchedule
+                .filter(p => p.active && p.time > currentTimeHM)
+                .sort((a, b) => a.time.localeCompare(b.time));
+
+            if (nextPeriods.length > 0) {
+                nextBellAlert.style.display = 'flex';
+                // Convert 24h to 12h for better reading
+                const timeParts = nextPeriods[0].time.split(':');
+                let h = parseInt(timeParts[0], 10);
+                const ampm = h >= 12 ? 'PM' : 'AM';
+                h = h % 12;
+                h = h ? h : 12; 
+                const time12h = `${String(h).padStart(2, '0')}:${timeParts[1]} ${ampm}`;
+                
+                nextBellText.innerHTML = `<strong>Next Bell Today:</strong> ${nextPeriods[0].name} at ${time12h}`;
+            } else {
+                nextBellAlert.style.display = 'none';
+            }
+        }
+
+        function triggerAlarm(period) {
+            initAudio(); // Ensure audio context is ready
+            if (audioContext && audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+
+            isAlarmRinging = true;
+            document.body.classList.add('alarm-active');
+            overlay.classList.add('active');
+            periodNameEl.textContent = period ? period.name : 'TEST ALARM';
+
+            // Log it as triggered for today so it doesn't ring again within the same minute
+            if (period && !period.isTest) {
+                triggeredAlarms.push(period.id);
+                localStorage.setItem('triggeredAlarms', JSON.stringify(triggeredAlarms));
+                updateNextBell();
+            }
+
+            playBeepSequence();
+        }
+
+        function playBeepSequence() {
+            if (!isAlarmRinging || !audioContext) return;
+
+            oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+
+            // Square wave creates a harsh, buzzer-like sound
+            oscillator.type = 'square';
+            oscillator.frequency.setValueAtTime(750, audioContext.currentTime); // 750Hz freq
+            
+            // Envelope to avoid clicking and make it sound like an electric bell
+            gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+            gainNode.gain.linearRampToValueAtTime(0.5, audioContext.currentTime + 0.05); // Volume up to 0.5
+            gainNode.gain.setValueAtTime(0.5, audioContext.currentTime + 0.4);
+            gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.5);
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.5);
+
+            // Repeat the sequence every 1 second while alarm is active
+            setTimeout(() => {
+                if (isAlarmRinging) playBeepSequence();
+            }, 1000);
+        }
+
+        function stopAlarm() {
+            isAlarmRinging = false;
+            document.body.classList.remove('alarm-active');
+            overlay.classList.remove('active');
+            
+            if (oscillator) {
+                try { oscillator.stop(); } catch(e) {}
+            }
+        }
+
+        function testAlarm() {
+            triggerAlarm({ name: "TEST ALARM", isTest: true });
+        }
+
+        stopBtn.addEventListener('click', stopAlarm);
+
+    </script>
+</body>
+</html>

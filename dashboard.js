@@ -128,7 +128,8 @@ var NAV_CATEGORIES_LEGACY = [
       { href: 'thermal_print_settings.html', label: 'Thermal Print Settings', icon: 'fas fa-print', key: 'collect_fee' },
       { href: 'access_control.html', label: 'Access Control', icon: 'fas fa-lock', key: 'access_control' },
       { href: 'saas_master_console.html', label: 'SaaS Master Console', icon: 'fas fa-crown', key: 'access_control', superAdminOnly: true },
-      { href: 'quick_actions.html', label: 'Dashboard Shortcuts', icon: 'fas fa-cog', key: 'access_control' }
+      { href: 'quick_actions.html', label: 'Dashboard Shortcuts', icon: 'fas fa-cog', key: 'access_control' },
+      { href: 'alarm_system.html', label: 'Alarm Schedule', icon: 'fas fa-bell', key: 'access_control' }
     ]
   }
 ];

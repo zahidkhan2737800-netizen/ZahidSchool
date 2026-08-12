@@ -115,7 +115,8 @@ const SCHOOL_ACCESS_SECTIONS = [
         { href: 'class_subjects_assignment.html', label: 'Class Subjects', icon: 'fas fa-link', key: 'classes' },
         { href: 'thermal_print_settings.html', label: 'Thermal Print Settings', icon: 'fas fa-print', key: 'collect_fee' },
         { href: 'access_control.html', label: 'Access Control', icon: 'fas fa-lock', key: 'access_control' },
-        { href: 'quick_actions.html', label: 'Dashboard Shortcuts', icon: 'fas fa-cog', key: 'access_control' }
+        { href: 'quick_actions.html', label: 'Dashboard Shortcuts', icon: 'fas fa-cog', key: 'access_control' },
+        { href: 'alarm_system.html', label: 'Alarm Schedule', icon: 'fas fa-bell', key: 'access_control' }
     ]},
     { id: 'saas', label: 'SAAS', icon: 'fas fa-cloud', items: [
         { href: 'saas_subscription_access.html', label: 'Subscription Access', icon: 'fas fa-layer-group', key: 'access_control', superAdminOnly: true },
