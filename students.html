@@ -124,9 +124,9 @@
         th,
         td {
             text-align: left;
-            padding: 10px 14px;
+            padding: var(--table-td-pad, 10px 14px);
             border: 1px solid #e2e8f0;
-            font-size: 0.95rem;
+            font-size: var(--table-font-size, 0.95rem);
         }
 
         th {
@@ -134,9 +134,10 @@
             color: #ffffff;
             font-weight: 600;
             text-transform: uppercase;
-            font-size: 0.85rem;
+            font-size: var(--table-font-size, 0.85rem);
             letter-spacing: 0.05em;
             border: 1px solid var(--primary-hover);
+            padding: var(--table-th-pad, 10px 14px);
         }
 
         tr:nth-child(even) {
@@ -223,30 +224,38 @@
         .delete-btn:hover {
             background-color: #fca5a5;
         }
+
+        .slider-field {
+            display: flex;
+            flex-direction: column;
+            min-width: 130px;
+        }
+
+        .slider-field label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 0.4rem;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        @media print {
+            body { background: white !important; }
+            header, .dashboard-stats, .filter-panel, .delete-btn, .nav-links { display: none !important; }
+            .dashboard-panel { border: none !important; box-shadow: none !important; padding: 0 !important; }
+            th, td {
+                font-size: var(--print-font-size, 9px) !important;
+                padding: var(--print-td-pad, 2px 4px) !important;
+            }
+            th { padding: var(--print-th-pad, 3px 4px) !important; }
+            @page { margin: 10mm; }
+        }
     </style>
 </head>
 
 <body>
     <div style="width: 100%; padding: 1.5rem; max-width: 1600px; margin: 0 auto;">
-        <header
-            style="display: flex; justify-content: space-between; align-items: center; background: white; padding: 1rem 1.5rem; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 1.5rem; border: 1px solid #e2e8f0;">
-            <div style="display: flex; align-items: center; gap: 1rem;">
-                <div style="font-size: 2rem; background: #e0f2fe; padding: 0.5rem; border-radius: 8px;">👨‍🎓</div>
-                <div>
-                    <h1 style="margin: 0; font-size: 1.4rem; color: #0f172a; font-weight: 700;">Active Students
-                        Directory</h1>
-                    <p style="margin: 0.2rem 0 0; font-size: 0.9rem; color: #64748b;">View currently admitted and active
-                        students only</p>
-                </div>
-            </div>
-            <div class="nav-links" style="margin: 0;">
-                <a href="dashboard.html">📊 Dashboard</a>
-                <a href="index.html">📝 Admission Form</a>
-                <a href="classes.html">🏫 Classes</a>
-                <a href="fee_heads.html">⚙️ Fee Heads</a>
-                <a href="fee_contacts.html">📞 Fee Contacts</a>
-            </div>
-        </header>
 
         <div class="dashboard-panel">
             <div class="dashboard-stats"
@@ -288,6 +297,17 @@
                         <option value="Valid">Valid 11-Digit Numbers</option>
                     </select>
                 </div>
+                <div class="slider-field">
+                    <label for="fontSizeRange">Font Size <span id="fontSizeValue">14px</span></label>
+                    <input type="range" id="fontSizeRange" min="7" max="20" step="0.5" value="14">
+                </div>
+                <div class="slider-field">
+                    <label for="compactnessRange">Compactness <span id="compactnessValue">20%</span></label>
+                    <input type="range" id="compactnessRange" min="0" max="100" step="5" value="20">
+                </div>
+                <button id="printBtn" class="search-btn" style="background:#10b981; margin-left: auto;">
+                    <i class="fas fa-print"></i> Print
+                </button>
             </div>
 
             <div class="data-table-container">

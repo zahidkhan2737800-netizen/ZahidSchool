@@ -28,6 +28,7 @@ let studentsMap     = {};
 let studentsList    = [];
 let reportMatches   = [];
 let selectedReportRoll = '';
+let classesCache    = {};
 
 let waTemplates = [];
 let currentComplaintId = null;
@@ -166,34 +167,57 @@ function renderComplaints() {
         return;
     }
 
-    let html = `<table class="complaints-table">
-        <thead><tr>
-            <th>Name</th><th>Roll</th><th>Class</th><th>Date</th>
-            <th>Complaint</th><th>Category</th><th>Status</th><th>Contact</th><th>W</th><th>Actions</th>
-        </tr></thead><tbody>`;
-
+    // Group by class_name
+    const grouped = {};
     filtered.forEach(r => {
-        html += `<tr data-id="${r.id}">
-            <td>${esc(r.name)}</td>
-            <td>${esc(r.roll)}</td>
-            <td>${esc(r.class_name)}</td>
-            <td>${esc(r.date)}</td>
-            <td class="complaint-text-cell">${esc(r.complaint)}</td>
-            <td><button class="toggle-btn toggle-category" data-id="${r.id}">${esc(r.category)}</button></td>
-            <td><button class="toggle-btn toggle-status" data-id="${r.id}">${esc(r.status)}</button></td>
-            <td><button class="toggle-btn toggle-contact" data-id="${r.id}">${esc(r.contact_status)}</button></td>
-            <td style="text-align: center;">
-                <button class="btn btn-success btn-sm" onclick="openWaModal('${r.id}')" title="Send WhatsApp">
-                    <i class="fab fa-whatsapp" style="font-size: 1.2rem;"></i>
-                </button>
-            </td>
-            <td style="white-space:nowrap;">
-                <button class="btn btn-primary btn-sm edit-btn" data-id="${r.id}">✏️</button>
-                <button class="btn btn-danger btn-sm del-btn" data-id="${r.id}">🗑</button>
-            </td>
-        </tr>`;
+        const cName = r.class_name || 'Unknown Class';
+        if (!grouped[cName]) grouped[cName] = [];
+        grouped[cName].push(r);
     });
-    html += '</tbody></table>';
+
+    // Sort class names by display_order
+    const sortedClasses = Object.keys(grouped).sort((a, b) => {
+        const orderA = classesCache[a] || 999;
+        const orderB = classesCache[b] || 999;
+        if (orderA !== orderB) return orderA - orderB;
+        return a.localeCompare(b);
+    });
+
+    let html = '';
+    sortedClasses.forEach(cName => {
+        const count = grouped[cName].length;
+        html += `<h3 style="margin-top: 1.5rem; margin-bottom: 0.5rem; color: #1e293b; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.25rem;">
+            ${esc(cName)} <span style="font-size: 0.9rem; color: #64748b; font-weight: normal; margin-left: 8px;">(Total Complaints: ${count})</span>
+        </h3>`;
+        html += `<table class="complaints-table">
+            <thead><tr>
+                <th>Name</th><th>Roll</th><th>Date</th>
+                <th>Complaint</th><th>Category</th><th>Status</th><th>Contact</th><th>W</th><th>Actions</th>
+            </tr></thead><tbody>`;
+
+        grouped[cName].forEach(r => {
+            html += `<tr data-id="${r.id}">
+                <td>${esc(r.name)}</td>
+                <td>${esc(r.roll)}</td>
+                <td>${esc(r.date)}</td>
+                <td class="complaint-text-cell">${esc(r.complaint)}</td>
+                <td><button class="toggle-btn toggle-category" data-id="${r.id}">${esc(r.category)}</button></td>
+                <td><button class="toggle-btn toggle-status" data-id="${r.id}">${esc(r.status)}</button></td>
+                <td><button class="toggle-btn toggle-contact" data-id="${r.id}">${esc(r.contact_status)}</button></td>
+                <td style="text-align: center;">
+                    <button class="btn btn-success btn-sm" onclick="openWaModal('${r.id}')" title="Send WhatsApp">
+                        <i class="fab fa-whatsapp" style="font-size: 1.2rem;"></i>
+                    </button>
+                </td>
+                <td style="white-space:nowrap;">
+                    <button class="btn btn-primary btn-sm edit-btn" data-id="${r.id}">✏️</button>
+                    <button class="btn btn-danger btn-sm del-btn" data-id="${r.id}">🗑</button>
+                </td>
+            </tr>`;
+        });
+        html += '</tbody></table>';
+    });
+    
     container.innerHTML = html;
 
     // Toggle category
@@ -632,10 +656,31 @@ function downloadBlob(content, filename, type) {
     setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 
+async function loadClasses() {
+    try {
+        const { data, error } = await applySchoolScope(db
+            .from('classes')
+            .select('class_name, section, display_order')
+            .eq('is_active', true));
+        if (error) throw error;
+        
+        classesCache = {};
+        if (data) {
+            data.forEach(c => {
+                const name = `${c.class_name || ''} ${c.section || ''}`.trim();
+                classesCache[name] = c.display_order || 999;
+            });
+        }
+    } catch (err) {
+        console.error("Failed to load classes", err);
+    }
+}
+
 // ─── Init ─────────────────────────────────────────────────────
 window.onAppReady(async () => {
     setDefaults();
     await loadWaTemplates();
+    await loadClasses();
     await loadStudents();
     await loadComplaints();
 });

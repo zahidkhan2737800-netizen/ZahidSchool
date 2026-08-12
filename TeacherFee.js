@@ -535,6 +535,142 @@ async function saveTeacherCommitment() {
     }
 }
 
+async function printTeacherFeeThermalOptionTwo() {
+    if (filteredTeacherFeeRows.length === 0) {
+        showTeacherFeeToast('No students in list to print.', true);
+        return;
+    }
+
+    const btn = document.getElementById('printTeacherFeeThermal');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+    }
+
+    try {
+        const studentIds = filteredTeacherFeeRows.map(r => String(r.student_id));
+        
+        // Get last 3 days
+        const dates = [];
+        for (let i = 0; i < 3; i++) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            dates.push(d.toISOString().slice(0, 10));
+        }
+
+        let attQuery = window.supabaseClient
+            .from('attendance')
+            .select('student_id, date, status')
+            .in('student_id', studentIds)
+            .in('date', dates);
+            
+        if (window.currentSchoolId) {
+            attQuery = attQuery.eq('school_id', window.currentSchoolId);
+        }
+            
+        const { data: attData, error: attError } = await attQuery;
+        if (attError) throw attError;
+
+        const attMap = {};
+        if (attData) {
+            attData.forEach(a => {
+                const sId = String(a.student_id);
+                if (!attMap[sId]) attMap[sId] = {};
+                attMap[sId][a.date] = a.status;
+            });
+        }
+
+        const printContainer = document.getElementById('printAreaTwo');
+        const classFilter = document.getElementById('teacherClassSelect').value || 'All Classes';
+        const currentDate = new Date().toLocaleDateString();
+        
+        printContainer.innerHTML = `
+            <h3>ATTENTION LIST</h3>
+            <div class="meta">
+                Date: ${currentDate}<br>Class: ${escapeTeacherFeeHtml(classFilter)}<br>
+                Total Students: ${filteredTeacherFeeRows.length}<br>Type: Fee & Follow-up
+            </div>
+            <table>
+                <tr>
+                    <th style="width:20%">Roll</th>
+                    <th style="width:45%">Name</th>
+                    <th style="width:35%" class="right">Act</th>
+                </tr>
+                <tbody id="printAreaTwoBody"></tbody>
+            </table>
+            <div style="text-align:center;margin-top:15px;font-size:10px;">Total Printed: ${filteredTeacherFeeRows.length}</div>
+        `;
+
+        const tbody = document.getElementById('printAreaTwoBody');
+
+        filteredTeacherFeeRows.forEach(row => {
+            const sId = String(row.student_id);
+            
+            const attStrs = [];
+            // Older to newer (dates[2] to dates[0])
+            for (let i = 2; i >= 0; i--) {
+                const d = dates[i];
+                const status = (attMap[sId] && attMap[sId][d]) ? attMap[sId][d] : 'None';
+                if (status === 'Present') attStrs.push('1');
+                else if (status === 'Absent') attStrs.push('0');
+                else if (status === 'Leave') attStrs.push('7');
+                else attStrs.push('7'); // Holiday/No Record
+            }
+            const attStr = `[${attStrs.join(' ')}]`;
+
+            let commStr = '(N)';
+            if (row.commitment_due_date) {
+                const match = String(row.commitment_due_date).match(/-(\d{2})$/);
+                if (match) commStr = `(${parseInt(match[1], 10)})`;
+            }
+
+            const fullName = row.student?.full_name || 'Student';
+            const shortName = fullName.split(' ')[0];
+            const roll = row.student?.roll_number || '-';
+
+            // Map choices to short codes
+            const actionCodes = [];
+            const choiceMapping = {
+                'Ask': '0',
+                'Std 10': '10',
+                'Std 40': '40',
+                'St 80': '80',
+                'Stc 10': 'S'
+            };
+            
+            [row.choice_1, row.choice_2, row.choice_3, row.choice_4].forEach(choice => {
+                if (choice && choiceMapping[choice]) {
+                    actionCodes.push(choiceMapping[choice]);
+                }
+            });
+            const actionStr = actionCodes.join(' ');
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${escapeTeacherFeeHtml(roll)}</td>
+                <td class="name-compact">${escapeTeacherFeeHtml(shortName)} ${escapeTeacherFeeHtml(attStr)} ${escapeTeacherFeeHtml(commStr)}</td>
+                <td class="right" style="font-size:11px; letter-spacing:0.5px; font-weight: bold;">${escapeTeacherFeeHtml(actionStr)}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        document.body.classList.add('thermal-print-mode');
+        window.print();
+        
+        setTimeout(() => {
+            document.body.classList.remove('thermal-print-mode');
+        }, 1500);
+
+    } catch (err) {
+        showTeacherFeeToast('Print error: ' + err.message, true);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-print"></i> Thermal Print 2';
+        }
+    }
+}
+
 window.onAppReady(async () => {
     fontSizeRange.value = localStorage.getItem(TEACHER_FEE_LAYOUT_KEYS.fontSize) || '9';
     compactnessRange.value = localStorage.getItem(TEACHER_FEE_LAYOUT_KEYS.compactness) || '75';
@@ -561,6 +697,10 @@ window.onAppReady(async () => {
         updateTeacherFeeSummary(filteredTeacherFeeRows);
         window.print();
     });
+    const thermalBtn = document.getElementById('printTeacherFeeThermal');
+    if (thermalBtn) {
+        thermalBtn.addEventListener('click', printTeacherFeeThermalOptionTwo);
+    }
     teacherFeeBody.addEventListener('click', event => {
         const commitmentButton = event.target.closest('.teacher-commitment-btn');
         if (commitmentButton) {

@@ -58,6 +58,61 @@
             .teacher-table { min-width: 0; }
             .choice-select { display: none !important; }
             .choice-print { display: inline !important; }
+            
+            /* Logic for toggling print layouts */
+            body.thermal-print-mode .page-wrap,
+            body.thermal-print-mode #teacherFeeToast {
+                display: none !important;
+            }
+            body.thermal-print-mode #printAreaTwo {
+                display: block !important;
+            }
+            body:not(.thermal-print-mode) #printAreaTwo {
+                display: none !important;
+            }
+            
+            body.thermal-print-mode {
+                margin: 0;
+                padding: 0;
+                background: white;
+            }
+        }
+        
+        #printAreaTwo {
+            display: none; /* hidden on screen */
+            font-family: monospace;
+            width: 100%;
+            max-width: 260px;
+            box-sizing: border-box;
+            margin: 0 auto;
+            padding: 5px;
+            color: #000;
+            font-size: 12px;
+        }
+        #printAreaTwo h3 { text-align: center; margin: 5px 0; font-size: 14px; text-transform: uppercase; }
+        #printAreaTwo .meta { text-align: center; margin-bottom: 10px; font-size: 11px; border-bottom: 1px dashed #000; padding-bottom: 5px; }
+        #printAreaTwo table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 5px;
+            table-layout: auto;
+        }
+        #printAreaTwo th, #printAreaTwo td {
+            text-align: left;
+            padding: 4px 0;
+            vertical-align: top;
+            word-wrap: break-word;
+        }
+        #printAreaTwo th {
+            border-bottom: 1px dashed #000;
+        }
+        #printAreaTwo .right {
+            text-align: right;
+            padding-right: 8px;
+        }
+        #printAreaTwo .name-compact {
+            white-space: nowrap;
+            font-size: 11px;
         }
     </style>
 </head>
@@ -101,6 +156,7 @@
                 <button id="filterUnfilledTeacherFee" class="btn-unfilled" type="button" aria-pressed="false"><i class="fas fa-filter"></i> Unfilled Only</button>
                 <button id="clearTeacherFee" class="btn-danger"><i class="fas fa-trash"></i> Clear List</button>
                 <button id="printTeacherFee" class="btn-primary"><i class="fas fa-print"></i> Print</button>
+                <button id="printTeacherFeeThermal" class="btn-primary" style="background:#10b981;"><i class="fas fa-print"></i> Thermal Print 2</button>
             </div>
         </section>
 
@@ -153,7 +209,9 @@
         </section>
     </div>
 
+    <div id="printAreaTwo"></div>
+
     <script src="auth.js"></script>
-    <script src="TeacherFee.js?v=12"></script>
+    <script src="TeacherFee.js?v=9"></script>
 </body>
 </html>

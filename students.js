@@ -92,6 +92,21 @@ window.onAppReady(async () => {
                 return mobileMatches && whatsappMatches;
             });
 
+            const classOrderMap = {};
+            allAvailableClasses.forEach((cls, idx) => {
+                classOrderMap[cls] = idx;
+            });
+
+            filteredStudents.sort((a, b) => {
+                const orderA = classOrderMap[a.applying_for_class] ?? 999;
+                const orderB = classOrderMap[b.applying_for_class] ?? 999;
+                if (orderA !== orderB) return orderA - orderB;
+                
+                const rollA = parseInt(a.roll_number) || 999999;
+                const rollB = parseInt(b.roll_number) || 999999;
+                return rollA - rollB;
+            });
+
             // Update Counter
             document.getElementById('totalActive').textContent = filteredStudents.length || 0;
 
@@ -381,5 +396,61 @@ window.onAppReady(async () => {
         } catch (error) {
             console.error('Error fetching classes:', error);
         }
+    }
+
+    // ── Print & Layout Controls ──
+    const fontSizeRange = document.getElementById('fontSizeRange');
+    const compactnessRange = document.getElementById('compactnessRange');
+    const fontSizeValue = document.getElementById('fontSizeValue');
+    const compactnessValue = document.getElementById('compactnessValue');
+    const printBtn = document.getElementById('printBtn');
+
+    function applyLayoutControls() {
+        if (!fontSizeRange || !compactnessRange) return;
+        const font = parseFloat(fontSizeRange.value || '14');
+        const compact = parseFloat(compactnessRange.value || '20');
+
+        // Normal screen layout scaling
+        const tdVertical = Math.max(2, 10 - (compact * 0.08));
+        const tdHorizontal = Math.max(4, 14 - (compact * 0.1));
+        const thVertical = Math.max(2.2, 10 - (compact * 0.08));
+        const thHorizontal = Math.max(4, 14 - (compact * 0.1));
+
+        // Print layout scaling
+        const printFont = Math.max(7, font - 3); // Prints slightly smaller than screen
+        const printTdVertical = Math.max(1, 4 - (compact * 0.03));
+        const printTdHorizontal = Math.max(2, 6 - (compact * 0.04));
+        const printThVertical = Math.max(1.5, 5 - (compact * 0.035));
+        const printThHorizontal = Math.max(2, 6 - (compact * 0.04));
+
+        document.documentElement.style.setProperty('--table-font-size', `${font}px`);
+        document.documentElement.style.setProperty('--table-td-pad', `${tdVertical.toFixed(1)}px ${tdHorizontal.toFixed(1)}px`);
+        document.documentElement.style.setProperty('--table-th-pad', `${thVertical.toFixed(1)}px ${thHorizontal.toFixed(1)}px`);
+
+        document.documentElement.style.setProperty('--print-font-size', `${printFont.toFixed(1)}px`);
+        document.documentElement.style.setProperty('--print-td-pad', `${printTdVertical.toFixed(1)}px ${printTdHorizontal.toFixed(1)}px`);
+        document.documentElement.style.setProperty('--print-th-pad', `${printThVertical.toFixed(1)}px ${printThHorizontal.toFixed(1)}px`);
+
+        if (fontSizeValue) fontSizeValue.textContent = `${font.toFixed(1)}px`;
+        if (compactnessValue) compactnessValue.textContent = `${Math.round(compact)}%`;
+        
+        // Save to localStorage
+        localStorage.setItem('students.fontSize', fontSizeRange.value);
+        localStorage.setItem('students.compactness', compactnessRange.value);
+    }
+
+    if (fontSizeRange && compactnessRange) {
+        fontSizeRange.value = localStorage.getItem('students.fontSize') || '14';
+        compactnessRange.value = localStorage.getItem('students.compactness') || '20';
+        
+        fontSizeRange.addEventListener('input', applyLayoutControls);
+        compactnessRange.addEventListener('input', applyLayoutControls);
+        applyLayoutControls();
+    }
+
+    if (printBtn) {
+        printBtn.addEventListener('click', () => {
+            window.print();
+        });
     }
 });
