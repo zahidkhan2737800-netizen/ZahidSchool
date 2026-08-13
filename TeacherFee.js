@@ -3,6 +3,7 @@ let filteredTeacherFeeRows = [];
 let allActiveStudents = [];
 let showOnlyUnfilledTeacherFeeRows = false;
 let teacherCommitmentRowId = null;
+let classOrderMap = {};
 
 const teacherFeeBody = document.getElementById('teacherFeeBody');
 const teacherFeeSearch = document.getElementById('teacherFeeSearch');
@@ -179,13 +180,17 @@ async function fetchTeacherFeeRows() {
         .eq('month_key', teacherCommitmentToday().slice(0, 7))
         .eq('status', 'Pending')
         .order('due_date', { ascending: true });
+    let classesQuery = window.supabaseClient
+        .from('classes')
+        .select('class_name, section, display_order');
     if (window.currentSchoolId) {
         rowsQuery = rowsQuery.eq('school_id', window.currentSchoolId);
         studentsQuery = studentsQuery.eq('school_id', window.currentSchoolId);
         commitmentsQuery = commitmentsQuery.eq('school_id', window.currentSchoolId);
+        classesQuery = classesQuery.eq('school_id', window.currentSchoolId);
     }
 
-    const [rowsResult, studentsResult, commitmentsResult] = await Promise.all([rowsQuery, studentsQuery, commitmentsQuery]);
+    const [rowsResult, studentsResult, commitmentsResult, classesResult] = await Promise.all([rowsQuery, studentsQuery, commitmentsQuery, classesQuery]);
     if (rowsResult.error) throw rowsResult.error;
     if (studentsResult.error) throw studentsResult.error;
     allActiveStudents = studentsResult.data || [];
@@ -202,6 +207,14 @@ async function fetchTeacherFeeRows() {
         });
     } else {
         console.warn('Could not load TeacherFee commitments:', commitmentsResult.error);
+    }
+
+    classOrderMap = {};
+    if (!classesResult.error) {
+        (classesResult.data || []).forEach(cls => {
+            const key = `${cls.class_name || ''} ${cls.section || ''}`.trim();
+            classOrderMap[key] = cls.display_order || 9999;
+        });
     }
 
     let rows = rowsResult.data || [];
@@ -298,7 +311,12 @@ async function loadTeacherFeeList() {
 function populateClassFilter() {
     const previousClass = teacherClassSelect.value;
     const classes = [...new Set(teacherFeeRows.map(row => String(row.student.applying_for_class || '').trim()).filter(Boolean))]
-        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+        .sort((a, b) => {
+            const orderA = classOrderMap[a] !== undefined ? classOrderMap[a] : 9999;
+            const orderB = classOrderMap[b] !== undefined ? classOrderMap[b] : 9999;
+            if (orderA !== orderB) return orderA - orderB;
+            return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+        });
     teacherClassSelect.innerHTML = '<option value="">All classes</option>' + classes.map(className =>
         `<option value="${escapeTeacherFeeHtml(className)}">${escapeTeacherFeeHtml(className)}</option>`
     ).join('');
@@ -316,8 +334,11 @@ function renderTeacherFeeList() {
         return [student.roll_number, student.full_name, student.applying_for_class, student.father_name, student.family_id_manual, row.commitment_due_date, row.choice_1, row.choice_2, row.choice_3, row.choice_4]
             .filter(Boolean).join(' ').toLowerCase().includes(search);
     }).sort((a, b) => {
-        const aClass = String(a.student.applying_for_class || '');
-        const bClass = String(b.student.applying_for_class || '');
+        const aClass = String(a.student.applying_for_class || '').trim();
+        const bClass = String(b.student.applying_for_class || '').trim();
+        const orderA = classOrderMap[aClass] !== undefined ? classOrderMap[aClass] : 9999;
+        const orderB = classOrderMap[bClass] !== undefined ? classOrderMap[bClass] : 9999;
+        if (orderA !== orderB) return orderA - orderB;
         if (aClass !== bClass) return aClass.localeCompare(bClass, undefined, { numeric: true, sensitivity: 'base' });
         return String(a.student.roll_number || '').localeCompare(String(b.student.roll_number || ''), undefined, { numeric: true, sensitivity: 'base' });
     });
@@ -580,28 +601,37 @@ async function printTeacherFeeThermalOptionTwo() {
             });
         }
 
-        const printContainer = document.getElementById('printAreaTwo');
         const classFilter = document.getElementById('teacherClassSelect').value || 'All Classes';
         const currentDate = new Date().toLocaleDateString();
+        const printWindow = window.open('', '_blank', 'width=400,height=600');
         
-        printContainer.innerHTML = `
-            <h3>ATTENTION LIST</h3>
-            <div class="meta">
+        let html = `
+            <html><head><title>Thermal Print - Teacher Fee</title>
+            <style>
+                @media print { @page { margin: 0; } body { margin: 0; padding: 5px; } }
+                body { font-family: monospace; width: 100%; max-width: 260px; box-sizing: border-box; margin: 0 auto; padding: 5px; color: #000; font-size: 12px; }
+                h3 { text-align: center; margin: 5px 0; font-size: 14px; text-transform: uppercase; }
+                .meta { text-align: center; margin-bottom: 10px; font-size: 11px; border-bottom: 1px dashed #000; padding-bottom: 5px; }
+                table { width: 100%; border-collapse: collapse; margin-top: 5px; table-layout: auto; }
+                th { border-bottom: 1px dashed #000; text-align: left; padding: 4px 0; }
+                td { padding: 4px 0; vertical-align: top; word-wrap: break-word; }
+                .right { text-align: right; padding-right: 8px; }
+                .name-compact { white-space: nowrap; font-size: 11px; }
+            </style>
+            </head>
+            <body onload="window.print()">
+              <h3>ATTENTION LIST</h3>
+              <div class="meta">
                 Date: ${currentDate}<br>Class: ${escapeTeacherFeeHtml(classFilter)}<br>
-                Total Students: ${filteredTeacherFeeRows.length}<br>Type: Fee & Follow-up
-            </div>
-            <table>
+                Total Students: ${filteredTeacherFeeRows.length}<br>Type: Fee &amp; Follow-up
+              </div>
+              <table>
                 <tr>
                     <th style="width:20%">Roll</th>
                     <th style="width:45%">Name</th>
                     <th style="width:35%" class="right">Act</th>
                 </tr>
-                <tbody id="printAreaTwoBody"></tbody>
-            </table>
-            <div style="text-align:center;margin-top:15px;font-size:10px;">Total Printed: ${filteredTeacherFeeRows.length}</div>
         `;
-
-        const tbody = document.getElementById('printAreaTwoBody');
 
         filteredTeacherFeeRows.forEach(row => {
             const sId = String(row.student_id);
@@ -645,21 +675,19 @@ async function printTeacherFeeThermalOptionTwo() {
             });
             const actionStr = actionCodes.join(' ');
 
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${escapeTeacherFeeHtml(roll)}</td>
-                <td class="name-compact">${escapeTeacherFeeHtml(shortName)} ${escapeTeacherFeeHtml(attStr)} ${escapeTeacherFeeHtml(commStr)}</td>
-                <td class="right" style="font-size:11px; letter-spacing:0.5px; font-weight: bold;">${escapeTeacherFeeHtml(actionStr)}</td>
+            html += `
+                <tr>
+                    <td>${escapeTeacherFeeHtml(roll)}</td>
+                    <td class="name-compact">${escapeTeacherFeeHtml(shortName)} ${escapeTeacherFeeHtml(attStr)} ${escapeTeacherFeeHtml(commStr)}</td>
+                    <td class="right" style="font-size:11px; letter-spacing:0.5px; font-weight: bold;">${escapeTeacherFeeHtml(actionStr)}</td>
+                </tr>
             `;
-            tbody.appendChild(tr);
         });
 
-        document.body.classList.add('thermal-print-mode');
-        window.print();
+        html += `</table><div style="text-align:center;margin-top:15px;font-size:10px;">Total Printed: ${filteredTeacherFeeRows.length}</div></body></html>`;
         
-        setTimeout(() => {
-            document.body.classList.remove('thermal-print-mode');
-        }, 1500);
+        printWindow.document.write(html);
+        printWindow.document.close();
 
     } catch (err) {
         showTeacherFeeToast('Print error: ' + err.message, true);

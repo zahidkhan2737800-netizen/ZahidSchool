@@ -14,6 +14,8 @@ window.onAppReady(async () => {
     await waitForAuthContext();
 
     let allAvailableClasses = [];
+    let cachedUnsortedStudents = [];
+    let isPrinting = false;
 
     // Fetch instantly on load
     fetchClasses().then(fetchStudents);
@@ -31,6 +33,9 @@ window.onAppReady(async () => {
     searchClassSelect.addEventListener('change', fetchStudents);
     mobileNumberFilter.addEventListener('change', fetchStudents);
     whatsappNumberFilter.addEventListener('change', fetchStudents);
+
+    window.addEventListener('beforeprint', () => { isPrinting = true; renderFilteredStudents(); });
+    window.addEventListener('afterprint', () => { isPrinting = false; renderFilteredStudents(); });
 
     async function waitForAuthContext(timeoutMs = 10000) {
         const start = Date.now();
@@ -82,7 +87,7 @@ window.onAppReady(async () => {
 
             if (error) throw error;
 
-            const filteredStudents = (data || []).filter(student => {
+            cachedUnsortedStudents = (data || []).filter(student => {
                 const mobileValid = hasValid11DigitNumber(student.father_mobile);
                 const whatsappValid = hasValid11DigitNumber(student.father_whatsapp);
                 const mobileMatches = mobileNumberFilter.value === 'All'
@@ -92,12 +97,24 @@ window.onAppReady(async () => {
                 return mobileMatches && whatsappMatches;
             });
 
-            const classOrderMap = {};
-            allAvailableClasses.forEach((cls, idx) => {
-                classOrderMap[cls] = idx;
-            });
+            renderFilteredStudents();
+            
+        } catch (error) {
+            console.error('Error fetching students:', error);
+            studentsBody.innerHTML = `<tr><td colspan="10" class="empty-state" style="color:var(--error);">Failed to load data: ${error.message}</td></tr>`;
+        }
+    }
 
-            filteredStudents.sort((a, b) => {
+    function renderFilteredStudents() {
+        const filteredStudents = [...cachedUnsortedStudents];
+        
+        const classOrderMap = {};
+        allAvailableClasses.forEach((cls, idx) => {
+            classOrderMap[cls] = idx;
+        });
+
+        filteredStudents.sort((a, b) => {
+            if (isPrinting) {
                 const orderA = classOrderMap[a.applying_for_class] ?? 999;
                 const orderB = classOrderMap[b.applying_for_class] ?? 999;
                 if (orderA !== orderB) return orderA - orderB;
@@ -105,75 +122,79 @@ window.onAppReady(async () => {
                 const rollA = parseInt(a.roll_number) || 999999;
                 const rollB = parseInt(b.roll_number) || 999999;
                 return rollA - rollB;
-            });
-
-            // Update Counter
-            document.getElementById('totalActive').textContent = filteredStudents.length || 0;
-
-            if (filteredStudents.length === 0) {
-                studentsBody.innerHTML = '<tr><td colspan="10" class="empty-state">No active students match your filters.</td></tr>';
-                return;
+            } else {
+                const dateA = new Date(a.created_at || a.admission_date || 0).getTime();
+                const dateB = new Date(b.created_at || b.admission_date || 0).getTime();
+                if (dateA !== dateB) return dateB - dateA;
+                
+                const rollA = parseInt(a.roll_number) || 999999;
+                const rollB = parseInt(b.roll_number) || 999999;
+                return rollB - rollA;
             }
+        });
 
-            // Clear table
-            studentsBody.innerHTML = '';
-            
-            filteredStudents.forEach(student => {
-                const tr = document.createElement('tr');
-                
-                // Safety fallback for dates and whatsapp which might be null
-                const addedDate = student.created_at
-                    ? new Date(student.created_at).toLocaleDateString()
-                    : (student.admission_date ? new Date(student.admission_date).toLocaleDateString() : 'N/A');
-                const whatsapp = student.father_whatsapp || 'Not provided';
-                
-                tr.innerHTML = `
-                    <td><strong>${student.roll_number}</strong></td>
-                    <td class="editable-cell" contenteditable="true" data-col="full_name" data-id="${student.id}">${student.full_name || ''}</td>
-                    <td>
-                        <select class="class-inline-select" data-id="${student.id}" style="padding:0.4rem; border-radius:6px; border:1px solid #d1d5db; background:#f9fafb; font-size:0.85rem; cursor:pointer;">
-                            <option value="">-- None --</option>
-                            ${student.applying_for_class && !allAvailableClasses.includes(student.applying_for_class)
-                                ? `<option value="${student.applying_for_class}" selected disabled>${student.applying_for_class} (Inactive)</option>`
-                                : ''}
-                            ${allAvailableClasses.map(c => `<option value="${c}" ${c === student.applying_for_class ? 'selected' : ''}>${c}</option>`).join('')}
-                        </select>
-                    </td>
-                    <td class="editable-cell" contenteditable="true" data-col="father_name" data-id="${student.id}">${student.father_name || ''}</td>
-                    <td class="editable-cell" contenteditable="true" data-col="father_mobile" data-id="${student.id}">${student.father_mobile || ''}</td>
-                    <td class="editable-cell" contenteditable="true" data-col="father_whatsapp" data-id="${student.id}">${whatsapp || ''}</td>
-                    <td>
-                        <select class="whatsapp-group-select${student.whatsapp_group_status === 'WG' ? ' is-added' : ''}" data-id="${student.id}" data-saved-value="${student.whatsapp_group_status === 'WG' ? 'WG' : ''}" aria-label="WhatsApp group status">
-                            <option value="" ${student.whatsapp_group_status !== 'WG' ? 'selected' : ''}></option>
-                            <option value="WG" ${student.whatsapp_group_status === 'WG' ? 'selected' : ''}>WG</option>
-                        </select>
-                    </td>
-                    <td>${addedDate}</td>
-                    <td>
-                        <select class="status-select" data-id="${student.id}" style="padding:0.4rem; border-radius:6px; border:1px solid #d1d5db; background:#f9fafb; font-size:0.85rem; cursor:pointer;">
-                            <option value="Active" selected>Active</option>
-                            <option value="Pending">Move to Pending</option>
-                            <option value="Withdrawn">Withdraw</option>
-                        </select>
-                    </td>
-                    <td>
-                        <button class="delete-btn" data-id="${student.id}" data-name="${student.full_name}">Delete</button>
-                    </td>
-                `;
-                studentsBody.appendChild(tr);
-            });
-            
-            // Attach event listeners for actions
-            attachStatusListeners();
-            attachInlineEditListeners();
-            attachDeleteListeners();
-            attachClassChangeListeners();
-            attachWhatsAppGroupListeners();
-            
-        } catch (error) {
-            console.error('Error fetching students:', error);
-            studentsBody.innerHTML = `<tr><td colspan="10" class="empty-state" style="color:var(--error);">Failed to load data: ${error.message}</td></tr>`;
+        // Update Counter
+        document.getElementById('totalActive').textContent = filteredStudents.length || 0;
+
+        if (filteredStudents.length === 0) {
+            studentsBody.innerHTML = '<tr><td colspan="10" class="empty-state">No active students match your filters.</td></tr>';
+            return;
         }
+
+        // Clear table
+        studentsBody.innerHTML = '';
+        
+        filteredStudents.forEach(student => {
+            const tr = document.createElement('tr');
+            
+            // Safety fallback for dates and whatsapp which might be null
+            const addedDate = student.created_at
+                ? new Date(student.created_at).toLocaleDateString()
+                : (student.admission_date ? new Date(student.admission_date).toLocaleDateString() : 'N/A');
+            const whatsapp = student.father_whatsapp || 'Not provided';
+            
+            tr.innerHTML = `
+                <td><strong>${student.roll_number}</strong></td>
+                <td class="editable-cell" contenteditable="true" data-col="full_name" data-id="${student.id}">${student.full_name || ''}</td>
+                <td>
+                    <select class="class-inline-select" data-id="${student.id}" style="padding:0.4rem; border-radius:6px; border:1px solid #d1d5db; background:#f9fafb; font-size:0.85rem; cursor:pointer;">
+                        <option value="">-- None --</option>
+                        ${student.applying_for_class && !allAvailableClasses.includes(student.applying_for_class)
+                            ? `<option value="${student.applying_for_class}" selected disabled>${student.applying_for_class} (Inactive)</option>`
+                            : ''}
+                        ${allAvailableClasses.map(c => `<option value="${c}" ${c === student.applying_for_class ? 'selected' : ''}>${c}</option>`).join('')}
+                    </select>
+                </td>
+                <td class="editable-cell" contenteditable="true" data-col="father_name" data-id="${student.id}">${student.father_name || ''}</td>
+                <td class="editable-cell" contenteditable="true" data-col="father_mobile" data-id="${student.id}">${student.father_mobile || ''}</td>
+                <td class="editable-cell" contenteditable="true" data-col="father_whatsapp" data-id="${student.id}">${whatsapp || ''}</td>
+                <td>
+                    <select class="whatsapp-group-select${student.whatsapp_group_status === 'WG' ? ' is-added' : ''}" data-id="${student.id}" data-saved-value="${student.whatsapp_group_status === 'WG' ? 'WG' : ''}" aria-label="WhatsApp group status">
+                        <option value="" ${student.whatsapp_group_status !== 'WG' ? 'selected' : ''}></option>
+                        <option value="WG" ${student.whatsapp_group_status === 'WG' ? 'selected' : ''}>WG</option>
+                    </select>
+                </td>
+                <td>${addedDate}</td>
+                <td>
+                    <select class="status-select" data-id="${student.id}" style="padding:0.4rem; border-radius:6px; border:1px solid #d1d5db; background:#f9fafb; font-size:0.85rem; cursor:pointer;">
+                        <option value="Active" selected>Active</option>
+                        <option value="Pending">Move to Pending</option>
+                        <option value="Withdrawn">Withdraw</option>
+                    </select>
+                </td>
+                <td>
+                    <button class="delete-btn" data-id="${student.id}" data-name="${student.full_name}">Delete</button>
+                </td>
+            `;
+            studentsBody.appendChild(tr);
+        });
+        
+        // Attach event listeners for actions
+        attachStatusListeners();
+        attachInlineEditListeners();
+        attachDeleteListeners();
+        attachClassChangeListeners();
+        attachWhatsAppGroupListeners();
     }
 
     function hasValid11DigitNumber(value) {
@@ -453,4 +474,14 @@ window.onAppReady(async () => {
             window.print();
         });
     }
+
+    window.addEventListener('beforeprint', () => {
+        isPrinting = true;
+        renderFilteredStudents();
+    });
+
+    window.addEventListener('afterprint', () => {
+        isPrinting = false;
+        renderFilteredStudents();
+    });
 });

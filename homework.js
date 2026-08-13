@@ -2,11 +2,10 @@
 // homework.js — Homework Publisher (Supabase)
 // ═══════════════════════════════════════════════════════════════
 const db = supabaseClient;
-const currentSchoolId = window.currentSchoolId || null;
-const applySchoolScope = (query) => currentSchoolId ? query.eq('school_id', currentSchoolId) : query;
+const applySchoolScope = (query) => window.currentSchoolId ? query.eq('school_id', window.currentSchoolId) : query;
 
 function getTenantScopePatch() {
-    const patch = { school_id: currentSchoolId };
+    const patch = { school_id: window.currentSchoolId };
     if (window.campusFeatureReady && window.currentCampusId) patch.campus_id = window.currentCampusId;
     return patch;
 }

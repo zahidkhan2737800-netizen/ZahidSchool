@@ -207,6 +207,68 @@ tbody tr:hover {
     font-weight: normal;
 }
 
+/* --- Card Styles --- */
+.card-container {
+    display: none;
+    flex-wrap: wrap;
+    gap: 15px;
+    justify-content: space-between;
+}
+.student-card {
+    border: 1px solid #000;
+    width: 48%; /* fit two side-by-side */
+    padding: 10px;
+    border-radius: 8px;
+    page-break-inside: avoid;
+    background: #fff;
+    color: #000;
+    margin-bottom: 10px;
+}
+.student-card h2 {
+    text-align: center;
+    margin: 0 0 5px 0;
+    font-size: 1.2rem;
+    text-transform: uppercase;
+}
+.student-card .phone {
+    text-align: center;
+    font-weight: bold;
+    margin-bottom: 5px;
+    font-size: 0.95rem;
+}
+.student-card .month {
+    text-align: center;
+    margin-bottom: 8px;
+    font-style: italic;
+    font-size: 0.9rem;
+}
+.student-card .info {
+    margin-bottom: 10px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-align: center;
+    border-bottom: 1px dashed #ccc;
+    padding-bottom: 6px;
+}
+.student-card table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0 auto;
+    min-width: 0;
+}
+.student-card th, .student-card td {
+    border: 1px solid #000;
+    padding: 3px 6px;
+    text-align: left;
+    font-size: 0.85rem;
+}
+.student-card th {
+    /* Removed shade */
+}
+.student-card td:last-child, .student-card th:last-child {
+    text-align: center;
+}
+
 @media print {
     @page {
         size: A4 portrait;
@@ -223,6 +285,14 @@ tbody tr:hover {
 
     .top-head, .filters {
         display: none !important;
+    }
+
+    /* Support for Cards Printing */
+    body.printing-cards .table-wrap {
+        display: none !important;
+    }
+    body.printing-cards .card-container {
+        display: flex !important;
     }
 
     .page-wrap {

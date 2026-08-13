@@ -1,0 +1,777 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Absent Range Report</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --card: #fff;
+      --accent: #0b73ff;
+      --muted: #667085;
+      --danger: #d9534f;
+      --radius: 8px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: #0a0a0a;
+      padding: 18px;
+    }
+    .container { max-width: 1200px; margin: 0 auto; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+    h1 { margin: 0; font-size: 20px; color: #1e293b; }
+    label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px; font-weight: 600; }
+    input[type="date"], input[type="text"], select {
+      padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px;
+      background: white; outline: none; transition: border-color 0.2s;
+    }
+    input[type="date"]:focus, input[type="text"]:focus, select:focus {
+      border-color: var(--accent);
+    }
+    button {
+      background: var(--accent); color: white; border: none; padding: 8px 14px;
+      border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 13px;
+      transition: background 0.2s;
+    }
+    button:hover { background: #005ce6; }
+    .btn-secondary { background: #64748b; }
+    .btn-secondary:hover { background: #475569; }
+    
+    .controls-card {
+      background: var(--card); padding: 16px; border-radius: var(--radius);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 16px;
+    }
+    .controls-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+    .control-group { display: flex; flex-direction: column; }
+    
+    .quick-ranges { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+    .btn-outline {
+      background: transparent; color: var(--accent); border: 1px solid var(--accent);
+    }
+    .btn-outline:hover { background: #eff6ff; }
+    
+    .table-wrap { margin-top: 16px; overflow: auto; background: var(--card); border-radius: var(--radius); box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 13px; }
+    th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    thead th { position: sticky; top: 0; background: #f8fafc; color: #475569; font-weight: 700; border-bottom: 2px solid #e2e8f0; z-index: 2; }
+    
+    .wa-btn { background: #25D366; color: #fff; border: none; border-radius: 6px; padding: 6px 12px; font-size: 12px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;}
+    .wa-btn:hover { background: #1ebe5a; }
+    
+    .absent-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      background: #fee2e2; color: #991b1b; padding: 4px 8px; border-radius: 99px;
+      font-weight: 700; font-size: 12px; min-width: 30px;
+    }
+    
+    /* Modal */
+    #waModal {
+      display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5); z-index: 3000; align-items: center; justify-content: center;
+    }
+    .modal-content {
+      background: #fff; width: 95%; max-width: 600px; border-radius: 12px;
+      box-shadow: 0 10px 35px rgba(0,0,0,0.25); padding: 20px;
+    }
+    .modal-content h3 { margin: 0 0 16px 0; color: #0f172a; font-size: 18px; }
+    .modal-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+    .modal-row select { flex-grow: 1; font-weight: 600; }
+    textarea {
+      width: 100%; min-height: 200px; max-height: 50vh; resize: vertical;
+      border-radius: 8px; border: 1px solid #cbd5e1; padding: 12px; font-family: inherit; font-size: 14px;
+    }
+    .modal-footer { margin-top: 16px; display: flex; justify-content: flex-end; gap: 10px; }
+    
+    /* Loading Toast */
+    #toastContainer { position: fixed; top: 20px; right: 20px; z-index: 5000; display: flex; flex-direction: column; gap: 10px; }
+    .toast { padding: 12px 16px; border-radius: 8px; font-weight: 600; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); animation: slideIn 0.3s ease-in-out; }
+    .toast.success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .toast.error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+    @keyframes slideIn { from { transform: translateX(400px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    @keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(400px); opacity: 0; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>📅 Absent Range Report</h1>
+      <div>
+        <a href="dashboard.html" style="color:var(--muted); text-decoration:none; font-size:13px; font-weight:600;">← Back to Dashboard</a>
+      </div>
+    </header>
+
+    <div class="controls-card">
+      <div style="display: flex; gap: 10px; margin-bottom: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding-bottom: 16px; border-bottom: 1px solid #e2e8f0;">
+         <div style="display: flex; gap: 10px;">
+           <button id="btnViewFamilies" style="background: #ef4444;" onclick="setViewMode('families')">Families (<span id="countFamilies">0</span>)</button>
+           <button id="btnViewSingles" style="background: #fca5a5; color: #7f1d1d;" onclick="setViewMode('singles')">Single Students (<span id="countSingles">0</span>)</button>
+         </div>
+         <div style="font-size: 14px; font-weight: 600; color: #475569;">
+            Total Students in view: <span id="countTotal">0</span>
+         </div>
+      </div>
+
+      <div class="controls-row">
+        <div class="control-group">
+          <label>From Date</label>
+          <input type="date" id="fromDate" />
+        </div>
+        <div class="control-group">
+          <label>To Date</label>
+          <input type="date" id="toDate" />
+        </div>
+        <div class="control-group" id="classFilterContainer" style="display: none;">
+          <label>Class Filter</label>
+          <select id="classFilter" style="width: 140px;">
+            <option value="All">- All Classes -</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>Search Student</label>
+          <input type="text" id="searchFilter" placeholder="Roll or Name..." style="width: 180px;" />
+        </div>
+        <div class="control-group" style="margin-left: auto;">
+          <button id="btnLoad" style="padding: 10px 20px; font-size:14px;">Load Report</button>
+        </div>
+      </div>
+      
+      <div class="quick-ranges">
+        <span style="font-size:12px; color:var(--muted); font-weight:600; margin-top:10px;">Quick Ranges:</span>
+        <button class="btn-outline" onclick="setQuickRange('fortnight1')">1st - 15th (This Month)</button>
+        <button class="btn-outline" onclick="setQuickRange('fortnight2')">16th - End (This Month)</button>
+        <button class="btn-outline" onclick="setQuickRange('thisMonth')">Full Month</button>
+      </div>
+    </div>
+
+    <div style="font-size:13px; color:var(--muted); font-weight:600; margin-bottom: 8px;" id="summaryText">
+      Select a date range and click Load Report to see absent days.
+    </div>
+
+    <div class="table-wrap">
+      <table id="reportTable">
+        <thead>
+          <tr>
+            <th style="width: 10%;">Roll No</th>
+            <th style="width: 25%;">Student Name</th>
+            <th style="width: 25%;">Father Name</th>
+            <th style="width: 15%;">Class</th>
+            <th style="width: 12%; text-align: center;">Total Absent</th>
+            <th style="width: 13%; text-align: center;">Action</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+          <tr>
+            <td colspan="6" style="text-align:center; padding: 30px; color: var(--muted);">Data will appear here</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- WA Modal -->
+    <div id="waModal">
+      <div class="modal-content">
+        <h3>Send WhatsApp Message</h3>
+        <div class="modal-row">
+          <select id="waTemplateDropdown" onchange="applySelectedWaTemplate()">
+            <option value="">Loading Templates...</option>
+          </select>
+          <a href="wa_templates.html" target="_blank" style="padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; background: white; text-decoration: none; color: inherit;" title="Manage Templates">⚙️</a>
+          <button class="btn-secondary" onclick="loadWaTemplates()" style="padding: 8px;" title="Refresh Templates">🔄</button>
+        </div>
+        <textarea id="waMessageText"></textarea>
+        <div class="modal-footer">
+          <button class="btn-secondary" onclick="closeWaModal()">Cancel</button>
+          <button id="btnSendWa" class="wa-btn">Send WhatsApp</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div id="toastContainer"></div>
+
+  <script src="auth.js"></script>
+  <script>
+    // State
+    let activeStudents = [];
+    let activeClasses = [];
+    let waTemplates = [];
+    let reportData = [];
+    let currentWaStudentId = null;
+    let currentViewMode = 'families'; // 'families' or 'singles'
+
+    // DOM Elements
+    const fromDateEl = document.getElementById('fromDate');
+    const toDateEl = document.getElementById('toDate');
+    const classFilterEl = document.getElementById('classFilter');
+    const searchFilterEl = document.getElementById('searchFilter');
+    const tableBody = document.getElementById('tableBody');
+    const summaryText = document.getElementById('summaryText');
+
+    function setViewMode(mode) {
+      currentViewMode = mode;
+      const btnFam = document.getElementById('btnViewFamilies');
+      const btnSin = document.getElementById('btnViewSingles');
+      const classFilterCont = document.getElementById('classFilterContainer');
+      
+      if (mode === 'families') {
+        btnFam.style.background = '#ef4444';
+        btnFam.style.color = '#fff';
+        btnSin.style.background = '#fca5a5';
+        btnSin.style.color = '#7f1d1d';
+        classFilterCont.style.display = 'none';
+        classFilterEl.value = 'All'; // reset class filter for families
+      } else {
+        btnSin.style.background = '#ef4444';
+        btnSin.style.color = '#fff';
+        btnFam.style.background = '#fca5a5';
+        btnFam.style.color = '#7f1d1d';
+        classFilterCont.style.display = 'flex';
+      }
+      
+      if (activeStudents.length > 0) {
+        renderReport();
+      }
+    }
+
+    // Default Dates (Current Month)
+    function initDates() {
+      const now = new Date();
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      
+      fromDateEl.value = formatDateString(firstDay);
+      toDateEl.value = formatDateString(lastDay);
+    }
+
+    function formatDateString(date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    function setQuickRange(type) {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = now.getMonth();
+      
+      if (type === 'fortnight1') {
+        fromDateEl.value = formatDateString(new Date(y, m, 1));
+        fromDateEl.dispatchEvent(new Event('change'));
+        toDateEl.value = formatDateString(new Date(y, m, 15));
+        toDateEl.dispatchEvent(new Event('change'));
+      } else if (type === 'fortnight2') {
+        fromDateEl.value = formatDateString(new Date(y, m, 16));
+        fromDateEl.dispatchEvent(new Event('change'));
+        toDateEl.value = formatDateString(new Date(y, m + 1, 0)); // Last day
+        toDateEl.dispatchEvent(new Event('change'));
+      } else if (type === 'thisMonth') {
+        fromDateEl.value = formatDateString(new Date(y, m, 1));
+        fromDateEl.dispatchEvent(new Event('change'));
+        toDateEl.value = formatDateString(new Date(y, m + 1, 0));
+        toDateEl.dispatchEvent(new Event('change'));
+      }
+      
+      if (activeStudents.length > 0) {
+        loadReport();
+      }
+    }
+
+    function showToast(msg, type = 'success') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.innerHTML = `<span>${type === 'error' ? '❌' : '✅'}</span><div>${msg}</div>`;
+      container.appendChild(toast);
+      
+      setTimeout(() => {
+        toast.style.animation = 'slideOut 0.3s ease-in-out';
+        toast.addEventListener('animationend', () => toast.remove());
+      }, 3000);
+    }
+
+    function getValidPhone(s) {
+      let w = String(s?.father_whatsapp || '').trim();
+      let m = String(s?.father_mobile || '').trim();
+      if (w.toLowerCase() === 'not provided' || w.toLowerCase() === 'n/a' || w === '-') w = '';
+      if (m.toLowerCase() === 'not provided' || m.toLowerCase() === 'n/a' || m === '-') m = '';
+      return w || m || '';
+    }
+
+    async function loadInitialData() {
+      const client = window.supabaseClient;
+      if (!client) {
+        showToast("Database not initialized", "error");
+        return;
+      }
+
+      // Fetch Active Students
+      let sQuery = client.from('admissions').select('id, roll_number, full_name, father_name, father_mobile, father_whatsapp, applying_for_class, status');
+      if (window.currentSchoolId) sQuery = sQuery.eq('school_id', window.currentSchoolId);
+      
+      const { data: students, error: sErr } = await sQuery;
+      if (sErr) {
+        console.error(sErr);
+        showToast("Error loading students", "error");
+        return;
+      }
+      
+      activeStudents = (students || []).filter(s => String(s.status || "").toLowerCase() === "active");
+      
+      // Fetch Active Classes
+      let cQuery = client.from('classes').select('class_name, section').eq('is_active', true).order('display_order', { ascending: true });
+      if (window.currentSchoolId) cQuery = cQuery.eq('school_id', window.currentSchoolId);
+      
+      const { data: classes, error: cErr } = await cQuery;
+      if (!cErr && classes) {
+        activeClasses = [...new Set(classes.map(c => `${c.class_name || ""} ${c.section || ""}`.trim()).filter(Boolean))];
+      }
+
+      populateClassFilter();
+      await loadWaTemplates();
+      
+      // Auto-load report on boot
+      if (activeStudents.length > 0) {
+        await loadReport();
+      }
+    }
+
+    function populateClassFilter() {
+      classFilterEl.innerHTML = '<option value="All">- All Classes -</option>';
+      const studentClasses = new Set(activeStudents.map(s => s.applying_for_class).filter(Boolean));
+      
+      const classesToRender = activeClasses.length > 0 ? activeClasses.filter(c => studentClasses.has(c)) : [...studentClasses].sort();
+      
+      classesToRender.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c;
+        opt.textContent = c;
+        classFilterEl.appendChild(opt);
+      });
+    }
+
+    async function loadWaTemplates() {
+      try {
+        const { data, error } = await window.supabaseClient.from('wa_templates').select('*').order('created_at', { ascending: true });
+        if (!error && data) {
+          waTemplates = data;
+          const dd = document.getElementById('waTemplateDropdown');
+          dd.innerHTML = '';
+          
+          let lastUsed = localStorage.getItem('lastWaTemplate_AbsentRange');
+          let selectedId = null;
+          
+          if (lastUsed && waTemplates.find(t => t.id === lastUsed)) {
+            selectedId = lastUsed;
+          } else if (waTemplates.length > 0) {
+            selectedId = (waTemplates.find(t => t.is_default) || waTemplates[0]).id;
+          }
+
+          waTemplates.forEach(t => {
+            const opt = document.createElement('option');
+            opt.value = t.id;
+            opt.textContent = t.title;
+            if(t.id === selectedId) opt.selected = true;
+            dd.appendChild(opt);
+          });
+        }
+      } catch(e) { console.error("Error loading WA templates", e); }
+    }
+
+    async function loadReport() {
+      const from = fromDateEl.value;
+      const to = toDateEl.value;
+
+      if (!from || !to) {
+        showToast("Please select both From and To dates", "error");
+        return;
+      }
+      
+      if (new Date(from) > new Date(to)) {
+        showToast("From date cannot be after To date", "error");
+        return;
+      }
+
+      tableBody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 30px;">Loading attendance data...</td></tr>';
+      
+      const client = window.supabaseClient;
+      let query = client.from('attendance')
+        .select('student_id, date, status')
+        .gte('date', from)
+        .lte('date', to)
+        .eq('status', 'Absent');
+        
+      if (window.currentSchoolId) query = query.eq('school_id', window.currentSchoolId);
+
+      // We might need to paginate if the result set is extremely large (e.g. whole year for 1000s of students)
+      // but for fortnightly it's fine. Supabase returns max 1000 by default unless configured differently.
+      // Let's loop just in case it hits a 1000 limit.
+      let allAbsentRows = [];
+      let startIdx = 0;
+      let pageSize = 1000;
+      
+      while(true) {
+        let pagedQuery = client.from('attendance')
+          .select('student_id, date, status')
+          .gte('date', from)
+          .lte('date', to)
+          .eq('status', 'Absent')
+          .range(startIdx, startIdx + pageSize - 1);
+          
+        if (window.currentSchoolId) pagedQuery = pagedQuery.eq('school_id', window.currentSchoolId);
+        
+        const { data: absentRows, error } = await pagedQuery;
+        
+        if (error) {
+          console.error(error);
+          showToast("Error fetching attendance", "error");
+          tableBody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 30px; color:red;">Failed to load data</td></tr>';
+          return;
+        }
+        
+        if (absentRows && absentRows.length > 0) {
+            allAbsentRows.push(...absentRows);
+        }
+        
+        if (!absentRows || absentRows.length < pageSize) {
+            break;
+        }
+        
+        startIdx += pageSize;
+      }
+      
+
+      // Aggregate absences
+      const absentMap = {};
+      (allAbsentRows || []).forEach(row => {
+        absentMap[row.student_id] = (absentMap[row.student_id] || 0) + 1;
+      });
+
+      // Build report data
+      reportData = activeStudents.map(student => ({
+        ...student,
+        total_absent: absentMap[student.id] || 0
+      }));
+      
+      renderReport();
+      summaryText.textContent = `Report loaded for period: ${formatDisplayDate(from)} to ${formatDisplayDate(to)} | Total Active Students: ${reportData.length}`;
+    }
+
+    function formatDisplayDate(isoStr) {
+      if (!isoStr) return '';
+      const d = new Date(isoStr);
+      return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+
+    function renderReport() {
+      const search = searchFilterEl.value.toLowerCase().trim();
+      const cls = classFilterEl.value;
+
+      // 1. Group ALL reportData by phone number to calculate Families vs Singles counts
+      let allGrouped = {};
+      let allSingles = [];
+      let allFamilies = [];
+
+      reportData.forEach(s => {
+        const mob = getValidPhone(s);
+        if (mob && mob.length > 5) {
+          if (!allGrouped[mob]) allGrouped[mob] = [];
+          allGrouped[mob].push(s);
+        } else {
+          allSingles.push(s);
+        }
+      });
+
+      for (let mob in allGrouped) {
+        if (allGrouped[mob].length > 1) {
+          allFamilies.push({ mobile: mob, members: allGrouped[mob] });
+        } else {
+          allSingles.push(allGrouped[mob][0]);
+        }
+      }
+
+      // Update UI counts
+      const numStudentsInFamilies = allFamilies.reduce((sum, f) => sum + f.members.length, 0);
+      document.getElementById('countFamilies').textContent = numStudentsInFamilies;
+      document.getElementById('countSingles').textContent = allSingles.length;
+
+      // 2. Select the subset based on currentViewMode
+      let renderFamilies = [];
+      let renderSingles = [];
+      
+      if (currentViewMode === 'families') {
+        renderFamilies = allFamilies;
+        // singles remain empty
+      } else {
+        renderSingles = allSingles;
+        // families remain empty
+      }
+
+      // 3. Apply Search and Class filters on the selected subset
+      let finalFamilies = [];
+      let finalSingles = [];
+      let totalStudentsInView = 0;
+
+      renderFamilies.forEach(fam => {
+        // For families, class filter is disabled in UI (value="All"), so we mostly care about search
+        const matchingMembers = fam.members.filter(s => {
+          if (search) {
+            const combined = `${s.roll_number} ${s.full_name} ${s.father_name}`.toLowerCase();
+            if (!combined.includes(search)) return false;
+          }
+          return true;
+        });
+        
+        // Only include family if at least one member matches the search
+        // (Or if we want to show all members when searching for one, we can check matchingMembers.length > 0)
+        // Let's show the whole family if any member matches.
+        if (matchingMembers.length > 0) {
+          // Sort family members internally by class then roll number
+          fam.members.sort((a,b) => {
+             const cA = String(a.applying_for_class || "");
+             const cB = String(b.applying_for_class || "");
+             if (cA !== cB) return cA.localeCompare(cB, undefined, {numeric: true});
+             return String(a.roll_number || "").localeCompare(String(b.roll_number || ""), undefined, {numeric: true});
+          });
+          finalFamilies.push(fam);
+          totalStudentsInView += fam.members.length;
+        }
+      });
+
+      renderSingles.forEach(s => {
+        if (cls !== 'All' && s.applying_for_class !== cls) return;
+        if (search) {
+          const combined = `${s.roll_number} ${s.full_name} ${s.father_name}`.toLowerCase();
+          if (!combined.includes(search)) return;
+        }
+        finalSingles.push(s);
+        totalStudentsInView++;
+      });
+      
+      document.getElementById('countTotal').textContent = totalStudentsInView;
+
+      // Sort final subsets
+      finalFamilies.sort((a, b) => {
+         // Sort families by highest total absent among members
+         const maxA = Math.max(...a.members.map(m => m.total_absent));
+         const maxB = Math.max(...b.members.map(m => m.total_absent));
+         return maxB - maxA;
+      });
+      
+      finalSingles.sort((a, b) => {
+        if (b.total_absent !== a.total_absent) return b.total_absent - a.total_absent;
+        const cA = String(a.applying_for_class || "");
+        const cB = String(b.applying_for_class || "");
+        if (cA !== cB) return cA.localeCompare(cB, undefined, {numeric: true});
+        return String(a.roll_number || "").localeCompare(String(b.roll_number || ""), undefined, {numeric: true});
+      });
+
+      tableBody.innerHTML = '';
+
+      if (finalFamilies.length === 0 && finalSingles.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 30px; color: var(--muted);">No students found matching criteria</td></tr>';
+        return;
+      }
+
+      // Render Families
+      finalFamilies.forEach(fam => {
+        const fatherName = fam.members[0].father_name || 'Relative';
+        const stIdsStr = fam.members.map(m => m.id).join(',');
+        
+        // Render Family Header
+        const headerTr = document.createElement('tr');
+        headerTr.style.background = '#fef3c7'; // soft yellow
+        headerTr.innerHTML = `
+          <td colspan="4" style="text-align:left; font-weight:800; color:#b45309; padding-left:1rem;">
+            👨‍👩‍👧‍👦 Family of ${fatherName} (${fam.mobile}) — ${fam.members.length} student(s)
+          </td>
+          <td></td>
+          <td style="text-align: center;">
+            <button class="wa-btn" onclick="openWaModal('${stIdsStr}')" style="background:#2563eb;">📱 Family WA</button>
+          </td>
+        `;
+        tableBody.appendChild(headerTr);
+
+        fam.members.forEach(s => {
+          tableBody.appendChild(createStudentRow(s, true));
+        });
+      });
+
+      // Render Singles
+      finalSingles.forEach(s => {
+        tableBody.appendChild(createStudentRow(s, false));
+      });
+    }
+
+    function createStudentRow(s, isFamilyMember) {
+      const tr = document.createElement('tr');
+      if (isFamilyMember) {
+        tr.style.background = '#fffbeb';
+      } else if (s.total_absent > 0) {
+        tr.style.background = s.total_absent > 3 ? '#fff5f5' : '';
+      }
+
+      const phone = getValidPhone(s);
+      const hasPhone = phone && phone.length > 0;
+
+      tr.innerHTML = `
+        <td><strong>${s.roll_number || '-'}</strong></td>
+        <td>${s.full_name || '-'}</td>
+        <td>${s.father_name || '-'}</td>
+        <td>${s.applying_for_class || '-'}</td>
+        <td style="text-align: center;">
+          ${s.total_absent > 0 
+            ? `<span class="absent-badge" ${s.total_absent > 3 ? 'style="background:#f87171;color:white;"' : ''}>${s.total_absent}</span>` 
+            : `<span style="color:var(--muted)">0</span>`}
+        </td>
+        <td style="text-align: center;">
+          ${isFamilyMember 
+            ? `<button class="wa-btn" onclick="openWaModal('${s.id}')" style="background:transparent; color:#0ea5e9; border:1px solid #0ea5e9; padding:4px 8px;">📱 Individual</button>`
+            : (hasPhone 
+                ? `<button class="wa-btn" onclick="openWaModal('${s.id}')">📱 WA</button>`
+                : `<span style="font-size:11px; color:#94a3b8;">No Number</span>`)
+          }
+        </td>
+      `;
+      return tr;
+    }
+
+    // WA Modal Logic
+    function openWaModal(studentIds) {
+      currentWaStudentId = studentIds; // can be comma-separated list
+      applySelectedWaTemplate();
+      document.getElementById('waModal').style.display = 'flex';
+    }
+
+    function closeWaModal() {
+      document.getElementById('waModal').style.display = 'none';
+      currentWaStudentId = null;
+    }
+
+    function applySelectedWaTemplate() {
+      if (!currentWaStudentId) return;
+      const ids = String(currentWaStudentId).split(',');
+      const students = ids.map(id => reportData.find(x => x.id === id)).filter(Boolean);
+      
+      if (students.length === 0) return;
+      
+      const s = students[0]; // primary student for father name / phone
+      
+      const dd = document.getElementById('waTemplateDropdown');
+      let tplText = "";
+      
+      if (dd && dd.value) {
+        const t = waTemplates.find(x => x.id === dd.value);
+        if (t) {
+          tplText = t.message_text;
+          localStorage.setItem('lastWaTemplate_AbsentRange', t.id);
+        }
+      }
+
+      // Fallback text if template is empty or missing
+      if (!tplText) {
+        tplText = "Apka bacha boht chutiyan krta hai or iski waja se uski taleem pe aser ho raha ,koshish kr k use reguarl kren thank you.\n\nStudent: {{STUDENT_NAME}}\nFrom {{START_DATE}} to {{END_DATE}}\n\n{{ABSENT_DETAILS}}\nTotal Absent Days: {{TOTAL_ABSENT}}";
+      }
+
+      const totalAbsent = students.reduce((sum, st) => sum + (st.total_absent || 0), 0);
+      const startDateStr = formatDisplayDate(fromDateEl.value);
+      const endDateStr = formatDisplayDate(toDateEl.value);
+      
+      let namesStr = students.map(x => x.full_name).join(', ');
+      if (students.length > 1) {
+          const lastIndex = namesStr.lastIndexOf(', ');
+          namesStr = namesStr.substring(0, lastIndex) + ' and ' + namesStr.substring(lastIndex + 2);
+      }
+      
+      let absentDetails = students.map(st => ` ${st.full_name}\nTotal Absent Days = ${st.total_absent} Days`).join('\n');
+
+      // Auto-fix common mistake where user writes "Total Absent Days = {{ABSENT_DETAILS}}" in template
+      let cleanedTpl = tplText.replace(/Total Absent Days\s*=\s*\{\{ABSENT_DETAILS\}\}/gi, '{{ABSENT_DETAILS}}');
+
+      let msg = cleanedTpl
+        .replace(/{{STUDENT_NAME}}/g, namesStr || 'Student')
+        .replace(/{{FATHER_NAME}}/g, s.father_name || 'Relative')
+        .replace(/{{START_DATE}}/g, startDateStr)
+        .replace(/{{END_DATE}}/g, endDateStr)
+        .replace(/{{TOTAL_ABSENT}}/g, totalAbsent)
+        .replace(/{{ABSENT_DETAILS}}/g, absentDetails);
+        
+      // Try to gracefully replace {{TODAY_DATE}} just in case they used an old template
+      msg = msg.replace(/{{TODAY_DATE}}/g, formatDisplayDate(new Date().toISOString()));
+      
+      // Clean up bill tokens if accidentally used
+      msg = msg.replace(/{{BILL_DETAILS}}/g, '').replace(/{{GRAND_TOTAL}}/g, '');
+
+      document.getElementById('waMessageText').value = msg;
+      
+      document.getElementById('btnSendWa').onclick = () => {
+        const text = document.getElementById('waMessageText').value;
+        if (!text || text.trim() === '') {
+          showToast("Message cannot be empty", "error");
+          return;
+        }
+
+        const targetPhone = getValidPhone(s);
+        if(!targetPhone || targetPhone.length === 0) {
+          showToast("No WhatsApp number found for this student.", 'error');
+          return;
+        }
+        
+        let ph = targetPhone.replace(/[^0-9+]/g, '');
+        if (ph.startsWith('+')) ph = ph.substring(1);
+        if (ph.length < 10 || ph.length > 15) {
+          showToast("Invalid phone number format.", 'error');
+          return;
+        }
+        if (ph.startsWith('0') && ph.length === 11) {
+          ph = '92' + ph.substring(1);
+        }
+        if (!ph.startsWith('92') && !ph.startsWith('1') && ph.length === 10) {
+          ph = '92' + ph;
+        }
+        
+        try {
+          const waUrl = `https://wa.me/${ph}?text=${encodeURIComponent(text)}`;
+          if (waUrl.length > 2048) {
+            showToast("Message is too long for WhatsApp limits.", 'error');
+            return;
+          }
+          const newWindow = window.open(waUrl, '_blank');
+          if (!newWindow) {
+            showToast("Popup blocked. Please allow popups.", 'error');
+            return;
+          }
+          showToast("WhatsApp opened successfully!");
+          closeWaModal();
+        } catch (error) {
+          console.error(error);
+          showToast("Failed to open WhatsApp.", "error");
+        }
+      };
+    }
+
+    // Event Listeners
+    document.getElementById('btnLoad').addEventListener('click', loadReport);
+    searchFilterEl.addEventListener('input', renderReport);
+    classFilterEl.addEventListener('change', renderReport);
+    
+    // Boot
+    initDates();
+    window.onAppReady(async () => {
+      // Wait for auth context to be fully resolved
+      let attempts = 0;
+      while ((window.currentSchoolId === undefined) && attempts < 20) {
+        await new Promise(r => setTimeout(r, 100));
+        attempts++;
+      }
+      
+      await loadInitialData();
+    });
+  </script>
+</body>
+</html>

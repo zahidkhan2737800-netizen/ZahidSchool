@@ -1,5 +1,6 @@
 let allStudents = [];
 let allComplaints = [];
+let dynamicCategories = [];
 
 const fontSizeRange = document.getElementById('fontSizeRange');
 const compactnessRange = document.getElementById('compactnessRange');
@@ -58,10 +59,16 @@ window.onAppReady(async () => {
             // Set up event listeners
             document.getElementById('loadBtn').addEventListener('click', loadReport);
             document.getElementById('printBtn').addEventListener('click', () => {
+                document.body.classList.remove('printing-cards');
                 const now = new Date();
                 document.getElementById('printDateHeader').textContent = 
                     `Student Complaints Report - Printed on ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
                 window.print();
+            });
+            document.getElementById('printCardsBtn').addEventListener('click', () => {
+                document.body.classList.add('printing-cards');
+                window.print();
+                document.body.classList.remove('printing-cards');
             });
             document.getElementById('searchText').addEventListener('input', renderTable);
             
@@ -79,6 +86,31 @@ window.onAppReady(async () => {
         }
     }, 100);
 });
+
+function esc(s) {
+    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+async function loadDynamicCategories(schoolId) {
+    const defaultCats = ["Homework","Fee","Fair Copy","Book(s)","Copies","Late Coming","Dress Code","Attendance"];
+    try {
+        let query = window.supabaseClient.from('publisher_config').select('category');
+        if (schoolId) {
+            query = query.or(`school_id.eq.${schoolId},school_id.is.null`);
+        }
+        const { data, error } = await query;
+        if (error) throw error;
+        if (data && data.length > 0) {
+            const cats = [...new Set(data.map(d => d.category))].filter(Boolean).sort();
+            dynamicCategories = cats.length > 0 ? cats : defaultCats;
+        } else {
+            dynamicCategories = defaultCats;
+        }
+    } catch(err) {
+        console.error("Failed to load dynamic categories", err);
+        dynamicCategories = defaultCats;
+    }
+}
 
 async function loadClasses() {
     try {
@@ -118,13 +150,15 @@ async function loadClasses() {
 async function loadReport() {
     const classVal = document.getElementById('classFilter').value;
     const tbody = document.getElementById('reportBody');
-    tbody.innerHTML = '<tr><td colspan="14" class="empty">Loading data...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="100%" class="empty">Loading data...</td></tr>';
     
     let schoolId = window.currentSchoolId;
     if (!schoolId && window.currentUser) {
         const { data: role } = await window.supabaseClient.from('user_roles').select('school_id').eq('user_id', window.currentUser.id).single();
         if (role) schoolId = role.school_id;
     }
+
+    await loadDynamicCategories(schoolId);
 
     try {
         // 1. Fetch Students
@@ -167,13 +201,17 @@ async function loadReport() {
         
     } catch (err) {
         console.error("Error loading report:", err);
-        tbody.innerHTML = `<tr><td colspan="14" class="empty" style="color:red;">Error loading report. Please try again.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="100%" class="empty" style="color:red;">Error loading report. Please try again.</td></tr>`;
     }
 }
 
 function renderTable() {
     const tbody = document.getElementById('reportBody');
     tbody.innerHTML = '';
+    
+    const cardsContainer = document.getElementById('cardsPrintContainer');
+    cardsContainer.className = 'card-container';
+    cardsContainer.innerHTML = '';
     
     const searchVal = document.getElementById('searchText').value.toLowerCase().trim();
     
@@ -182,37 +220,47 @@ function renderTable() {
     allComplaints.forEach(c => {
         const r = String(c.roll).trim();
         if (!countsByRoll[r]) {
-            countsByRoll[r] = {
-                homework: 0,
-                fee: 0,
-                fair_copy: 0,
-                books: 0,
-                copies: 0,
-                late: 0,
-                dress: 0,
-                attendance: 0,
-                other: 0,
-                total: 0
-            };
+            countsByRoll[r] = { total: 0, other: 0 };
+            dynamicCategories.forEach(cat => countsByRoll[r][cat] = 0);
         }
         
-        const cat = (c.category || '').toLowerCase().trim();
-        if (cat === 'homework') countsByRoll[r].homework++;
-        else if (cat === 'fee') countsByRoll[r].fee++;
-        else if (cat === 'fair copy') countsByRoll[r].fair_copy++;
-        else if (cat === 'book(s)' || cat === 'books') countsByRoll[r].books++;
-        else if (cat === 'copies') countsByRoll[r].copies++;
-        else if (cat === 'late coming') countsByRoll[r].late++;
-        else if (cat === 'dressing code' || cat === 'dress code') countsByRoll[r].dress++;
-        else if (cat === 'attendance') countsByRoll[r].attendance++;
-        else countsByRoll[r].other++; // Includes "No Response" or "Other"
+        const cat = (c.category || '').trim();
+        const matchedCat = dynamicCategories.find(dc => dc.toLowerCase() === cat.toLowerCase());
+        
+        if (matchedCat) {
+            countsByRoll[r][matchedCat]++;
+        } else {
+            countsByRoll[r].other++;
+        }
         
         countsByRoll[r].total++;
     });
 
+    const headerRow = document.getElementById('tableHeaderRow');
+    if (headerRow) {
+        headerRow.innerHTML = `
+            <th>Roll No</th>
+            <th>Student Name</th>
+            <th>Father Name</th>
+            <th>Class</th>
+            ${dynamicCategories.map(cat => `<th style="text-align:center;">${esc(cat)}</th>`).join('')}
+            <th style="text-align:center;">Other</th>
+            <th style="text-align:center;">TOTAL</th>
+        `;
+    }
+
     let renderedCount = 0;
     
-    allStudents.forEach(s => {
+    // Sort students by total complaints descending
+    const sortedStudents = [...allStudents].sort((a, b) => {
+        const rollA = String(a.roll_number).trim();
+        const rollB = String(b.roll_number).trim();
+        const totalA = countsByRoll[rollA] ? countsByRoll[rollA].total : 0;
+        const totalB = countsByRoll[rollB] ? countsByRoll[rollB].total : 0;
+        return totalB - totalA;
+    });
+    
+    sortedStudents.forEach(s => {
         const rollStr = String(s.roll_number).trim();
         
         if (searchVal) {
@@ -221,33 +269,67 @@ function renderTable() {
             if (!nameMatch && !rollMatch) return;
         }
         
-        const c = countsByRoll[rollStr] || {
-            homework: 0, fee: 0, fair_copy: 0, books: 0, copies: 0, late: 0, dress: 0, attendance: 0, other: 0, total: 0
-        };
+        const c = countsByRoll[rollStr] || { total: 0, other: 0 };
+        if (!countsByRoll[rollStr]) {
+            dynamicCategories.forEach(cat => c[cat] = 0);
+        }
+        
+        let dynamicColsHtml = dynamicCategories.map(cat => {
+            const count = c[cat] || 0;
+            return `<td style="text-align:center;" class="cnt ${count === 0 ? 'zero' : ''}">${count}</td>`;
+        }).join('');
         
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td>${s.roll_number}</td>
-            <td style="font-weight:600;">${s.full_name}</td>
-            <td>${s.father_name || ''}</td>
-            <td>${s.applying_for_class || ''}</td>
-            <td style="text-align:center;" class="cnt ${c.homework === 0 ? 'zero' : ''}">${c.homework}</td>
-            <td style="text-align:center;" class="cnt ${c.fee === 0 ? 'zero' : ''}">${c.fee}</td>
-            <td style="text-align:center;" class="cnt ${c.fair_copy === 0 ? 'zero' : ''}">${c.fair_copy}</td>
-            <td style="text-align:center;" class="cnt ${c.books === 0 ? 'zero' : ''}">${c.books}</td>
-            <td style="text-align:center;" class="cnt ${c.copies === 0 ? 'zero' : ''}">${c.copies}</td>
-            <td style="text-align:center;" class="cnt ${c.late === 0 ? 'zero' : ''}">${c.late}</td>
-            <td style="text-align:center;" class="cnt ${c.dress === 0 ? 'zero' : ''}">${c.dress}</td>
-            <td style="text-align:center;" class="cnt ${c.attendance === 0 ? 'zero' : ''}">${c.attendance}</td>
-            <td style="text-align:center;" class="cnt ${c.other === 0 ? 'zero' : ''}">${c.other}</td>
+            <td>${esc(s.roll_number)}</td>
+            <td style="font-weight:600;">${esc(s.full_name)}</td>
+            <td>${esc(s.father_name || '')}</td>
+            <td>${esc(s.applying_for_class || '')}</td>
+            ${dynamicColsHtml}
+            <td style="text-align:center;" class="cnt ${c.other === 0 ? 'zero' : ''}">${c.other || 0}</td>
             <td style="text-align:center; font-weight:800; color:#b91c1c;" class="${c.total === 0 ? 'cnt zero' : ''}">${c.total}</td>
         `;
         
         tbody.appendChild(tr);
+        
+        if (c.total > 0) {
+            const monthSel = document.getElementById('monthFilter');
+            let monthText = monthSel.options[monthSel.selectedIndex].text;
+            if (monthText === 'Custom Range') {
+                const fromD = document.getElementById('fromDate').value;
+                const toD = document.getElementById('toDate').value;
+                if (fromD || toD) monthText = `${fromD} to ${toD}`;
+                else monthText = new Date().toLocaleString('default', { month: 'long' });
+            }
+
+            const card = document.createElement('div');
+            card.className = 'student-card';
+            card.innerHTML = `
+                <h2>Zahid School</h2>
+                <div class="phone">03337502737</div>
+                <div class="month">Month: ${monthText}</div>
+                <div class="info">${s.full_name} (${s.roll_number}) &nbsp;|&nbsp; ${s.father_name || '-'} &nbsp;|&nbsp; Class: ${s.applying_for_class || '-'}</div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Category</th>
+                            <th>Complaints</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${dynamicCategories.map(cat => `<tr><td>${esc(cat)}</td><td>${c[cat] || 0}</td></tr>`).join('')}
+                        <tr><td>Other</td><td>${c.other || 0}</td></tr>
+                        <tr style="font-weight:bold; color:#000;"><td>Total</td><td>${c.total}</td></tr>
+                    </tbody>
+                </table>
+            `;
+            cardsContainer.appendChild(card);
+        }
+        
         renderedCount++;
     });
     
     if (renderedCount === 0) {
-        tbody.innerHTML = `<tr><td colspan="14" class="empty">No students found matching the criteria.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="100%" class="empty">No students found matching the criteria.</td></tr>`;
     }
 }

@@ -2,8 +2,7 @@
 // complaint_diary.js — Complaint Diary (Supabase)
 // ═══════════════════════════════════════════════════════════════
 const db = supabaseClient;
-const currentSchoolId = window.currentSchoolId || null;
-const applySchoolScope = (query) => currentSchoolId ? query.eq('school_id', currentSchoolId) : query;
+const applySchoolScope = (query) => window.currentSchoolId ? query.eq('school_id', window.currentSchoolId) : query;
 
 // ─── DOM ──────────────────────────────────────────────────────
 const nameEl          = document.getElementById('name');
@@ -19,7 +18,7 @@ const submitBtn       = document.getElementById('submitBtn');
 const cancelEditBtn   = document.getElementById('cancelEdit');
 const container       = document.getElementById('complaintsTableContainer');
 
-const categoryOptions = ["Homework","Fee","Fair Copy","Book(s)","Copies","Late Coming","Dressing Code","Attendance","No Response","Other"];
+let categoryOptions = ["Homework","Fee","Fair Copy","Book(s)","Copies","Late Coming","Dressing Code","Attendance","No Response","Other"];
 const statusOptions   = ["Pending","Resolved"];
 const contactOptions  = ["Whatsapp","Call Received","Call Not Received","Number Off","No Number","No Response"];
 
@@ -34,7 +33,7 @@ let waTemplates = [];
 let currentComplaintId = null;
 
 function getTenantScopePatch() {
-    const patch = { school_id: currentSchoolId };
+    const patch = { school_id: window.currentSchoolId };
     if (window.campusFeatureReady && window.currentCampusId) patch.campus_id = window.currentCampusId;
     return patch;
 }
@@ -56,7 +55,11 @@ function showToast(msg, type = 'info') {
 function setDefaults() {
     const today = new Date().toISOString().split('T')[0];
     dateEl.value = today;
-    categoryEl.value = 'Homework';
+    if (categoryOptions.length > 0) {
+        categoryEl.value = categoryOptions[0];
+    } else {
+        categoryEl.value = '';
+    }
     statusEl.value = 'Pending';
     contactEl.value = 'Whatsapp';
     document.getElementById('searchDate').value = today;
@@ -676,8 +679,39 @@ async function loadClasses() {
     }
 }
 
+async function loadDynamicCategories() {
+    try {
+        const { data, error } = await applySchoolScope(db
+            .from('publisher_config')
+            .select('category'));
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+            const uniqueCats = [...new Set(data.map(d => d.category))].filter(Boolean).sort();
+            if (uniqueCats.length > 0) {
+                categoryOptions = uniqueCats;
+                
+                const catSelect = document.getElementById('category');
+                if (catSelect) {
+                    catSelect.innerHTML = '<option value="">Select Category</option>' + 
+                        categoryOptions.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+                }
+                
+                const searchCatSelect = document.getElementById('searchCategory');
+                if (searchCatSelect) {
+                    searchCatSelect.innerHTML = '<option value="">All</option>' + 
+                        categoryOptions.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+                }
+            }
+        }
+    } catch(err) {
+        console.error("Failed to load dynamic categories", err);
+    }
+}
+
 // ─── Init ─────────────────────────────────────────────────────
 window.onAppReady(async () => {
+    await loadDynamicCategories();
     setDefaults();
     await loadWaTemplates();
     await loadClasses();
