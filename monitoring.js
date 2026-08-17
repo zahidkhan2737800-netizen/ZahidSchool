@@ -11,6 +11,7 @@ let selectedSubject = null;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 let absentDaysByStudentId = new Map();
 let absentDaysByRoll = new Map();
+let currentSession = '';   // active session, set in loadClassData
 
 // Persist hidden column preferences in browser
 let hiddenTopicIds = JSON.parse(localStorage.getItem('mon_hiddenTopics')) || [];
@@ -174,6 +175,7 @@ let archiveData = null;
 async function loadClassData(className, sessionName) {
     isArchived = false;
     archiveData = null;
+    currentSession = sessionName;   // ← track which session is active
     archiveBadge.style.display = 'none';
     addSubjectBtn.style.display = 'inline-block';
     addColBtn.style.display = 'inline-block';
@@ -205,20 +207,57 @@ async function loadClassData(className, sessionName) {
         return;
     }
 
-    // 3b. Live Data (Students — from admissions table, Active only, filtered by class and session)
+    // 3b. Fetch Subjects first to see if any historical students have scores
+    const { data: subData, error: subErr } = await applySchoolScope(
+        supabaseClient
+            .from('monitoring_subjects')
+            .select('*')
+    )
+        .eq('applying_for_class', className)
+        .eq('session_value', sessionName)
+        .order('created_at', { ascending: true });
+
+    if (subErr) { console.error('Subject load error:', subErr); return; }
+    subjects = subData || [];
+
+    // If no subjects exist yet for this class+session, auto-import from class_subjects_assignment
+    if (subjects.length === 0) {
+        subjects = await autoImportSubjectsFromClassAssignment(className, sessionName);
+    }
+
+    // Find historical students who have scores in this session + class
+    let historicalStudentIds = [];
+    if (subjects.length > 0) {
+        const subjectIds = subjects.map(s => s.id);
+        const { data: scoreData } = await applySchoolScope(
+            supabaseClient
+                .from('monitoring_scores')
+                .select('student_id')
+        )
+            .in('subject_id', subjectIds)
+            .eq('session_value', sessionName);
+            
+        if (scoreData) {
+            historicalStudentIds = [...new Set(scoreData.map(r => r.student_id))];
+        }
+    }
+
+    // 3c. Live Data (Students — Active only)
     let query = supabaseClient
         .from('admissions')
         .select('id, roll_number, full_name, applying_for_class, session')
-        .eq('applying_for_class', className)
         .eq('status', 'Active');
 
     if (window.currentSchoolId) {
         query = query.eq('school_id', window.currentSchoolId);
     }
-
-    // Note: We intentionally do NOT filter by session here. 
-    // This ensures that students who were admitted in previous sessions but are currently 
-    // active in this class are still loaded in the live monitoring view.
+    
+    if (historicalStudentIds.length > 0) {
+        // Fetch students currently in the class OR students who have historical scores in this class
+        query = query.or(`applying_for_class.eq."${className}",id.in.(${historicalStudentIds.join(',')})`);
+    } else {
+        query = query.eq('applying_for_class', className);
+    }
 
     const { data: sData, error: sErr } = await query;
 
@@ -227,20 +266,64 @@ async function loadClassData(className, sessionName) {
     students.sort((a, b) => parseFloat(a.roll_number || 0) - parseFloat(b.roll_number || 0));
     await loadRecentAbsentDaysForStudents();
 
-    // Subjects — from monitoring_subjects table
-    const { data: subData, error: subErr } = await applySchoolScope(
-        supabaseClient
-            .from('monitoring_subjects')
-            .select('*')
-    )
-        .eq('applying_for_class', className)
-        .order('created_at', { ascending: true });
-
-    if (subErr) { console.error('Subject load error:', subErr); return; }
-    subjects = subData || [];
-
     renderSubjectButtons();
     if (selectedSubject) renderTable();
+}
+
+// ── Auto-import subjects from class_subjects_assignment ──
+async function autoImportSubjectsFromClassAssignment(className, sessionName) {
+    try {
+        // 1. Find the class record by name (className is like "Four B")
+        const parts = className.trim().split(' ');
+        const section = parts.length > 1 ? parts[parts.length - 1] : '';
+        const classNameOnly = parts.length > 1 ? parts.slice(0, -1).join(' ') : className;
+
+        let classQuery = supabaseClient
+            .from('classes')
+            .select('id')
+            .eq('class_name', classNameOnly)
+            .eq('section', section);
+        if (window.currentSchoolId) classQuery = classQuery.eq('school_id', window.currentSchoolId);
+        const { data: classData } = await classQuery.maybeSingle();
+
+        if (!classData) return [];
+
+        // 2. Fetch subjects assigned to this class via class_subject → subject
+        const { data: assignedData, error: assignedErr } = await supabaseClient
+            .from('class_subject')
+            .select('subject:subject_id(id, name)')
+            .eq('class_id', classData.id);
+
+        if (assignedErr || !assignedData || assignedData.length === 0) return [];
+
+        // 3. Insert them into monitoring_subjects tagged with this session
+        const toInsert = assignedData
+            .filter(row => row.subject && row.subject.name)
+            .map(row => ({
+                applying_for_class: className,
+                subject_name: row.subject.name,
+                session_value: sessionName,
+                ...(window.currentSchoolId ? { school_id: window.currentSchoolId } : {})
+            }));
+
+        if (toInsert.length === 0) return [];
+
+        const { data: inserted, error: insertErr } = await supabaseClient
+            .from('monitoring_subjects')
+            .insert(toInsert)
+            .select();
+
+        if (insertErr) {
+            console.error('Auto-import subjects failed:', insertErr);
+            return [];
+        }
+
+        console.log(`Auto-imported ${inserted.length} subjects from class assignment for ${className} (${sessionName})`);
+        return inserted;
+    } catch (e) {
+        console.error('autoImportSubjectsFromClassAssignment error:', e);
+        return [];
+    }
 }
 
 async function loadRecentAbsentDaysForStudents() {
@@ -347,7 +430,8 @@ addSubjectBtn.addEventListener('click', async () => {
 
     const payload = {
         applying_for_class: className,
-        subject_name: subName.trim()
+        subject_name: subName.trim(),
+        session_value: sessionSelect.value   // ← scope to current session
     };
     if (window.currentSchoolId) payload.school_id = window.currentSchoolId;
 
@@ -389,6 +473,7 @@ async function loadColumnsAndScores(subjectId) {
             .select('*')
     )
         .eq('subject_id', subjectId)
+        .eq('session_value', currentSession)   // ← scope to current session
         .order('created_at', { ascending: true });
 
     if (cErr) { console.error('Topics error:', cErr); return; }
@@ -399,7 +484,8 @@ async function loadColumnsAndScores(subjectId) {
             .from('monitoring_scores')
             .select('*')
     )
-        .eq('subject_id', subjectId);
+        .eq('subject_id', subjectId)
+        .eq('session_value', currentSession);   // ← scope to current session
 
     if (scErr) { console.error('Scores error:', scErr); return; }
     scoresMap = {};
@@ -630,11 +716,12 @@ function renderTable() {
                         topic_id: col.id,
                         subject_id: selectedSubject.id,
                         score: scoreInput.value,
-                        covered_date: dbDate
+                        covered_date: dbDate,
+                        session_value: currentSession   // ← scope to current session
                     };
                     if (window.currentSchoolId) payload.school_id = window.currentSchoolId;
 
-                    const { error } = await supabaseClient.from('monitoring_scores').upsert(payload, { onConflict: 'student_id, topic_id' });
+                    const { error } = await supabaseClient.from('monitoring_scores').upsert(payload, { onConflict: 'student_id, topic_id, session_value' });
                     if (error) alert('Failed to save score/date: ' + error.message);
                 }
             };
@@ -676,7 +763,8 @@ addColBtn.addEventListener('click', async () => {
 
     const payload = {
         subject_id: selectedSubject.id,
-        topic_name: tName.trim()
+        topic_name: tName.trim(),
+        session_value: currentSession   // ← scope to current session
     };
     if (window.currentSchoolId) payload.school_id = window.currentSchoolId;
 
@@ -863,4 +951,35 @@ function clearData() {
     selectedSubject = null;
     absentDaysByStudentId = new Map();
     absentDaysByRoll = new Map();
+}
+
+// ── 12. Auto-Recover Old Data ──
+const recoverDataBtn = document.getElementById('recoverDataBtn');
+if (recoverDataBtn) {
+    recoverDataBtn.addEventListener('click', async () => {
+        const oldSession = prompt("What was the EXACT name of your old session? (e.g., 2026 or 2025-2026)\n\nWe will move all hidden old data into this session.", "2026");
+        if (!oldSession) return;
+        
+        recoverDataBtn.disabled = true;
+        recoverDataBtn.textContent = 'Recovering...';
+        
+        try {
+            // Update where session_value is '' or null
+            await supabaseClient.from('monitoring_subjects').update({ session_value: oldSession }).eq('session_value', '');
+            await supabaseClient.from('monitoring_subjects').update({ session_value: oldSession }).is('session_value', null);
+            
+            await supabaseClient.from('monitoring_topics').update({ session_value: oldSession }).eq('session_value', '');
+            await supabaseClient.from('monitoring_topics').update({ session_value: oldSession }).is('session_value', null);
+            
+            await supabaseClient.from('monitoring_scores').update({ session_value: oldSession }).eq('session_value', '');
+            await supabaseClient.from('monitoring_scores').update({ session_value: oldSession }).is('session_value', null);
+            
+            alert(`Recovery complete! All old data has been assigned to the "${oldSession}" session.\n\nPlease refresh the page.`);
+            recoverDataBtn.style.display = 'none';
+        } catch (err) {
+            alert('Recovery failed: ' + err.message);
+            recoverDataBtn.disabled = false;
+            recoverDataBtn.textContent = '🔄 Recover Old Data';
+        }
+    });
 }

@@ -46,6 +46,7 @@ const SCHOOL_ACCESS_SECTIONS = [
         { href: 'daily_attendance.html', label: 'Daily Attendance Report', icon: 'fas fa-clipboard-list', key: 'attendance' },
         { href: 'attendance_register.html', label: 'Attendance Register', icon: 'fas fa-table', key: 'attendance' },
         { href: 'Absent_days.html', label: 'Absent Days', icon: 'fas fa-calendar-minus', key: 'attendance' },
+        { href: 'absent_range_report.html', label: 'Absent Days Range', icon: 'fas fa-calendar-alt', key: 'attendance' },
         { href: 'Absent_Report Card.html', label: 'Absent Days Reports', icon: 'fas fa-id-card', key: 'attendance' },
         { href: 'absent_students_thermal_report.html', label: 'Absent Thermal Report', icon: 'fas fa-print', key: 'attendance', hiddenFromNavigation: true },
         { href: 'Ceritficates.html', label: 'Certificates', icon: 'fas fa-award', key: 'attendance' }
@@ -156,6 +157,7 @@ const PAGE_KEY_MAP = {
     'daily_attendance.html':    'attendance',
     'attendance_register.html': 'attendance',
     'absent_days.html':         'attendance',
+    'absent_range_report.html': 'attendance',
     'absent_report card.html':  'attendance',
     'ceritficates.html':        'attendance',
     'monitoring.html':          'monitoring',
