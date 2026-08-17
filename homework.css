@@ -171,9 +171,10 @@ body { background-color: var(--bg-color); }
 }
 
 .student-name {
-    flex: 0 1 auto;
-    min-width: 0;
+    flex: 1 1 120px;
     margin-right: 0.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .student-name strong { display: block; font-size: 1rem; color: #0f172a; }
 .student-name .roll { font-size: 0.85rem; color: #64748b; }

@@ -476,6 +476,7 @@
                     <div style="flex:2;">Fee Head</div>
                     <div style="flex:1.5;">Fee Month</div>
                     <div style="flex:1.5;">Already Paid</div>
+                    <div style="flex:1.2;color:#7c3aed;">Concession</div>
                     <div style="flex:1.5;text-align:right;">Remaining</div>
                 </div>
                 <div id="challansList"></div>
@@ -514,6 +515,13 @@
                 <div class="checkout-row" style="margin-top:-0.5rem;margin-bottom:1rem;">
                     <span style="font-size:0.85rem;color:#64748b;">Remaining after this payment:</span>
                     <strong id="sumRemaining" style="color:var(--error);">Rs 0</strong>
+                </div>
+                <label class="cf-label">Payment Date</label>
+                <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:1rem;">
+                    <input type="date" id="inputPaymentDate" class="cf-input" style="margin-bottom:0;flex:1;">
+                    <label id="backdateToggleLabel" style="font-size:0.78rem;color:#64748b;display:none;align-items:center;gap:0.3rem;white-space:nowrap;cursor:pointer;user-select:none;">
+                        <input type="checkbox" id="chkBackdate" style="width:auto;transform:scale(1.2);cursor:pointer;"> Use old date
+                    </label>
                 </div>
                 <label class="cf-label">Payment Method *</label>
                 <select id="inputMethod" class="cf-input">
@@ -771,8 +779,9 @@
         <div class="th-footer" id="rctFooter">Thank you! — Zahid School System</div>
     </div>
 
+    <script src="karachi_date.js"></script>
     <script src="auth.js"></script>
-    <script src="collect_family_fee.js?v=10"></script>
+    <script src="collect_family_fee.js?v=15"></script>
 </body>
 
 </html>

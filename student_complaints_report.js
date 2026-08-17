@@ -91,21 +91,37 @@ function esc(s) {
     return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-async function loadDynamicCategories(schoolId) {
+async function loadDynamicCategories(schoolId, className) {
     const defaultCats = ["Homework","Fee","Fair Copy","Book(s)","Copies","Late Coming","Dress Code","Attendance"];
     try {
         let query = window.supabaseClient.from('publisher_config').select('category');
         if (schoolId) {
-            query = query.or(`school_id.eq.${schoolId},school_id.is.null`);
+            query = query.eq('school_id', schoolId);
+        }
+        if (className) {
+            query = query.eq('class_name', className);
         }
         const { data, error } = await query;
         if (error) throw error;
+        
+        let cats = [];
         if (data && data.length > 0) {
-            const cats = [...new Set(data.map(d => d.category))].filter(Boolean).sort();
-            dynamicCategories = cats.length > 0 ? cats : defaultCats;
-        } else {
-            dynamicCategories = defaultCats;
+            cats = [...new Set(data.map(d => d.category))].filter(Boolean).sort();
         }
+        
+        // If filtering by class yielded no configs, fall back to school-wide configurations
+        if (cats.length === 0 && className) {
+            let fallbackQuery = window.supabaseClient.from('publisher_config').select('category');
+            if (schoolId) {
+                fallbackQuery = fallbackQuery.eq('school_id', schoolId);
+            }
+            const { data: fbData } = await fallbackQuery;
+            if (fbData && fbData.length > 0) {
+                cats = [...new Set(fbData.map(d => d.category))].filter(Boolean).sort();
+            }
+        }
+        
+        dynamicCategories = cats.length > 0 ? cats : defaultCats;
     } catch(err) {
         console.error("Failed to load dynamic categories", err);
         dynamicCategories = defaultCats;
@@ -158,7 +174,7 @@ async function loadReport() {
         if (role) schoolId = role.school_id;
     }
 
-    await loadDynamicCategories(schoolId);
+    await loadDynamicCategories(schoolId, classVal);
 
     try {
         // 1. Fetch Students
@@ -180,7 +196,7 @@ async function loadReport() {
         // If we have thousands of students, fetching all complaints might be heavy, but it's ok for one class or whole school.
         let qComplaints = window.supabaseClient
             .from('complaints')
-            .select('roll, category, date');
+            .select('roll, category, date, complaint');
             
         if (schoolId) qComplaints = qComplaints.eq('school_id', schoolId);
         
@@ -220,8 +236,11 @@ function renderTable() {
     allComplaints.forEach(c => {
         const r = String(c.roll).trim();
         if (!countsByRoll[r]) {
-            countsByRoll[r] = { total: 0, other: 0 };
-            dynamicCategories.forEach(cat => countsByRoll[r][cat] = 0);
+            countsByRoll[r] = { total: 0, other: 0, otherDetails: [], details: {} };
+            dynamicCategories.forEach(cat => {
+                countsByRoll[r][cat] = 0;
+                countsByRoll[r].details[cat] = [];
+            });
         }
         
         const cat = (c.category || '').trim();
@@ -229,8 +248,14 @@ function renderTable() {
         
         if (matchedCat) {
             countsByRoll[r][matchedCat]++;
+            if (c.complaint) {
+                countsByRoll[r].details[matchedCat].push(`${c.date || ''}: ${c.complaint}`);
+            }
         } else {
             countsByRoll[r].other++;
+            if (c.complaint) {
+                countsByRoll[r].otherDetails.push(`${cat || 'Other'} (${c.date || ''}): ${c.complaint}`);
+            }
         }
         
         countsByRoll[r].total++;
@@ -269,16 +294,25 @@ function renderTable() {
             if (!nameMatch && !rollMatch) return;
         }
         
-        const c = countsByRoll[rollStr] || { total: 0, other: 0 };
+        const c = countsByRoll[rollStr] || { total: 0, other: 0, otherDetails: [], details: {} };
         if (!countsByRoll[rollStr]) {
-            dynamicCategories.forEach(cat => c[cat] = 0);
+            dynamicCategories.forEach(cat => {
+                c[cat] = 0;
+                c.details[cat] = [];
+            });
         }
         
         let dynamicColsHtml = dynamicCategories.map(cat => {
             const count = c[cat] || 0;
-            return `<td style="text-align:center;" class="cnt ${count === 0 ? 'zero' : ''}">${count}</td>`;
+            const detailsList = c.details[cat] || [];
+            const titleAttr = detailsList.length > 0 ? `title="${esc(detailsList.join('\n'))}"` : '';
+            return `<td style="text-align:center;" class="cnt ${count === 0 ? 'zero' : ''}" ${titleAttr}>${count}</td>`;
         }).join('');
         
+        const otherTitle = c.otherDetails && c.otherDetails.length > 0 
+            ? `title="${esc(c.otherDetails.join('\n'))}"` 
+            : '';
+            
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td>${esc(s.roll_number)}</td>
@@ -286,7 +320,7 @@ function renderTable() {
             <td>${esc(s.father_name || '')}</td>
             <td>${esc(s.applying_for_class || '')}</td>
             ${dynamicColsHtml}
-            <td style="text-align:center;" class="cnt ${c.other === 0 ? 'zero' : ''}">${c.other || 0}</td>
+            <td style="text-align:center;" class="cnt ${c.other === 0 ? 'zero' : ''}" ${otherTitle}>${c.other || 0}</td>
             <td style="text-align:center; font-weight:800; color:#b91c1c;" class="${c.total === 0 ? 'cnt zero' : ''}">${c.total}</td>
         `;
         

@@ -216,12 +216,9 @@ async function loadClassData(className, sessionName) {
         query = query.eq('school_id', window.currentSchoolId);
     }
 
-    // Support legacy data: if "2025-26" or "2025-2026" is selected, include students with no session assigned
-    if (sessionName === '2025-26' || sessionName === '2025-2026') {
-        query = query.or(`session.eq.${sessionName},session.is.null,session.eq.`);
-    } else {
-        query = query.eq('session', sessionName);
-    }
+    // Note: We intentionally do NOT filter by session here. 
+    // This ensures that students who were admitted in previous sessions but are currently 
+    // active in this class are still loaded in the live monitoring view.
 
     const { data: sData, error: sErr } = await query;
 

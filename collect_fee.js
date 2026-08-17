@@ -45,6 +45,9 @@ const wsStatusBadge = document.getElementById('wsStatusBadge');
 const btnPartial    = document.getElementById('btnPartial');
 const btnPayAll     = document.getElementById('btnPayAll');
 const btnToggleHistory = document.getElementById('btnToggleHistory');
+const btnToggleDiscount= document.getElementById('btnToggleDiscount');
+const discountPanel  = document.getElementById('discountPanel');
+const discountBody   = document.getElementById('discountBody');
 const historyPanel  = document.getElementById('historyPanel');
 
 const historyBody  = document.getElementById('historyBody');
@@ -54,6 +57,7 @@ const inputFine     = document.getElementById('inputFine');
 const inputDiscount = document.getElementById('inputDiscount');
 const btnApplyDiscount = document.getElementById('btnApplyDiscount');
 const inputPaying   = document.getElementById('inputPaying');
+const inputPaymentDate = document.getElementById('inputPaymentDate');
 const inputMethod   = document.getElementById('inputMethod');
 const inputRef      = document.getElementById('inputRef');
 const refGroup      = document.getElementById('refGroup');
@@ -130,9 +134,36 @@ function closeWorkspace() {
     document.body.classList.remove('workspace-open');
 }
 
+function setTodayDate() {
+    if (!inputPaymentDate) return;
+    const todayStr = window.karachiToday ? window.karachiToday() : new Date().toISOString().split('T')[0];
+    inputPaymentDate.value = todayStr;
+    inputPaymentDate.max = todayStr;
+    inputPaymentDate.disabled = true;
+}
+
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 window.onAppReady(async () => {
     await waitForFeeAuth();
+    
+    setTodayDate();
+    const backdateLabel = document.getElementById('backdateToggleLabel');
+    const canBackdate = window.userRoleName === 'admin' || window.userRoleName === 'super_admin' || (window.hasPermission && window.hasPermission('allow_backdate_payment.html', 'can_view'));
+    if (canBackdate && backdateLabel) {
+        backdateLabel.style.display = 'flex';
+        const chkBackdate = document.getElementById('chkBackdate');
+        if (chkBackdate) {
+            chkBackdate.addEventListener('change', (e) => {
+                if(e.target.checked) {
+                    inputPaymentDate.disabled = false;
+                    inputPaymentDate.focus();
+                } else {
+                    setTodayDate();
+                }
+            });
+        }
+    }
+
     await loadStudents();
 
     if (btnCloseWorkspace) {
@@ -185,6 +216,14 @@ window.onAppReady(async () => {
             btnToggleHistory.textContent = '📜 History';
         }
     });
+
+    if(btnToggleDiscount) {
+        btnToggleDiscount.addEventListener('click', () => {
+            const isVisible = discountPanel.style.display === 'block';
+            discountPanel.style.display = isVisible ? 'none' : 'block';
+            btnToggleDiscount.innerHTML = isVisible ? '💰 Discounts' : '💰 Hide Discounts';
+        });
+    }
 
     btnReprint.addEventListener('click', () => {
         if (receiptCache.length === 0) return;
@@ -358,7 +397,8 @@ async function openStudent(student) {
     // Fetch data
     await Promise.all([
         loadHistory(student.id),
-        loadDues(student.id)
+        loadDues(student.id),
+        (typeof loadDiscountHistory === 'function' ? loadDiscountHistory() : Promise.resolve())
     ]);
 }
 
@@ -374,6 +414,30 @@ async function loadHistory(uuid) {
         if (error) throw error;
 
         receiptCache = data || [];
+
+        // Calculate grand total discount
+        let totalDiscount = 0;
+        try {
+            const { data: allTrans, error: transErr } = await db
+                .from('transactions')
+                .select('discount_amount')
+                .eq('student_id', uuid)
+                .gt('discount_amount', 0);
+            if (!transErr && allTrans) {
+                allTrans.forEach(t => totalDiscount += parseFloat(t.discount_amount || 0));
+            }
+        } catch (e) {}
+
+        const historyFooter = document.getElementById('historyFooter');
+        const totalDiscountCell = document.getElementById('totalDiscountCell');
+        if (historyFooter && totalDiscountCell) {
+            if (totalDiscount > 0) {
+                totalDiscountCell.textContent = `Rs ${totalDiscount.toLocaleString()}`;
+                historyFooter.style.display = 'table-footer-group';
+            } else {
+                historyFooter.style.display = 'none';
+            }
+        }
 
         if (receiptCache.length > 0) {
             btnReprint.style.display = 'inline-block';
@@ -526,7 +590,30 @@ async function loadDues(uuid) {
             .order('due_date', { ascending: true }));
         if (error) throw error;
 
-        pendingDues = data || [];
+        // Fetch concession/discount totals per challan from transactions
+        const challanIds = (data || []).map(ch => ch.id);
+        let discountMap = {};
+        if (challanIds.length > 0) {
+            try {
+                const { data: discData, error: discErr } = await db
+                    .from('transactions')
+                    .select('challan_id, discount_amount')
+                    .in('challan_id', challanIds)
+                    .gt('discount_amount', 0);
+                if (!discErr && discData) {
+                    discData.forEach(row => {
+                        discountMap[row.challan_id] = (discountMap[row.challan_id] || 0) + parseFloat(row.discount_amount || 0);
+                    });
+                }
+            } catch (discFetchErr) {}
+        }
+
+        pendingDues = (data || []).map(ch => {
+            return {
+                ...ch,
+                _concessionGiven: discountMap[ch.id] || 0
+            };
+        });
         const totalFeeDue = pendingDues.reduce((sum, c) => {
             const amount = parseFloat(c.amount || 0);
             const paid = parseFloat(c.paid_amount || 0);
@@ -576,6 +663,7 @@ function renderDues() {
             <div class="col-head">${c.fee_type} ${isLate ? '<span class="late-badge">LATE</span>' : ''}</div>
             <div class="col-month">${c.fee_month !== 'N/A' ? c.fee_month : '—'}</div>
             <div class="col-paid">Rs ${c.paid_amount || 0}</div>
+            <div style="flex: 1.5; color:#d97706; font-size:0.85rem;">${c._concessionGiven > 0 ? 'Rs ' + c._concessionGiven.toLocaleString() : '-'}</div>
             <div class="col-rem">Rs ${rem}</div>
         `;
 
@@ -708,6 +796,16 @@ async function applyDiscountToSelectedChallans() {
     btnApplyDiscount.disabled = true;
 
     try {
+        const paymentDateOnly = inputPaymentDate ? inputPaymentDate.value : new Date().toISOString().split('T')[0];
+        let paymentTimestamp = null;
+        const chkBackdate = document.getElementById('chkBackdate');
+        if (chkBackdate && chkBackdate.checked && paymentDateOnly) {
+            const todayStr = window.karachiToday ? window.karachiToday() : new Date().toISOString().split('T')[0];
+            if (paymentDateOnly !== todayStr) {
+                paymentTimestamp = paymentDateOnly + "T12:00:00+05:00";
+            }
+        }
+
         let remainingDiscount = discountAmt;
         const discountLogs = [];
         const discountReference = 'DISC-' + Date.now().toString().slice(-7);
@@ -750,7 +848,8 @@ async function applyDiscountToSelectedChallans() {
                 remarks:           discountRemarks,
                 school_id:         getCurrentSchoolId(),
                 collected_by:      collectorName,
-                collected_by_user_id: window.currentUser?.id || null
+                collected_by_user_id: window.currentUser?.id || null,
+                ...(paymentTimestamp ? { created_at: paymentTimestamp, payment_date: paymentDateOnly } : {})
             });
 
             remainingDiscount = Math.round((remainingDiscount - appliedDiscount) * 100) / 100;
@@ -766,7 +865,10 @@ async function applyDiscountToSelectedChallans() {
         inputDiscount.value = '0';
         selectedIds.clear();
         showAlert(`Discount of Rs ${discountAmt} applied successfully without a payment.`, false);
-        await loadDues(activeStudent.id);
+        await Promise.all([
+            loadDues(activeStudent.id),
+            (typeof loadDiscountHistory === 'function' ? loadDiscountHistory() : Promise.resolve())
+        ]);
     } catch (e) {
         console.error(e);
         showAlert('Failed: ' + e.message, true);
@@ -781,6 +883,15 @@ async function submitPayment() {
     if (!activeStudent || selectedIds.size === 0) return;
 
     const paying   = parseFloat(inputPaying.value) || 0;
+    const paymentDateOnly = inputPaymentDate ? inputPaymentDate.value : new Date().toISOString().split('T')[0];
+    let paymentTimestamp = null;
+    const chkBackdate = document.getElementById('chkBackdate');
+    if (chkBackdate && chkBackdate.checked && paymentDateOnly) {
+        const todayStr = window.karachiToday ? window.karachiToday() : new Date().toISOString().split('T')[0];
+        if (paymentDateOnly !== todayStr) {
+            paymentTimestamp = paymentDateOnly + "T12:00:00+05:00";
+        }
+    }
     const fine     = parseFloat(inputFine.value)   || 0;
     const discount = parseFloat(inputDiscount.value)|| 0;
     const method   = inputMethod.value;
@@ -877,7 +988,8 @@ async function submitPayment() {
             remarks:           remarks || null,
             school_id:         getCurrentSchoolId(),
             collected_by:      collectorName || null,
-            collected_by_user_id: window.currentUser?.id || null
+            collected_by_user_id: window.currentUser?.id || null,
+            ...(paymentTimestamp ? { created_at: paymentTimestamp } : {})
         };
         const { error: rctErr } = await db.from('receipts').insert([receiptRecord]);
         if (rctErr) console.warn('Receipt save warning:', rctErr.message); // non-fatal
@@ -895,7 +1007,11 @@ async function submitPayment() {
 
         showAlert('✅ Payment authorized and receipt sent to printer!', false);
 
-        await Promise.all([loadHistory(activeStudent.id), loadDues(activeStudent.id)]);
+        await Promise.all([
+            loadHistory(activeStudent.id), 
+            loadDues(activeStudent.id),
+            (typeof loadDiscountHistory === 'function' ? loadDiscountHistory() : Promise.resolve())
+        ]);
 
     } catch (e) {
         console.error(e);
@@ -1004,4 +1120,100 @@ function showAlert(msg, isError) {
     checkoutAlert.style.color      = isError ? '#991b1b' : '#065f46';
     checkoutAlert.style.display    = 'block';
     setTimeout(() => checkoutAlert.style.display = 'none', 5000);
+}
+
+
+// ─── Load Discount History ────────────────────────────────────────────────────
+async function loadDiscountHistory() {
+    if (!activeStudent || !discountBody) return;
+    discountBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#94a3b8;">Loading discounts...</td></tr>';
+
+    try {
+        const { data, error } = await db
+            .from('transactions')
+            .select('created_at, discount_amount, fee_details, payment_reference, amount_paid')
+            .eq('student_id', activeStudent.id)
+            .gt('discount_amount', 0)
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        const rows = data || [];
+        if (rows.length === 0) {
+            discountBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#94a3b8;">No discounts applied yet.</td></tr>';
+            return;
+        }
+
+        discountBody.innerHTML = rows.map(row => {
+            const dateStr = new Date(row.created_at).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Karachi' });
+            const timeStr = new Date(row.created_at).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Karachi' });
+            const reason  = row.fee_details || row.payment_reference || '—';
+            const rem     = typeof row.amount_paid === 'number' ? `Rs ${Number(row.amount_paid).toLocaleString()}` : '—';
+            return `
+            <tr>
+                <td><strong>${dateStr}</strong><br><span style="color:#94a3b8;font-size:0.78rem;">${timeStr}</span></td>
+                <td style="color:#64748b;font-size:0.82rem;">${reason}</td>
+                <td style="font-weight:800;color:#7c3aed;font-size:1rem;">Rs ${Number(row.discount_amount).toLocaleString()}</td>
+                <td style="color:#16a34a;font-weight:600;">${rem}</td>
+            </tr>`;
+        }).join('');
+
+        const totalDiscount = rows.reduce((sum, row) => sum + parseFloat(row.discount_amount || 0), 0);
+        discountBody.innerHTML += `
+            <tr style="background:linear-gradient(135deg,#f5f3ff,#ede9fe);border-top:3px solid #c4b5fd;">
+                <td colspan="2" style="font-weight:800;font-size:1.05rem;color:#5b21b6;padding:0.9rem 1rem;">🎟️ Total Concession Given</td>
+                <td style="font-weight:900;color:#7c3aed;font-size:1.2rem;padding:0.9rem 1rem;">Rs ${Number(totalDiscount).toLocaleString()}</td>
+                <td style="color:#64748b;font-size:0.85rem;padding:0.9rem 1rem;">${rows.length} discount(s)</td>
+            </tr>`;
+
+    } catch (e) {
+        discountBody.innerHTML = `<tr><td colspan="4" style="color:red;text-align:center;">Error: ${e.message}</td></tr>`;
+    }
+}
+
+
+// ─── Load Discount History ────────────────────────────────────────────────────
+async function loadDiscountHistory() {
+    if (!activeStudent || !discountBody) return;
+    discountBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#94a3b8;">Loading discounts...</td></tr>';
+
+    try {
+        const { data, error } = await db
+            .from('transactions')
+            .select('created_at, discount_amount, fee_details, payment_reference, amount_paid')
+            .eq('student_id', activeStudent.id)
+            .gt('discount_amount', 0)
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        const rows = data || [];
+        if (rows.length === 0) {
+            discountBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#94a3b8;">No discounts applied yet.</td></tr>';
+            return;
+        }
+
+        discountBody.innerHTML = rows.map(row => {
+            const dateStr = new Date(row.created_at).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Karachi' });
+            const timeStr = new Date(row.created_at).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Karachi' });
+            const reason  = row.fee_details || row.payment_reference || '—';
+            const rem     = typeof row.amount_paid === 'number' ? `Rs ${Number(row.amount_paid).toLocaleString()}` : '—';
+            return `
+            <tr>
+                <td><strong>${dateStr}</strong><br><span style="color:#94a3b8;font-size:0.78rem;">${timeStr}</span></td>
+                <td style="color:#64748b;font-size:0.82rem;">${reason}</td>
+                <td style="font-weight:800;color:#7c3aed;font-size:1rem;">Rs ${Number(row.discount_amount).toLocaleString()}</td>
+                <td style="color:#16a34a;font-weight:600;">${rem}</td>
+            </tr>`;
+        }).join('');
+
+        const totalDiscount = rows.reduce((sum, row) => sum + parseFloat(row.discount_amount || 0), 0);
+        discountBody.innerHTML += `
+            <tr style="background:linear-gradient(135deg,#f5f3ff,#ede9fe);border-top:3px solid #c4b5fd;">
+                <td colspan="2" style="font-weight:800;font-size:1.05rem;color:#5b21b6;padding:0.9rem 1rem;">🎟️ Total Concession Given</td>
+                <td style="font-weight:900;color:#7c3aed;font-size:1.2rem;padding:0.9rem 1rem;">Rs ${Number(totalDiscount).toLocaleString()}</td>
+                <td style="color:#64748b;font-size:0.85rem;padding:0.9rem 1rem;">${rows.length} discount(s)</td>
+            </tr>`;
+
+    } catch (e) {
+        discountBody.innerHTML = `<tr><td colspan="4" style="color:red;text-align:center;">Error: ${e.message}</td></tr>`;
+    }
 }

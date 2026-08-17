@@ -44,13 +44,28 @@ function showToast(msg, type = 'info') {
 // ─── Load Classes ─────────────────────────────────────────────
 async function loadClasses() {
     try {
-        const { data, error } = await applySchoolScope(db
-            .from('admissions')
-            .select('applying_for_class')
-            .eq('status', 'Active'));
-        if (error) throw error;
+        const [admissionsResult, classesResult] = await Promise.all([
+            applySchoolScope(db.from('admissions').select('applying_for_class').eq('status', 'Active')),
+            applySchoolScope(db.from('classes').select('class_name, section, display_order'))
+        ]);
+        
+        if (admissionsResult.error) throw admissionsResult.error;
+        if (classesResult.error) console.warn('Could not load classes order:', classesResult.error);
 
-        const classes = [...new Set((data || []).map(d => d.applying_for_class).filter(Boolean))].sort();
+        const classOrderMap = {};
+        (classesResult.data || []).forEach(cls => {
+            const key = `${cls.class_name || ''} ${cls.section || ''}`.trim();
+            classOrderMap[key] = cls.display_order || 9999;
+        });
+
+        const rawClasses = [...new Set((admissionsResult.data || []).map(d => d.applying_for_class).filter(Boolean))];
+        const classes = rawClasses.sort((a, b) => {
+            const orderA = classOrderMap[a] !== undefined ? classOrderMap[a] : 9999;
+            const orderB = classOrderMap[b] !== undefined ? classOrderMap[b] : 9999;
+            if (orderA !== orderB) return orderA - orderB;
+            return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+        });
+
         const optionsHtml = classes.map(c => `<option value="${c}">${c}</option>`).join('');
         classSelect.innerHTML = '<option value="">-- Select Class --</option>' + optionsHtml;
         if (copyTargetClassSelect) {
@@ -244,6 +259,7 @@ function cancelEdit() {
 
 cancelBtn.addEventListener('click', cancelEdit);
 loadConfigBtn.addEventListener('click', loadConfigs);
+classSelect.addEventListener('change', loadConfigs);
 
 // ─── Helpers ──────────────────────────────────────────────────
 function escapeHtml(s) {
@@ -272,26 +288,43 @@ if (copyConfigBtn) {
         }
 
         try {
-            const payload = currentClassConfigs.map(conf => ({
-                class_name: targetClass,
-                category: conf.category,
-                complaint_prefix: conf.complaint_prefix,
-                items: conf.items,
-                ...getTenantScopePatch(),
-                updated_at: new Date().toISOString()
-            }));
+            // Check what already exists in target class
+            const { data: existingConfigs, error: fetchErr } = await applySchoolScope(db
+                .from('publisher_config')
+                .select('category')
+                .eq('class_name', targetClass));
+                
+            if (fetchErr) throw fetchErr;
+            
+            const existingCategories = new Set((existingConfigs || []).map(c => c.category));
+            
+            const payload = currentClassConfigs
+                .filter(conf => !existingCategories.has(conf.category))
+                .map(conf => ({
+                    class_name: targetClass,
+                    category: conf.category,
+                    complaint_prefix: conf.complaint_prefix,
+                    items: conf.items,
+                    ...getTenantScopePatch(),
+                    updated_at: new Date().toISOString()
+                }));
+
+            if (payload.length === 0) {
+                showToast('All categories from the source class already exist in the target class.', 'info');
+                return;
+            }
 
             // Insert new configurations
             const { error } = await db.from('publisher_config').insert(payload);
             if (error) {
-                if (error.code === '23505') { // Unique violation
+                if (error.code === '23505') { // Unique violation fallback
                     showToast('Some categories already exist in the target class.', 'danger');
                     return;
                 }
                 throw error;
             }
 
-            showToast('Configurations copied successfully!', 'success');
+            showToast(`Successfully copied ${payload.length} new categories!`, 'success');
             copyTargetClassSelect.value = ''; // reset selection
             
             // Switch to target class to show the copied configs

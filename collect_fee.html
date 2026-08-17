@@ -766,6 +766,23 @@
         }
 
         /* Print styles — handled by dedicated thermal block below */
+    
+        .discount-btn {
+            background: #7c3aed;
+            color: white;
+            border: none;
+            padding: 0.5rem 1.1rem;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .discount-btn:hover {
+            background: #6d28d9;
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25);
+        }
+
     </style>
 </head>
 
@@ -830,9 +847,30 @@
                         <button id="btnReprint" class="reprint-btn" style="display:none;">🖨️ Reprint Last</button>
                         <button id="btnToggleHistory" class="show-history-btn">📜 History</button>
                         <button id="btnBill" class="show-history-btn" style="display:none;">🧾 Bill</button>
+                        <button id="btnToggleDiscount" class="discount-btn">💰 Discounts</button>
                     </div>
 
                     <span class="stu-badge" id="wsStatusBadge">ACTIVE</span>
+                </div>
+            </div>
+
+            <!-- Discount History -->
+            <div class="section-panel" id="discountPanel" style="display:none;">
+                <h2>🎟️ Discount History</h2>
+                <div class="table-scroll">
+                    <table class="history-table">
+                        <thead>
+                            <tr>
+                                <th>Date & Time</th>
+                                <th>Fee Details</th>
+                                <th style="color:#7c3aed;">Discount Given</th>
+                                <th>Amount Paid</th>
+                            </tr>
+                        </thead>
+                        <tbody id="discountBody">
+                            <tr><td colspan="4" style="text-align:center;color:#94a3b8;">No discounts applied yet.</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
@@ -858,6 +896,12 @@
                                 </td>
                             </tr>
                         </tbody>
+                        <tfoot id="historyFooter" style="display:none; font-weight:bold; background:#f8fafc;">
+                            <tr>
+                                <td colspan="4" style="text-align:right; padding:10px;">Grand Total Concession Given:</td>
+                                <td colspan="3" id="totalDiscountCell" style="color:#d97706; padding:10px;">Rs 0</td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             </div>
@@ -870,6 +914,7 @@
                     <div style="flex: 2.5;">Fee Head</div>
                     <div style="flex: 2;">Fee Month</div>
                     <div style="flex: 1.5;">Already Paid</div>
+                    <div style="flex: 1.5;">Concession</div>
                     <div style="flex: 1.5; text-align:right;">Remaining</div>
                 </div>
                 <div id="challansList"></div>
@@ -915,6 +960,14 @@
                 <div class="checkout-row" style="margin-top:-0.5rem; margin-bottom:1rem;">
                     <span style="font-size:0.85rem; color:#64748b;">Remaining after this payment:</span>
                     <strong id="sumRemaining" style="color:var(--error);">Rs 0</strong>
+                </div>
+
+                <label class="cf-label">Payment Date</label>
+                <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:1rem;">
+                    <input type="date" id="inputPaymentDate" class="cf-input" style="margin-bottom:0;flex:1;">
+                    <label id="backdateToggleLabel" style="font-size:0.78rem;color:#64748b;display:none;align-items:center;gap:0.3rem;white-space:nowrap;cursor:pointer;user-select:none;">
+                        <input type="checkbox" id="chkBackdate" style="width:auto;transform:scale(1.2);cursor:pointer;"> Use old date
+                    </label>
                 </div>
 
                 <label class="cf-label">Payment Method *</label>
@@ -1121,6 +1174,23 @@
             color: #000;
             margin-top: 14px;
         }
+    
+        .discount-btn {
+            background: #7c3aed;
+            color: white;
+            border: none;
+            padding: 0.5rem 1.1rem;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .discount-btn:hover {
+            background: #6d28d9;
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25);
+        }
+
     </style>
 
     <div id="printArea">
@@ -1160,7 +1230,8 @@
 
     <script src="auth.js"></script>
     <script src="karachi_date.js"></script>
-    <script src="collect_fee.js?v=6"></script>
+    <script src="auth.js"></script>
+    <script src="collect_fee.js?v=7"></script>
 </body>
 
 </html>

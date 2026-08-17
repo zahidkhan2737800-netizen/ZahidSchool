@@ -80,7 +80,8 @@ const SCHOOL_ACCESS_SECTIONS = [
         { href: 'bulk_print_family_bills.html', label: 'Bulk Print Family Bills', icon: 'fas fa-print', key: 'collect_family_fee' },
         { href: 'Family Bill.html', label: 'Family Bill', icon: 'fas fa-file-invoice', key: 'collect_family_fee', hiddenFromNavigation: true },
         { href: 'fee_heads.html', label: 'Fee Config', icon: 'fas fa-cogs', key: 'fee_heads' },
-        { href: 'fee_complaint_msg.html', label: 'Fee Complaint Msg', icon: 'fas fa-comment-dots', key: 'collect_fee' }
+        { href: 'fee_complaint_msg.html', label: 'Fee Complaint Msg', icon: 'fas fa-comment-dots', key: 'collect_fee' },
+        { href: 'allow_backdate_payment', label: 'Backdate Payment', icon: 'fas fa-calendar-alt', key: 'allow_backdate' }
     ]},
     { id: 'finance', label: 'Finance', icon: 'fas fa-chart-line', items: [
         { href: 'revenue.html', label: 'Revenue Management', icon: 'fas fa-arrow-down', key: 'finance' },
@@ -350,7 +351,7 @@ async function loadSchoolFeatureAccess(schoolId) {
 
         // Auto-grant new module permissions to admin if missing from DB
         if (userRoleName === 'admin' || userRoleName === 'super_admin') {
-            ['dashboard', 'admissions', 'classes', 'access_control', 'fee_heads', 'challans', 'students', 'collect_fee', 'monitoring', 'attendance', 'pending_withdrawn', 'fee_contacts', 'family', 'collect_family_fee', 'homework', 'complaints', 'reports', 'finance', 'examination', 'staff_hiring', 'staff_attendance', 'staff_payroll', 'staff_payments', 'books_dashboard', 'books_inventory', 'book_sales_report'].forEach(key => {
+            ['dashboard', 'admissions', 'classes', 'access_control', 'fee_heads', 'challans', 'students', 'collect_fee', 'monitoring', 'attendance', 'pending_withdrawn', 'fee_contacts', 'family', 'collect_family_fee', 'homework', 'complaints', 'reports', 'finance', 'examination', 'staff_hiring', 'staff_attendance', 'staff_payroll', 'staff_payments', 'books_dashboard', 'books_inventory', 'book_sales_report', 'allow_backdate_payment'].forEach(key => {
                 if (!userPermissions[key]) {
                     userPermissions[key] = { can_view: true, can_create: true, can_edit: true, can_delete: true };
                 }

@@ -67,6 +67,8 @@ const btnSubmit       = document.getElementById('btnSubmit');
 const btnReprint      = document.getElementById('btnReprint');
 const btnBill         = document.getElementById('btnBill');
 const checkoutAlert   = document.getElementById('checkoutAlert');
+const inputPaymentDate = document.getElementById('inputPaymentDate');
+const chkBackdate     = document.getElementById('chkBackdate');
 
 function applyThermalSettings(moduleName) {
     const printArea = document.getElementById('printArea');
@@ -155,6 +157,38 @@ window.onAppReady(async () => {
     if(inputMethod) {
         inputMethod.addEventListener('change', () => {
             if(refGroup) refGroup.style.display = inputMethod.value !== 'Cash' ? 'block' : 'none';
+        });
+    }
+
+    // ── Payment Date: default to today, lock unless "Use old date" is checked ──
+    function setTodayDate() {
+        if (!inputPaymentDate) return;
+        const todayStr = window.karachiToday ? window.karachiToday() : new Date().toISOString().split('T')[0];
+        inputPaymentDate.value = todayStr;
+        inputPaymentDate.max = todayStr;
+        inputPaymentDate.disabled = true;
+    }
+    setTodayDate();
+
+    // Show backdate toggle ONLY if user has can_edit permission (admin/super_admin always do)
+    const backdateLabel = document.getElementById('backdateToggleLabel');
+    const canBackdate = window.userRoleName === 'admin' || window.userRoleName === 'super_admin' || (window.hasPermission && window.hasPermission('allow_backdate_payment.html', 'can_view'));
+    if (canBackdate && backdateLabel) {
+        backdateLabel.style.display = 'flex';
+    }
+
+    if (chkBackdate) {
+        chkBackdate.addEventListener('change', () => {
+            if (chkBackdate.checked) {
+                inputPaymentDate.disabled = false;
+                inputPaymentDate.style.borderColor = '#f59e0b';
+                inputPaymentDate.style.background = '#fffbeb';
+                inputPaymentDate.focus();
+            } else {
+                setTodayDate();
+                inputPaymentDate.style.borderColor = '#e2e8f0';
+                inputPaymentDate.style.background = 'white';
+            }
         });
     }
 
@@ -384,6 +418,11 @@ async function openFamily(fam) {
     if(inputDiscount) inputDiscount.value = '0';
     if(inputPaying) inputPaying.value = '';
     if(btnReprint) btnReprint.style.display = 'none';
+    // Reset date picker to today
+    if(chkBackdate) { chkBackdate.checked = false; }
+    if(inputPaymentDate) { inputPaymentDate.disabled = true; inputPaymentDate.style.borderColor = '#e2e8f0'; inputPaymentDate.style.background = 'white'; }
+    const nowReset = new Date();
+    if(inputPaymentDate) inputPaymentDate.value = `${nowReset.getFullYear()}-${String(nowReset.getMonth()+1).padStart(2,'0')}-${String(nowReset.getDate()).padStart(2,'0')}`;
     
     if(historyPanel) historyPanel.style.display = 'none';
     if(btnToggleHistory) btnToggleHistory.textContent = '📜 History';
@@ -648,9 +687,29 @@ async function loadFamilyDues(members) {
             .select('*')
             .in('student_id', studentIds)
             .in('status', ['Unpaid', 'Partially Paid'])
-            .order('due_date', { ascending: true }); // old dues first
+            .order('due_date', { ascending: true });
             
         if (error) throw error;
+
+        // Fetch concession/discount totals per challan from transactions
+        const challanIds = (data || []).map(ch => ch.id);
+        let discountMap = {};
+        if (challanIds.length > 0) {
+            try {
+                const { data: discData, error: discErr } = await db
+                    .from('transactions')
+                    .select('challan_id, discount_amount')
+                    .in('challan_id', challanIds)
+                    .gt('discount_amount', 0);
+                if (!discErr && discData) {
+                    discData.forEach(row => {
+                        discountMap[row.challan_id] = (discountMap[row.challan_id] || 0) + parseFloat(row.discount_amount || 0);
+                    });
+                }
+            } catch (discFetchErr) {
+                console.warn('Could not fetch concession data:', discFetchErr);
+            }
+        }
 
         // Map student names onto challans for display
         pendingDues = (data || []).map(ch => {
@@ -658,7 +717,8 @@ async function loadFamilyDues(members) {
             return {
                 ...ch,
                 _studentName: stu ? stu.full_name : 'Unknown',
-                _studentRoll: stu ? stu.roll_number : '-'
+                _studentRoll: stu ? stu.roll_number : '-',
+                _concessionGiven: discountMap[ch.id] || 0
             };
         });
 
@@ -729,6 +789,7 @@ function renderDues() {
         const desc = c.fee_month && c.fee_month !== 'N/A'
             ? `${c.fee_type} <span style="color:#64748b;">(${c.fee_month})</span>`
             : c.fee_type;
+        const concession = c._concessionGiven || 0;
 
         const div = document.createElement('div');
         div.className = 'challan-item';
@@ -738,6 +799,7 @@ function renderDues() {
             <div class="col-head">${c.fee_type} ${isLate ? '<span class="late-badge">LATE</span>' : ''}</div>
             <div class="col-month">${c.fee_month !== 'N/A' ? c.fee_month : '—'}</div>
             <div class="col-paid">Rs ${c.paid_amount || 0}</div>
+            <div style="flex:1.2;font-weight:700;color:${concession > 0 ? '#7c3aed' : '#94a3b8'};font-size:0.9rem;">${concession > 0 ? 'Rs ' + concession.toLocaleString() : '—'}</div>
             <div class="col-rem">Rs ${rem}</div>
         `;
 
@@ -854,6 +916,17 @@ async function submitPayment() {
     const remarks  = inputRemarks?.value?.trim() || '';
     const collectorName = cleanCollectorName(window.currentUserFullName);
 
+    // Build the payment timestamp from the selected date
+    const selectedDate = inputPaymentDate?.value || '';
+    let paymentTimestamp = null;
+    let paymentDateOnly = null;
+    if (selectedDate) {
+        const parts = selectedDate.split('-');
+        const dt = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 12, 0, 0);
+        paymentTimestamp = dt.toISOString();
+        paymentDateOnly = selectedDate;
+    }
+
     if (paying <= 0) return alert('Enter a valid amount.');
     if (paying > grandTotal) return alert(`Cannot exceed Grand Total of Rs ${grandTotal}.`);
 
@@ -909,7 +982,9 @@ async function submitPayment() {
                 remarks:           remarks || null,
                 school_id:         getCurrentSchoolId(),
                 collected_by:      collectorName || null,
-                collected_by_user_id: window.currentUser?.id || null
+                collected_by_user_id: window.currentUser?.id || null,
+                ...(paymentTimestamp ? { created_at: paymentTimestamp } : {}),
+                ...(paymentDateOnly ? { payment_date: paymentDateOnly } : {})
             });
 
             // Freeze only the balance of challans included on this receipt. Other
@@ -991,7 +1066,8 @@ async function submitPayment() {
                 remarks:           remarks || 'Paid via Family Group',
                 collected_by:      collectorName || null,
                 school_id:         getCurrentSchoolId(),
-                collected_by_user_id: window.currentUser?.id || null
+                collected_by_user_id: window.currentUser?.id || null,
+                ...(paymentTimestamp ? { created_at: paymentTimestamp } : {})
             });
             rIndex++;
         });
@@ -1005,7 +1081,7 @@ async function submitPayment() {
             .reduce((sum, amount) => sum + Number(amount || 0), 0);
 
         // Print combined physical receipt using UI grouping logic
-        printReceipt(baseReceipt, txRecords, paying, totalFamilyRemaining, fine, discount, collectorName);
+        printReceipt(baseReceipt, txRecords, paying, totalFamilyRemaining, fine, discount, collectorName, paymentTimestamp);
 
         // Reset & Refresh
         if(inputFine) inputFine.value    = '0';
@@ -1014,6 +1090,7 @@ async function submitPayment() {
         inputRef.value     = '';
         inputRemarks.value = '';
         selectedIds.clear();
+        recalcCart(); // Clear the waterfall text
 
         showAlert('✅ Family Payment authorized and grouped records inserted successfully!', false);
 
@@ -1029,10 +1106,11 @@ async function submitPayment() {
 }
 
 // ─── Receipt Print ────────────────────────────────────────────────────────────
-function printReceipt(receiptId, txRecords, totalPaid, remaining, fine = 0, discount = 0, collectorName = '') {
+function printReceipt(receiptId, txRecords, totalPaid, remaining, fine = 0, discount = 0, collectorName = '', customDate = null) {
     applyThermalSettings('collect_family_fee');
     document.getElementById('rctNo').textContent       = receiptId;
-    document.getElementById('rctDate').textContent     = new Date().toLocaleString('en-PK', { timeZone: 'Asia/Karachi' });
+    const printDate = customDate ? new Date(customDate) : new Date();
+    document.getElementById('rctDate').textContent     = printDate.toLocaleString('en-PK', { timeZone: 'Asia/Karachi' });
     document.getElementById('rctUser').textContent     = collectorName ? `User: ${collectorName}` : '';
     document.getElementById('rctName').textContent     = `${activeFamily.primaryName}`;
     
@@ -1229,7 +1307,8 @@ async function applyDiscountToChallans() {
                 remarks:           discountRemarks,
                 school_id:         getCurrentSchoolId(),
                 collected_by:      discountCollector,
-                collected_by_user_id: window.currentUser?.id || null
+                collected_by_user_id: window.currentUser?.id || null,
+                ...((() => { const sd = inputPaymentDate?.value; if (!sd) return {}; const p = sd.split('-'); return { created_at: new Date(parseInt(p[0]), parseInt(p[1])-1, parseInt(p[2]), 12, 0, 0).toISOString(), payment_date: sd }; })())
             });
 
             remainingDiscount = Math.round((remainingDiscount - discountToApply) * 100) / 100;
@@ -1305,6 +1384,15 @@ async function loadDiscountHistory(famMembers) {
                 <td style="color:#16a34a;font-weight:600;">${rem}</td>
             </tr>`;
         }).join('');
+
+        // Append total concession summary row
+        const totalDiscount = rows.reduce((sum, row) => sum + parseFloat(row.discount_amount || 0), 0);
+        discountBody.innerHTML += `
+            <tr style="background:linear-gradient(135deg,#f5f3ff,#ede9fe);border-top:3px solid #c4b5fd;">
+                <td colspan="2" style="font-weight:800;font-size:1.05rem;color:#5b21b6;padding:0.9rem 1rem;">🎟️ Total Family Concession</td>
+                <td style="font-weight:900;color:#7c3aed;font-size:1.2rem;padding:0.9rem 1rem;">Rs ${Number(totalDiscount).toLocaleString()}</td>
+                <td colspan="2" style="color:#64748b;font-size:0.85rem;padding:0.9rem 1rem;">${rows.length} discount(s) applied</td>
+            </tr>`;
 
     } catch (e) {
         console.warn('Discount history load error:', e.message);

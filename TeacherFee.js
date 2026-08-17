@@ -231,6 +231,15 @@ async function fetchTeacherFeeRows() {
 
     const balanceByStudent = new Map();
     const paymentsByStudent = new Map();
+    const attendanceByStudent = new Map();
+    
+    const dates = [];
+    for (let i = 0; i < 3; i++) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        dates.push(d.toISOString().slice(0, 10));
+    }
+
     const selectedStudentIds = [...new Set(rows.map(row => row.student_id).filter(Boolean))];
     for (let index = 0; index < selectedStudentIds.length; index += 40) {
         const batch = selectedStudentIds.slice(index, index + 40);
@@ -242,14 +251,22 @@ async function fetchTeacherFeeRows() {
             .limit(2000);
         if (window.currentSchoolId) paymentsQuery = paymentsQuery.eq('school_id', window.currentSchoolId);
 
-        const [challansResult, paymentsResult] = await Promise.all([
+        let attQuery = window.supabaseClient
+            .from('attendance')
+            .select('student_id, date, status')
+            .in('student_id', batch)
+            .in('date', dates);
+        if (window.currentSchoolId) attQuery = attQuery.eq('school_id', window.currentSchoolId);
+
+        const [challansResult, paymentsResult, attResult] = await Promise.all([
             window.supabaseClient
             .from('challans')
             .select('student_id, amount, paid_amount')
             .in('student_id', batch)
             .in('status', ['Unpaid', 'Partially Paid'])
             .limit(2000),
-            paymentsQuery
+            paymentsQuery,
+            attQuery
         ]);
         const { data: challans, error: challansError } = challansResult;
         if (challansError) {
@@ -271,6 +288,16 @@ async function fetchTeacherFeeRows() {
                 paymentsByStudent.get(studentId).push(payment);
             });
         }
+
+        if (attResult.error) {
+            console.warn('Could not load TeacherFee attendance:', attResult.error);
+        } else {
+            (attResult.data || []).forEach(row => {
+                const sid = String(row.student_id);
+                if (!attendanceByStudent.has(sid)) attendanceByStudent.set(sid, {});
+                attendanceByStudent.get(sid)[row.date] = row.status;
+            });
+        }
     }
 
     const studentsById = new Map(allActiveStudents.map(student => [String(student.id), student]));
@@ -280,13 +307,28 @@ async function fetchTeacherFeeRows() {
             const paymentsSinceAdded = (paymentsByStudent.get(String(row.student_id)) || [])
                 .filter(payment => new Date(payment.created_at || 0).getTime() >= rowCreatedAt);
             const paidSinceAdded = paymentsSinceAdded.reduce((sum, payment) => sum + Number(payment.amount_paid || 0), 0);
+            
+            const sId = String(row.student_id);
+            const attStrs = [];
+            for (let i = 2; i >= 0; i--) {
+                const d = dates[i];
+                const studentAtt = attendanceByStudent.get(sId);
+                const status = (studentAtt && studentAtt[d]) ? studentAtt[d] : 'None';
+                if (status === 'Present') attStrs.push('1');
+                else if (status === 'Absent') attStrs.push('0');
+                else if (status === 'Leave') attStrs.push('7');
+                else attStrs.push('7');
+            }
+            const attStr = `[${attStrs.join(' ')}]`;
+
             return {
                 ...row,
                 student: studentsById.get(String(row.student_id)),
                 commitment_due_date: commitmentByStudent.get(String(row.student_id)) || null,
                 remaining_amount: balanceByStudent.get(String(row.student_id)) || 0,
                 paid_since_added: paidSinceAdded,
-                has_payment: paidSinceAdded > 0
+                has_payment: paidSinceAdded > 0,
+                att_str: attStr
             };
         })
         .filter(row => row.student);
@@ -362,7 +404,7 @@ function renderTeacherFeeList() {
         return `<tr class="${row.has_payment ? 'payment-made-row' : ''}">
             <td>${index + 1}</td>
             <td><strong>${escapeTeacherFeeHtml(student.roll_number || '—')}</strong></td>
-            <td class="student-name">${escapeTeacherFeeHtml(student.full_name || 'Student')}</td>
+            <td class="student-name">${escapeTeacherFeeHtml(student.full_name || 'Student')} <span class="attendance-str" style="color: #6b7280; font-size: 0.9em; margin-left: 4px;">${escapeTeacherFeeHtml(row.att_str || '')}</span></td>
             <td class="class-cell">${escapeTeacherFeeHtml(student.applying_for_class || '—')}</td>
             <td>${escapeTeacherFeeHtml(student.father_name || '—')}</td>
             <td>${escapeTeacherFeeHtml(student.family_id_manual || '—')}</td>
@@ -601,97 +643,162 @@ async function printTeacherFeeThermalOptionTwo() {
             });
         }
 
-        const classFilter = document.getElementById('teacherClassSelect').value || 'All Classes';
+        const classFilter = document.getElementById('teacherClassSelect').value;
         const currentDate = new Date().toLocaleDateString();
-        const printWindow = window.open('', '_blank', 'width=400,height=600');
         
-        let html = `
-            <html><head><title>Thermal Print - Teacher Fee</title>
-            <style>
-                @media print { @page { margin: 0; } body { margin: 0; padding: 5px; } }
-                body { font-family: monospace; width: 100%; max-width: 260px; box-sizing: border-box; margin: 0 auto; padding: 5px; color: #000; font-size: 12px; }
-                h3 { text-align: center; margin: 5px 0; font-size: 14px; text-transform: uppercase; }
-                .meta { text-align: center; margin-bottom: 10px; font-size: 11px; border-bottom: 1px dashed #000; padding-bottom: 5px; }
-                table { width: 100%; border-collapse: collapse; margin-top: 5px; table-layout: auto; }
-                th { border-bottom: 1px dashed #000; text-align: left; padding: 4px 0; }
-                td { padding: 4px 0; vertical-align: top; word-wrap: break-word; }
-                .right { text-align: right; padding-right: 8px; }
-                .name-compact { white-space: nowrap; font-size: 11px; }
-            </style>
-            </head>
-            <body onload="window.print()">
-              <h3>ATTENTION LIST</h3>
-              <div class="meta">
-                Date: ${currentDate}<br>Class: ${escapeTeacherFeeHtml(classFilter)}<br>
-                Total Students: ${filteredTeacherFeeRows.length}<br>Type: Fee &amp; Follow-up
-              </div>
-              <table>
-                <tr>
-                    <th style="width:20%">Roll</th>
-                    <th style="width:45%">Name</th>
-                    <th style="width:35%" class="right">Act</th>
-                </tr>
-        `;
-
-        filteredTeacherFeeRows.forEach(row => {
-            const sId = String(row.student_id);
-            
-            const attStrs = [];
-            // Older to newer (dates[2] to dates[0])
-            for (let i = 2; i >= 0; i--) {
-                const d = dates[i];
-                const status = (attMap[sId] && attMap[sId][d]) ? attMap[sId][d] : 'None';
-                if (status === 'Present') attStrs.push('1');
-                else if (status === 'Absent') attStrs.push('0');
-                else if (status === 'Leave') attStrs.push('7');
-                else attStrs.push('7'); // Holiday/No Record
-            }
-            const attStr = `[${attStrs.join(' ')}]`;
-
-            let commStr = '(N)';
-            if (row.commitment_due_date) {
-                const match = String(row.commitment_due_date).match(/-(\d{2})$/);
-                if (match) commStr = `(${parseInt(match[1], 10)})`;
-            }
-
-            const fullName = row.student?.full_name || 'Student';
-            const shortName = fullName.split(' ')[0];
-            const roll = row.student?.roll_number || '-';
-
-            // Map choices to short codes
-            const actionCodes = [];
-            const choiceMapping = {
-                'Ask': '0',
-                'Std 10': '10',
-                'Std 40': '40',
-                'St 80': '80',
-                'Stc 10': 'S'
-            };
-            
-            [row.choice_1, row.choice_2, row.choice_3, row.choice_4].forEach(choice => {
-                if (choice && choiceMapping[choice]) {
-                    actionCodes.push(choiceMapping[choice]);
-                }
+        const groups = {};
+        if (classFilter) {
+            groups[classFilter] = filteredTeacherFeeRows;
+        } else {
+            filteredTeacherFeeRows.forEach(row => {
+                const cls = row.student?.applying_for_class || 'Unknown';
+                if (!groups[cls]) groups[cls] = [];
+                groups[cls].push(row);
             });
-            const actionStr = actionCodes.join(' ');
+        }
 
-            html += `
-                <tr>
-                    <td>${escapeTeacherFeeHtml(roll)}</td>
-                    <td class="name-compact">${escapeTeacherFeeHtml(shortName)} ${escapeTeacherFeeHtml(attStr)} ${escapeTeacherFeeHtml(commStr)}</td>
-                    <td class="right" style="font-size:11px; letter-spacing:0.5px; font-weight: bold;">${escapeTeacherFeeHtml(actionStr)}</td>
-                </tr>
-            `;
+        const classKeys = Object.keys(groups).sort((a, b) => {
+            const orderA = classOrderMap[a] !== undefined ? classOrderMap[a] : 9999;
+            const orderB = classOrderMap[b] !== undefined ? classOrderMap[b] : 9999;
+            if (orderA !== orderB) return orderA - orderB;
+            return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
         });
 
-        html += `</table><div style="text-align:center;margin-top:15px;font-size:10px;">Total Printed: ${filteredTeacherFeeRows.length}</div></body></html>`;
+        const printWindow = window.open('', '_blank', 'width=400,height=600');
+        if (!printWindow) {
+            showTeacherFeeToast('Please allow popups to print.', true);
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-print"></i> Thermal Print 2';
+            }
+            return;
+        }
+
+        let currentIndex = 0;
         
-        printWindow.document.write(html);
-        printWindow.document.close();
+        window.addEventListener('message', function onPrintNext(e) {
+            if (e.data === 'printNextReceipt') {
+                currentIndex++;
+                if (currentIndex >= classKeys.length) {
+                    window.removeEventListener('message', onPrintNext);
+                    printWindow.close();
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="fas fa-print"></i> Thermal Print 2';
+                    }
+                } else {
+                    printNextClass();
+                }
+            }
+        });
+
+        function printNextClass() {
+            if (currentIndex >= classKeys.length) return;
+            const cls = classKeys[currentIndex];
+            const rows = groups[cls];
+
+            let html = `
+                <html><head><title>Thermal Print - Teacher Fee</title>
+                <style>
+                    @media print { @page { margin: 0; } body { margin: 0; padding: 5px; } }
+                    body { font-family: monospace; width: 100%; max-width: 260px; box-sizing: border-box; margin: 0 auto; padding: 5px; color: #000; font-size: 12px; }
+                    h3 { text-align: center; margin: 5px 0; font-size: 14px; text-transform: uppercase; }
+                    .meta { text-align: center; margin-bottom: 10px; font-size: 11px; border-bottom: 1px dashed #000; padding-bottom: 5px; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 5px; table-layout: auto; }
+                    th { border-bottom: 1px dashed #000; text-align: left; padding: 4px 0; }
+                    td { padding: 4px 0; vertical-align: top; word-wrap: break-word; }
+                    .right { text-align: right; padding-right: 8px; }
+                    .name-compact { white-space: nowrap; font-size: 11px; }
+                </style>
+                </head>
+                <body>
+                  <h3>ATTENTION LIST</h3>
+                  <div class="meta">
+                    Date: ${currentDate}<br>Class: ${escapeTeacherFeeHtml(cls)}<br>
+                    Total Students: ${rows.length}<br>Type: Fee &amp; Follow-up
+                  </div>
+                  <table>
+                    <tr>
+                        <th style="width:20%">Roll</th>
+                        <th style="width:45%">Name</th>
+                        <th style="width:35%" class="right">Act</th>
+                    </tr>
+            `;
+
+            rows.forEach(row => {
+                const sId = String(row.student_id);
+                
+                const attStrs = [];
+                // Older to newer (dates[2] to dates[0])
+                for (let i = 2; i >= 0; i--) {
+                    const d = dates[i];
+                    const status = (attMap[sId] && attMap[sId][d]) ? attMap[sId][d] : 'None';
+                    if (status === 'Present') attStrs.push('1');
+                    else if (status === 'Absent') attStrs.push('0');
+                    else if (status === 'Leave') attStrs.push('7');
+                    else attStrs.push('7'); // Holiday/No Record
+                }
+                const attStr = `[${attStrs.join(' ')}]`;
+
+                let commStr = '(N)';
+                if (row.commitment_due_date) {
+                    const match = String(row.commitment_due_date).match(/-(\d{2})$/);
+                    if (match) commStr = `(${parseInt(match[1], 10)})`;
+                }
+
+                const fullName = row.student?.full_name || 'Student';
+                const fatherName = row.student?.father_name || '';
+                const roll = row.student?.roll_number || '-';
+
+                // Map choices to short codes
+                const actionCodes = [];
+                const choiceMapping = {
+                    'Ask': '0',
+                    'Std 10': '10',
+                    'Std 40': '40',
+                    'St 80': '80',
+                    'Stc 10': 'S'
+                };
+                
+                [row.choice_1, row.choice_2, row.choice_3, row.choice_4].forEach(choice => {
+                    if (choice && choiceMapping[choice]) {
+                        actionCodes.push(choiceMapping[choice]);
+                    }
+                });
+                const actionStr = actionCodes.join(' ');
+
+                html += `
+                    <tr>
+                        <td>${escapeTeacherFeeHtml(roll)}</td>
+                        <td class="name-compact">
+                            ${escapeTeacherFeeHtml(fullName)} ${escapeTeacherFeeHtml(attStr)} ${escapeTeacherFeeHtml(commStr)}
+                            ${fatherName ? `<br>(${escapeTeacherFeeHtml(fatherName)})` : ''}
+                        </td>
+                        <td class="right" style="font-size:11px; letter-spacing:0.5px; font-weight: bold;">${escapeTeacherFeeHtml(actionStr)}</td>
+                    </tr>
+                `;
+            });
+
+            html += `</table><div style="text-align:center;margin-top:15px;font-size:10px;">Total Printed: ${rows.length}</div>
+                <script>
+                    window.onafterprint = function() {
+                        if (window.opener) window.opener.postMessage('printNextReceipt', '*');
+                    };
+                    window.onload = function() {
+                        setTimeout(() => window.print(), 100);
+                    };
+                </script>
+            </body></html>`;
+
+            printWindow.document.open();
+            printWindow.document.write(html);
+            printWindow.document.close();
+        }
+
+        printNextClass();
 
     } catch (err) {
         showTeacherFeeToast('Print error: ' + err.message, true);
-    } finally {
         if (btn) {
             btn.disabled = false;
             btn.innerHTML = '<i class="fas fa-print"></i> Thermal Print 2';
