@@ -253,6 +253,13 @@
 
         <div class="control-panel">
             <div class="control-group">
+                <label>Session</label>
+                <select id="sessionSelect" class="control-input" onchange="onSessionChange()">
+                    <option value="">- Select Session -</option>
+                </select>
+            </div>
+
+            <div class="control-group">
                 <label>Class</label>
                 <select id="classSelect" class="control-input" onchange="loadStudents()">
                     <option value="">- Select Class -</option>
@@ -265,8 +272,6 @@
                     <option value="">- Select Student -</option>
                 </select>
             </div>
-
-
 
             <div class="control-group" style="margin-left: auto;">
                 <button class="btn" style="background:#475569; color:#fff;" onclick="openRenameModal()"><i class="fas fa-edit"></i> Rename Topics (All Class)</button>
@@ -313,12 +318,14 @@
         let allStudents = [];
         let currentSchoolId = null;
         let currentReportId = null;
+        let currentSessionValue = '';   // ← active session
 
         // Data structure: [{ id, name, topics: [{id, name, criteria, obtained}] }]
         let reportData = [];
 
         document.addEventListener('DOMContentLoaded', async () => {
             await waitForAuthContext();
+            await loadSessions();
             await loadClassesAndStudents();
         });
 
@@ -334,6 +341,35 @@
         }
 
 
+
+        async function loadSessions() {
+            let q = db.from('session').select('session_value').order('created_at', { ascending: false });
+            if (currentSchoolId) q = q.eq('school_id', currentSchoolId);
+            const { data } = await q;
+            const sel = document.getElementById('sessionSelect');
+            sel.innerHTML = '<option value="">- Select Session -</option>';
+            (data || []).forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s.session_value;
+                opt.textContent = s.session_value;
+                sel.appendChild(opt);
+            });
+            // Auto-select most recent session
+            if (data && data.length > 0) {
+                sel.value = data[0].session_value;
+                currentSessionValue = data[0].session_value;
+            }
+        }
+
+        function onSessionChange() {
+            currentSessionValue = document.getElementById('sessionSelect').value;
+            // Reset student/builder
+            document.getElementById('studentSelect').innerHTML = '<option value="">- Select Student -</option>';
+            document.getElementById('builderArea').style.display = 'none';
+            reportData = [];
+            // Reload students for selected class (subjects may differ per session)
+            loadStudents();
+        }
 
         async function loadClassesAndStudents() {
             let studentsQ = db.from('admissions').select('id, full_name, roll_number, applying_for_class, father_name, photo_url').eq('status', 'Active');
@@ -409,9 +445,10 @@
                 return;
             }
 
-            // Fetch subjects from monitoring_subjects
+            // Fetch subjects from monitoring_subjects — scoped to session
             let subQ = db.from('monitoring_subjects').select('id, subject_name').eq('applying_for_class', classVal).order('created_at', { ascending: true });
             if (currentSchoolId) subQ = subQ.eq('school_id', currentSchoolId);
+            if (currentSessionValue) subQ = subQ.eq('session_value', currentSessionValue);
             const { data: subjects } = await subQ;
 
             if (!subjects || subjects.length === 0) {
@@ -422,14 +459,16 @@
 
             const subjectIds = subjects.map(s => s.id);
             
-            // Fetch topics
+            // Fetch topics — scoped to session
             let topQ = db.from('monitoring_topics').select('*').in('subject_id', subjectIds).order('created_at', { ascending: true });
             if (currentSchoolId) topQ = topQ.eq('school_id', currentSchoolId);
+            if (currentSessionValue) topQ = topQ.eq('session_value', currentSessionValue);
             const { data: topicsData } = await topQ;
             
-            // Fetch scores
+            // Fetch scores — scoped to session
             let scoQ = db.from('monitoring_scores').select('*').eq('student_id', studentId).in('subject_id', subjectIds);
             if (currentSchoolId) scoQ = scoQ.eq('school_id', currentSchoolId);
+            if (currentSessionValue) scoQ = scoQ.eq('session_value', currentSessionValue);
             const { data: scoresData } = await scoQ;
 
             const scoresMap = {};
@@ -656,25 +695,28 @@
 
             if (classStudents.length === 0) return alert('No students found in this class.');
 
-            // Fetch subjects
+            // Fetch subjects — scoped to session
             let subQ = db.from('monitoring_subjects').select('id, subject_name').eq('applying_for_class', classVal);
             if (currentSchoolId) subQ = subQ.eq('school_id', currentSchoolId);
+            if (currentSessionValue) subQ = subQ.eq('session_value', currentSessionValue);
             const { data: subjects } = await subQ.order('created_at', { ascending: true });
 
             if (!subjects || subjects.length === 0) {
-                return alert("No subjects configured for this class in Student Progress & Monitoring.");
+                return alert("No subjects configured for this class in Student Progress & Monitoring for the selected session.");
             }
 
             const subjectIds = subjects.map(s => s.id);
 
-            // Fetch topics
+            // Fetch topics — scoped to session
             let topQ = db.from('monitoring_topics').select('*').in('subject_id', subjectIds);
             if (currentSchoolId) topQ = topQ.eq('school_id', currentSchoolId);
+            if (currentSessionValue) topQ = topQ.eq('session_value', currentSessionValue);
             const { data: topicsData } = await topQ.order('created_at', { ascending: true });
 
-            // Fetch scores
+            // Fetch scores — scoped to session
             let scoQ = db.from('monitoring_scores').select('*').in('subject_id', subjectIds);
             if (currentSchoolId) scoQ = scoQ.eq('school_id', currentSchoolId);
+            if (currentSessionValue) scoQ = scoQ.eq('session_value', currentSessionValue);
             const { data: scoresData } = await scoQ;
 
             // Map scores
@@ -769,6 +811,7 @@
 
             let subQ = db.from('monitoring_subjects').select('id, subject_name').eq('applying_for_class', classVal).order('created_at', { ascending: true });
             if (currentSchoolId) subQ = subQ.eq('school_id', currentSchoolId);
+            if (currentSessionValue) subQ = subQ.eq('session_value', currentSessionValue);
             const { data: subjects } = await subQ;
 
             if (!subjects || subjects.length === 0) return alert('No subjects found for this class.');
@@ -776,6 +819,7 @@
             const subjectIds = subjects.map(s => s.id);
             let topQ = db.from('monitoring_topics').select('*').in('subject_id', subjectIds).order('created_at', { ascending: true });
             if (currentSchoolId) topQ = topQ.eq('school_id', currentSchoolId);
+            if (currentSessionValue) topQ = topQ.eq('session_value', currentSessionValue);
             const { data: topics } = await topQ;
 
             if (!topics || topics.length === 0) return alert('No topics found for this class.');
