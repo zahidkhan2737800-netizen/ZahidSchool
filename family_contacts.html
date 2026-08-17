@@ -543,6 +543,17 @@
             </div>
 
             <div class="control-group">
+                <select id="categoryFilter" class="control-input">
+                    <option value="All" selected>All Categories</option>
+                    <option value="A">A (On Time)</option>
+                    <option value="B">B (Late)</option>
+                    <option value="C">C (Least coop)</option>
+                    <option value="D">D (Inactive)</option>
+                    <option value="none">Not Set</option>
+                </select>
+            </div>
+
+            <div class="control-group">
                 <select id="statusFilter" class="control-input">
                     <option value="All" selected>All Rows</option>
                     <option value="Pending">Pending Rows Only</option>
@@ -559,9 +570,6 @@
                 </label>
             </div>
 
-            <div class="control-group">
-                <button class="btn-action btn-outline" id="btnClearFilters">Reset Filters</button>
-            </div>
         </div>
 
         <!-- Table Container -->

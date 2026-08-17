@@ -302,7 +302,7 @@ async function loadFamiliesData() {
             .order('roll_number');
         let displayNamesQuery = db
             .from('family_display_names')
-            .select('mobile_number, family_name');
+            .select('mobile_number, family_name, family_status');
         if (getCurrentSchoolId()) {
             studentsQuery = studentsQuery.eq('school_id', getCurrentSchoolId());
             displayNamesQuery = displayNamesQuery.eq('school_id', getCurrentSchoolId());
@@ -310,7 +310,7 @@ async function loadFamiliesData() {
         const [studentsResult, displayNamesResult] = await Promise.all([studentsQuery, displayNamesQuery]);
         if (studentsResult.error) throw studentsResult.error;
         allStudents = studentsResult.data || [];
-        familyDisplayNamesMap = new Map((displayNamesResult.data || []).map(row => [String(row.mobile_number || '').replace(/[\s-]/g, ''), row.family_name]));
+        familyDisplayNamesMap = new Map((displayNamesResult.data || []).map(row => [String(row.mobile_number || '').replace(/[\s-]/g, ''), { name: row.family_name, status: row.family_status || '' }]));
         if (displayNamesResult.error) console.warn('Could not load selected family names:', displayNamesResult.error);
         
         processFamilies(allStudents);
@@ -337,7 +337,8 @@ function processFamilies(students) {
         const members = groups[mobile];
         if (members.length < 2) return;
         const names = [...new Set(members.map(m => m.father_name).filter(n => n && n.trim() !== ''))];
-        const primaryName = familyDisplayNamesMap.get(mobile) || (names.length > 0 ? names[0] : 'Unknown Family');
+        const displayData = familyDisplayNamesMap.get(mobile) || { name: '', status: '' };
+        const primaryName = displayData.name || (names.length > 0 ? names[0] : 'Unknown Family');
         const familyNos = [...new Set(members.map(m => m.family_id_manual).filter(n => n && n.trim() !== ''))];
         const familyNo = familyNos.length > 0 ? familyNos[0] : '';
         
@@ -346,6 +347,7 @@ function processFamilies(students) {
             members,
             primaryName,
             familyNo,
+            familyStatus: displayData.status,
             firstStudentId: members[0].id // Use the first student as the anchor for the receipt linking
         });
     });
@@ -379,7 +381,7 @@ function renderFamilyList() {
         card.innerHTML = `
             <div class="stu-avatar">${fam.primaryName.charAt(0).toUpperCase()}</div>
             <div class="stu-info">
-                <strong>${fam.primaryName} ${fam.familyNo ? `(#${fam.familyNo})` : ''}</strong>
+                <strong>${fam.primaryName}${fam.familyStatus ? ` <span style="display:inline-block;background:${fam.familyStatus==='A'?'#16a34a':fam.familyStatus==='B'?'#f59e0b':fam.familyStatus==='C'?'#ef4444':'#6b7280'};color:#fff;padding:1px 6px;border-radius:4px;font-size:0.7rem;font-weight:700;vertical-align:middle;">${fam.familyStatus}</span>` : ''} ${fam.familyNo ? `(#${fam.familyNo})` : ''}</strong>
                 <span>Mobile: ${fam.mobile} &nbsp;|&nbsp; ${fam.members.length} Student(s)</span>
             </div>
             <button class="open-btn ${isActive ? 'active-open' : ''}" data-mobile="${fam.mobile}">
@@ -399,7 +401,7 @@ async function openFamily(fam) {
     receiptCache = [];
 
     if(wsAvatar) wsAvatar.textContent  = fam.primaryName.charAt(0).toUpperCase();
-    if(wsName) wsName.textContent    = fam.primaryName;
+    if(wsName) wsName.innerHTML = fam.primaryName + (fam.familyStatus ? ` <span style="display:inline-block;background:${fam.familyStatus==='A'?'#16a34a':fam.familyStatus==='B'?'#f59e0b':fam.familyStatus==='C'?'#ef4444':'#6b7280'};color:#fff;padding:2px 8px;border-radius:5px;font-size:0.75rem;font-weight:700;vertical-align:middle;">${fam.familyStatus}</span>` : '');
     if(wsContact) wsContact.textContent = fam.mobile;
     const wsFamilyNoEl = document.getElementById('wsFamilyNo');
     if(wsFamilyNoEl) wsFamilyNoEl.textContent = fam.familyNo || 'N/A';

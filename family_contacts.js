@@ -270,14 +270,14 @@ window.onAppReady(async () => {
     });
 
     // 4. Filters
-    document.getElementById('statusFilter').addEventListener('change', renderTable);
-    document.getElementById('searchTerm').addEventListener('input', renderTable);
-    document.getElementById('btnClearFilters').addEventListener('click', () => {
-        document.getElementById('statusFilter').value = 'All';
-        document.getElementById('searchTerm').value = '';
-        renderTable();
-    });
-
+    const statusFilterEl = document.getElementById('statusFilter');
+    const categoryFilterEl = document.getElementById('categoryFilter');
+    const searchEl = document.getElementById('searchTerm');
+    
+    if(statusFilterEl) statusFilterEl.addEventListener('change', renderTable);
+    if(categoryFilterEl) categoryFilterEl.addEventListener('change', renderTable);
+    if(searchEl) searchEl.addEventListener('input', renderTable);
+    
     setupCommitmentModal();
 
     // Initial Load
@@ -473,7 +473,7 @@ async function loadBaseData() {
             .order('roll_number', { ascending: true });
         let displayNamesQ = window.supabaseClient
             .from('family_display_names')
-            .select('mobile_number, family_name');
+            .select('mobile_number, family_name, family_status');
         if (window.currentSchoolId) {
             studentsQ = studentsQ.eq('school_id', window.currentSchoolId);
             displayNamesQ = displayNamesQ.eq('school_id', window.currentSchoolId);
@@ -483,7 +483,7 @@ async function loadBaseData() {
         const sErr = studentsResult.error;
 
         if (sErr) throw sErr;
-        familyDisplayNamesMap = new Map((displayNamesResult.data || []).map(row => [String(row.mobile_number || '').replace(/[\s-]/g, ''), row.family_name]));
+        familyDisplayNamesMap = new Map((displayNamesResult.data || []).map(row => [String(row.mobile_number || '').replace(/[\s-]/g, ''), { name: row.family_name, status: row.family_status || '' }]));
         if (displayNamesResult.error) console.warn('Could not load selected family names:', displayNamesResult.error);
         
         // Group students into families (similar to collect_family_fee)
@@ -501,7 +501,8 @@ async function loadBaseData() {
             // Only include as a family if 2+ active students share the same mobile
             if (members.length < 2) return;
             const names = [...new Set(members.map(m => m.father_name).filter(n => n && n.trim() !== ''))];
-            const primaryName = familyDisplayNamesMap.get(mobile) || (names.length > 0 ? names[0] : 'Unknown Family');
+            const displayData = familyDisplayNamesMap.get(mobile) || { name: '', status: '' };
+            const primaryName = displayData.name || (names.length > 0 ? names[0] : 'Unknown Family');
             const familyNos = [...new Set(members.map(m => m.family_id_manual).filter(n => n && n.trim() !== ''))];
             const familyNo = familyNos.length > 0 ? familyNos[0] : '';
             
@@ -509,7 +510,8 @@ async function loadBaseData() {
                 mobile,
                 members,
                 primaryName,
-                familyNo
+                familyNo,
+                familyStatus: displayData.status
             });
         });
 
@@ -717,6 +719,8 @@ function renderTable() {
     tbody.innerHTML = '';
 
     const statusF = document.getElementById('statusFilter').value;
+    const catEl = document.getElementById('categoryFilter');
+    const categoryF = catEl ? catEl.value : 'All';
     const searchT = document.getElementById('searchTerm').value.toLowerCase().trim();
 
     let totalBalance = 0;
@@ -741,6 +745,12 @@ function renderTable() {
             const matchesNotes = (row.data.commitment_notes || '').toLowerCase().includes(searchT);
             if (!matchesMob && !matchesName && !matchesNo && !matchesNotes) return false;
         }
+        
+        if (categoryF !== 'All') {
+            if (categoryF === 'none' && row.fam.familyStatus) return false;
+            if (categoryF !== 'none' && row.fam.familyStatus !== categoryF) return false;
+        }
+        
         if (statusF !== 'All' && row.data.row_status !== statusF) return false;
         return true;
     });
@@ -818,7 +828,7 @@ function renderTable() {
         tr.innerHTML = `
             <td class="col-roll">${fam.familyNo || '—'}</td>
             <td class="col-name" style="padding-left:0.5rem; vertical-align: top;">
-                <strong style="color:#0f172a; font-size:1.05rem;">${fam.primaryName}</strong><br>
+                <strong style="color:#0f172a; font-size:1.05rem;">${fam.primaryName}</strong>${fam.familyStatus ? ` <span style="display:inline-block;background:${fam.familyStatus==='A'?'#16a34a':fam.familyStatus==='B'?'#f59e0b':fam.familyStatus==='C'?'#ef4444':'#6b7280'};color:#fff;padding:1px 7px;border-radius:4px;font-size:0.75rem;font-weight:700;vertical-align:middle;">${fam.familyStatus}</span>` : ''}<br>
                 <small style="color:#64748b;font-weight:600;">${fam.mobile}</small>
                 ${paymentSummaryHtml}
                 <div style="margin-top: 6px; border-top: 1px dashed #cbd5e1; padding-top: 4px;">

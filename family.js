@@ -41,7 +41,7 @@ window.onAppReady(async () => {
                 .order('roll_number', { ascending: true });
             let namesQuery = supabaseClient
                 .from('family_display_names')
-                .select('mobile_number, family_name');
+                .select('mobile_number, family_name, family_status');
             if (window.currentSchoolId) {
                 studentsQuery = studentsQuery.eq('school_id', window.currentSchoolId);
                 namesQuery = namesQuery.eq('school_id', window.currentSchoolId);
@@ -52,7 +52,7 @@ window.onAppReady(async () => {
             if (namesResult.error) throw namesResult.error;
             
             allStudents = studentsResult.data || [];
-            familyDisplayNames = new Map((namesResult.data || []).map(row => [normalizeMobile(row.mobile_number), row.family_name]));
+            familyDisplayNames = new Map((namesResult.data || []).map(row => [normalizeMobile(row.mobile_number), { name: row.family_name || '', status: row.family_status || '' }]));
             processFamilies(allStudents);
             renderFamilies();
             
@@ -66,7 +66,7 @@ window.onAppReady(async () => {
         return String(value || '').replace(/[\s\-]/g, '').trim();
     }
 
-    async function saveFamilyDisplayName(mobile, familyName) {
+    async function saveFamilyData(mobile, familyName, familyStatus) {
         const schoolId = window.currentSchoolId;
         if (!schoolId) throw new Error('School could not be identified. Refresh and try again.');
         const normalizedMobile = normalizeMobile(mobile);
@@ -76,11 +76,12 @@ window.onAppReady(async () => {
                 school_id: schoolId,
                 mobile_number: normalizedMobile,
                 family_name: familyName,
+                family_status: familyStatus,
                 selected_by: window.currentUser?.id || null,
                 updated_at: new Date().toISOString()
             }, { onConflict: 'school_id,mobile_number' });
         if (error) throw error;
-        familyDisplayNames.set(normalizedMobile, familyName);
+        familyDisplayNames.set(normalizedMobile, { name: familyName, status: familyStatus });
     }
 
     function processFamilies(students) {
@@ -108,12 +109,14 @@ window.onAppReady(async () => {
             
             const uniqueFatherNames = [...new Set(members.map(m => m.father_name).filter(n => n && n.trim() !== ''))];
             const familyNos = [...new Set(members.map(m => m.family_id_manual).filter(n => n && n.trim() !== ''))];
-            const savedFamilyName = familyDisplayNames.get(mobile) || '';
+            const savedData = familyDisplayNames.get(mobile) || { name: '', status: '' };
+            const savedFamilyName = savedData.name;
             
             familiesData.push({
                 mobile,
                 members,
                 familyNo: familyNos.length > 0 ? familyNos[0] : '',
+                status: savedData.status,
                 conflict: !savedFamilyName && uniqueFatherNames.length > 1,
                 uniqueFatherNames,
                 primaryName: savedFamilyName || (uniqueFatherNames.length === 1 ? uniqueFatherNames[0] : (uniqueFatherNames.length > 0 ? 'Conflict Detected' : 'Unknown Family'))
@@ -135,8 +138,19 @@ window.onAppReady(async () => {
         gridContainer.style.display = 'block';
 
         const flatFilter = filterText.toLowerCase().trim();
+        const statusFilterEl = document.getElementById('statusFilter');
+        const statusF = statusFilterEl ? statusFilterEl.value : '';
 
         const filtered = familiesData.filter(fam => {
+            // Conflicts always show at top regardless of filters
+            if (fam.conflict) return true;
+
+            // Status filter
+            if (statusF === 'none' && fam.status) return false;
+            if (statusF === 'none' && !fam.status) { /* pass through */ }
+            else if (statusF && fam.status !== statusF) return false;
+
+            // Text filter
             if(!flatFilter) return true;
             if(fam.mobile.toLowerCase().includes(flatFilter)) return true;
             if(fam.primaryName.toLowerCase().includes(flatFilter)) return true;
@@ -148,7 +162,7 @@ window.onAppReady(async () => {
         });
 
         if (filtered.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:3rem; color:#64748b; font-size:1.2rem;">No valid families found. A family appears only when 2 or more active students share the same mobile number.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:3rem; color:#64748b; font-size:1.2rem;">No valid families found. A family appears only when 2 or more active students share the same mobile number.</td></tr>`;
             return;
         }
 
@@ -158,14 +172,20 @@ window.onAppReady(async () => {
 
             let fatherCell = '';
             if(fam.conflict) {
-                let optionsHtml = fam.uniqueFatherNames.map(name => `
-                    <button class="conflict-btn" data-mobile="${fam.mobile}" data-choose="${name}" style="display:block; width:100%; margin-bottom:0.3rem; padding:0.4rem; font-size:0.85rem;">
-                        Choose "${name}"
-                    </button>
-                `).join('');
+                let optionsHtml = fam.uniqueFatherNames.map(name => {
+                    const safeName = (name || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                    return `<button class="conflict-btn" data-mobile="${fam.mobile}" data-choose="${safeName}" style="display:block; width:100%; margin-bottom:0.3rem; padding:0.6rem 0.8rem; font-size:0.95rem; text-align:left;">
+                        ✅ Choose "<strong>${name}</strong>"
+                    </button>`;
+                }).join('');
+                // Also show which student has which father name
+                let detailHtml = fam.members.map(m => 
+                    `<div style="font-size:0.8rem; color:#64748b; padding:1px 0;">${m.full_name} → Father: <b>${m.father_name || 'N/A'}</b></div>`
+                ).join('');
                 fatherCell = `
                     <div style="color: #b45309; font-weight: 600; font-size: 0.9rem; margin-bottom: 0.3rem;">⚠️ Conflict Detected</div>
-                    <div style="font-size: 0.85rem; color: #475569; margin-bottom: 0.5rem;">Choose correct name:</div>
+                    <div style="margin-bottom:0.5rem; border-left:3px solid #fcd34d; padding-left:6px;">${detailHtml}</div>
+                    <div style="font-size: 0.85rem; color: #475569; margin-bottom: 0.4rem; font-weight:600;">Choose family name:</div>
                     ${optionsHtml}
                 `;
             } else {
@@ -185,6 +205,15 @@ window.onAppReady(async () => {
                 </td>
                 <td style="font-size:1.1rem; color:#0f172a;">${fatherCell}</td>
                 <td style="font-weight: 700; color: var(--primary); font-size:1.1rem; white-space: nowrap;">${fam.mobile}</td>
+                <td>
+                    <select class="family-status-select" data-mobile="${fam.mobile}" style="width:100%; padding:0.5rem; border-radius:6px; border:2px solid ${!fam.status?'#cbd5e1':fam.status==='A'?'#16a34a':fam.status==='B'?'#f59e0b':fam.status==='C'?'#ef4444':'#6b7280'}; font-size:0.95rem; outline:none; font-weight:700; background:${!fam.status?'#f8fafc':fam.status==='A'?'#f0fdf4':fam.status==='B'?'#fffbeb':fam.status==='C'?'#fef2f2':'#f9fafb'}; color:${!fam.status?'#64748b':fam.status==='A'?'#16a34a':fam.status==='B'?'#d97706':fam.status==='C'?'#dc2626':'#4b5563'}; cursor:pointer; text-align:center;">
+                        <option value="" ${!fam.status ? 'selected' : ''}>-</option>
+                        <option value="A" ${fam.status === 'A' ? 'selected' : ''}>A</option>
+                        <option value="B" ${fam.status === 'B' ? 'selected' : ''}>B</option>
+                        <option value="C" ${fam.status === 'C' ? 'selected' : ''}>C</option>
+                        <option value="D" ${fam.status === 'D' ? 'selected' : ''}>D</option>
+                    </select>
+                </td>
                 <td style="text-align: center;">
                     <span style="background: #e0e7ff; color: var(--primary); padding: 0.3rem 0.8rem; border-radius: 12px; font-weight: 700; font-size: 1rem;">
                         ${fam.members.length}
@@ -266,7 +295,8 @@ window.onAppReady(async () => {
                 e.target.style.background = '#fef3c7';
 
                 try {
-                    await saveFamilyDisplayName(mobile, newName);
+                    const existingData = familyDisplayNames.get(mobile) || { name: '', status: '' };
+                    await saveFamilyData(mobile, newName, existingData.status);
 
                     e.target.style.background = '#d1fae5';
                     setTimeout(() => { e.target.style.background = 'transparent'; }, 1500);
@@ -289,6 +319,35 @@ window.onAppReady(async () => {
                 if (e.key === 'Enter') e.target.blur();
             });
         });
+        
+        // Handle Family Status Dropdown
+        document.querySelectorAll('.family-status-select').forEach(select => {
+            select.addEventListener('change', async (e) => {
+                const mobile = e.target.getAttribute('data-mobile');
+                const newStatus = e.target.value;
+                const fam = familiesData.find(f => f.mobile === mobile);
+                
+                // Visual feedback
+                e.target.style.background = '#fef3c7';
+                
+                try {
+                    const existingData = familyDisplayNames.get(mobile) || { name: '', status: '' };
+                    const nameToSave = fam ? fam.primaryName : existingData.name;
+                    await saveFamilyData(mobile, nameToSave, newStatus);
+                    
+                    if (fam) fam.status = newStatus;
+                    // Re-color the dropdown to match the new status
+                    const colorMap = { 'A': {border:'#16a34a',bg:'#f0fdf4',text:'#16a34a'}, 'B': {border:'#f59e0b',bg:'#fffbeb',text:'#d97706'}, 'C': {border:'#ef4444',bg:'#fef2f2',text:'#dc2626'}, 'D': {border:'#6b7280',bg:'#f9fafb',text:'#4b5563'} };
+                    const c = colorMap[newStatus] || {border:'#cbd5e1',bg:'#f8fafc',text:'#64748b'};
+                    e.target.style.borderColor = c.border;
+                    e.target.style.background = c.bg;
+                    e.target.style.color = c.text;
+                } catch(err) {
+                    alert('Error saving status: ' + err.message);
+                    e.target.style.background = '#fee2e2';
+                }
+            });
+        });
 
         // Handle Conflict Resolution
         document.querySelectorAll('.conflict-btn').forEach(btn => {
@@ -299,7 +358,8 @@ window.onAppReady(async () => {
                 if(confirm(`Use "${chosenName}" as this family's name?\n\nEach student's father name will remain unchanged.`)) {
                     e.target.innerText = 'Updating...';
                     try {
-                        await saveFamilyDisplayName(mobile, chosenName);
+                        const existingData = familyDisplayNames.get(mobile) || { name: '', status: '' };
+                        await saveFamilyData(mobile, chosenName, existingData.status);
                         await loadFamilies(); // Reload
                     } catch(err) {
                         alert('Error resolving conflict: ' + err.message);
@@ -428,4 +488,12 @@ window.onAppReady(async () => {
     searchBar.addEventListener('input', (e) => {
         renderFamilies(e.target.value);
     });
+
+    // Status filter
+    const statusFilterEl = document.getElementById('statusFilter');
+    if (statusFilterEl) {
+        statusFilterEl.addEventListener('change', () => {
+            renderFamilies(searchBar.value);
+        });
+    }
 });

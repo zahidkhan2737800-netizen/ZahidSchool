@@ -282,7 +282,17 @@
             </div>
         </div>
 
-        <input type="text" class="search-bar" id="searchFamilies" placeholder="🔍 Search families by Mobile #, Family Name, or Student Name...">
+        <div style="display:flex; gap:1rem; align-items:center; margin-bottom:2rem;">
+            <input type="text" class="search-bar" id="searchFamilies" placeholder="🔍 Search families by Mobile #, Family Name, or Student Name..." style="margin-bottom:0; flex:3;">
+            <select id="statusFilter" style="padding:1rem 1.5rem; font-size:1.1rem; border:2px solid #e2e8f0; border-radius:12px; outline:none; font-weight:700; cursor:pointer; background:#fff; flex:1;">
+                <option value="">All Status</option>
+                <option value="A">A</option>
+                <option value="B">B</option>
+                <option value="C">C</option>
+                <option value="D">D</option>
+                <option value="none">Not Set</option>
+            </select>
+        </div>
 
         <div id="spinner">🔄 Scanning & Grouping Families...</div>
         
@@ -293,6 +303,7 @@
                         <th style="width: 150px;">Family #</th>
                         <th>Family Name</th>
                         <th style="width: 150px;">Mobile</th>
+                        <th style="width: 140px;">Family Status</th>
                         <th style="width: 80px; text-align: center;">Count</th>
                         <th>Students</th>
                         <th style="width: 100px; text-align: center;">Actions</th>
