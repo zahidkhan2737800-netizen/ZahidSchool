@@ -149,7 +149,10 @@ function onFilterChange() {
 
     if (!selectedClass || !selectedSession) {
         subjectsToolbar.style.display = 'none';
+        actionsToolbar.style.display = 'none';
+        tableContainer.style.display = 'none';
         studentSearchInput.style.display = 'none';
+        subjectButtonsContainer.innerHTML = '';
         clearData();
         return;
     }
@@ -207,22 +210,30 @@ async function loadClassData(className, sessionName) {
         return;
     }
 
-    // 3b. Fetch Subjects first to see if any historical students have scores
+    // 3b. Fetch Subjects for this class+session
     const { data: subData, error: subErr } = await applySchoolScope(
         supabaseClient
             .from('monitoring_subjects')
             .select('*')
     )
         .eq('applying_for_class', className)
-        .eq('session_value', sessionName)
         .order('created_at', { ascending: true });
 
     if (subErr) { console.error('Subject load error:', subErr); return; }
-    subjects = subData || [];
 
-    // If no subjects exist yet for this class+session, auto-import from class_subjects_assignment
+    // Client-side filter: only subjects that belong to this session
+    subjects = (subData || []).filter(s => s.session_value === sessionName);
+
+    // Auto-import from class_subjects_assignment ONLY if this session has zero subjects
+    // AND the class has no subjects at all (to prevent duplication)
     if (subjects.length === 0) {
-        subjects = await autoImportSubjectsFromClassAssignment(className, sessionName);
+        const totalForClass = (subData || []).length;
+        // Only auto-import if there are no subjects for the class at all, OR if the
+        // column exists and we genuinely have 0 for this session
+        const canImport = totalForClass === 0 || (subData || []).every(s => s.session_value && s.session_value !== sessionName);
+        if (canImport) {
+            subjects = await autoImportSubjectsFromClassAssignment(className, sessionName);
+        }
     }
 
     // Find historical students who have scores in this session + class
@@ -476,8 +487,16 @@ async function loadColumnsAndScores(subjectId) {
         .eq('session_value', currentSession)   // ← scope to current session
         .order('created_at', { ascending: true });
 
-    if (cErr) { console.error('Topics error:', cErr); return; }
-    progressColumns = cData || [];
+    if (cErr) {
+        // Column may not exist yet — degrade gracefully with empty topics
+        console.warn('Topics fetch error (session_value column may not exist yet):', cErr.message);
+        progressColumns = [];
+        renderDropdownMenu();
+        renderTable();
+        return;
+    }
+    // Client-side filter: only topics belonging to current session
+    progressColumns = (cData || []).filter(c => !c.session_value || c.session_value === currentSession);
 
     const { data: scData, error: scErr } = await applySchoolScope(
         supabaseClient
