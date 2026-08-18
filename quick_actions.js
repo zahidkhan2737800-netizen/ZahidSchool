@@ -127,6 +127,7 @@ var NAV_CATEGORIES = [
       { href: 'curriculum_and_session.html', label: 'Curriculum & Session', icon: 'fas fa-book', key: 'classes' },
       { href: 'class_subjects_assignment.html', label: 'Class Subjects', icon: 'fas fa-link', key: 'classes' },
       { href: 'thermal_print_settings.html', label: 'Thermal Print Settings', icon: 'fas fa-print', key: 'collect_fee' },
+      { href: 'receipt_footer_settings.html', label: 'Receipt Footer', icon: 'fas fa-receipt', key: 'collect_fee' },
       { href: 'access_control.html', label: 'Access Control', icon: 'fas fa-lock', key: 'access_control' }
     ]
   }

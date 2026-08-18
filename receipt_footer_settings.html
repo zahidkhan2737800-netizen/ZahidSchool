@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zahid School - Receipt Footer</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        *{box-sizing:border-box}
+        body{margin:0;font-family:"Segoe UI",Tahoma,sans-serif;background:linear-gradient(140deg,#ecfeff,#f8fafc 48%,#eef2ff);color:#0f172a;min-height:100vh}
+        .wrap{max-width:1050px;margin:0 auto;padding:24px}
+        .head,.panel,.preview-panel{background:#fff;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 10px 28px rgba(15,23,42,.07)}
+        .head{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px 20px;margin-bottom:18px}
+        .title{display:flex;align-items:center;gap:12px}.title-icon{width:48px;height:48px;border-radius:12px;background:#ccfbf1;color:#0f766e;display:grid;place-items:center;font-size:1.35rem}
+        h1{margin:0;font-size:1.45rem}.head p{margin:4px 0 0;color:#64748b;font-size:.9rem}
+        .head a{text-decoration:none;color:#115e59;background:#f0fdfa;border:1px solid #99f6e4;padding:9px 12px;border-radius:8px;font-weight:700;font-size:.85rem}
+        .content{display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:18px}
+        .panel,.preview-panel{padding:20px}
+        label{display:block;font-size:.9rem;font-weight:800;margin-bottom:7px}
+        textarea{width:100%;min-height:125px;resize:vertical;border:1px solid #cbd5e1;border-radius:10px;padding:12px;font:600 1rem/1.45 "Segoe UI",sans-serif;color:#0f172a;outline:none}
+        textarea:focus{border-color:#14b8a6;box-shadow:0 0 0 3px rgba(20,184,166,.14)}
+        .under-input{display:flex;justify-content:space-between;gap:12px;color:#64748b;font-size:.8rem;margin-top:6px}
+        .actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:16px}
+        button{border:0;border-radius:9px;padding:10px 14px;font-weight:800;cursor:pointer}
+        .save{background:#0f766e;color:#fff}.save:hover{background:#115e59}.secondary{background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe}
+        button:disabled{opacity:.6;cursor:not-allowed}
+        .status{display:none;margin-top:15px;padding:11px 12px;border-radius:9px;font-size:.86rem;font-weight:700}
+        .status.ok{display:block;background:#ecfdf5;color:#047857;border:1px solid #a7f3d0}.status.error{display:block;background:#fef2f2;color:#b91c1c;border:1px solid #fecaca}
+        .install{display:none;margin-top:14px;padding:12px;border-radius:9px;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;font-size:.84rem;line-height:1.45}
+        .install code{font-weight:800}
+        .preview-title{text-align:center;font-size:.82rem;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px}
+        .receipt{font-family:monospace;width:100%;max-width:280px;margin:0 auto;padding:12px 10px;background:#fff;color:#000;border:1px dashed #94a3b8;font-size:12px;line-height:1.4}
+        .school{text-align:center;font-size:17px;font-weight:800}.phone{text-align:center;font-size:11px;margin-bottom:8px}.divider{border:0;border-top:1px dashed #000;margin:7px 0}
+        .line{display:flex;justify-content:space-between;gap:8px;margin:4px 0}.fee{font-size:11px}.total{font-weight:800}.footer{text-align:center;font-size:11px;font-weight:800;white-space:pre-wrap;margin-top:8px}
+        .scope-note{margin-top:14px;color:#64748b;font-size:.82rem;line-height:1.45}
+        @media(max-width:800px){.content{grid-template-columns:1fr}.head{align-items:flex-start;flex-direction:column}.wrap{padding:12px}}
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <header class="head">
+            <div class="title">
+                <div class="title-icon"><i class="fas fa-receipt"></i></div>
+                <div><h1>Receipt Footer</h1><p>Set the final message on Student Fee and Family Fee payment receipts.</p></div>
+            </div>
+            <a href="dashboard.html"><i class="fas fa-arrow-left"></i> Dashboard</a>
+        </header>
+
+        <div class="content">
+            <section class="panel">
+                <label for="footerText">Custom receipt message</label>
+                <textarea id="footerText" maxlength="200" placeholder="For example: Fee once paid is not refundable."></textarea>
+                <div class="under-input"><span>This message is shared by every user in this school.</span><span id="charCount">0 / 200</span></div>
+                <div class="actions">
+                    <button id="saveBtn" class="save"><i class="fas fa-save"></i> Save Footer</button>
+                    <button id="exampleBtn" class="secondary">Use “Fee not refundable”</button>
+                    <button id="defaultBtn" class="secondary">Restore Default</button>
+                </div>
+                <div id="statusText" class="status"></div>
+                <div id="installNotice" class="install">Supabase storage is not installed yet. Run <code>receipt_footer_settings_setup.sql</code> once in the Supabase SQL Editor, then reload this page.</div>
+                <p class="scope-note">The saved footer is school-specific. Other schools can save their own wording without changing this school’s receipts.</p>
+            </section>
+
+            <aside class="preview-panel">
+                <div class="preview-title">Thermal Receipt Preview</div>
+                <div class="receipt">
+                    <div id="previewSchool" class="school">Zahid School</div>
+                    <div class="phone">03337502737</div>
+                    <hr class="divider">
+                    <div class="fee">[Student (101)] Monthly Fee</div>
+                    <div class="line"><span>August 2026</span><strong>Rs 2,300</strong></div>
+                    <hr class="divider">
+                    <div class="line total"><span>Total Paid</span><span>Rs 2,300</span></div>
+                    <div class="line"><span>Remaining</span><span>Rs 0</span></div>
+                    <hr class="divider">
+                    <div id="previewFooter" class="footer">Thank you! — Zahid School System</div>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <script src="auth.js"></script>
+    <script src="receipt_footer_settings.js?v=1"></script>
+</body>
+</html>

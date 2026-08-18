@@ -20,9 +20,38 @@ let selectedIds   = new Set();
 let grandTotal    = 0;
 let receiptCache  = [];   // saved receipts for current family (for reprint)
 let familyDisplayNamesMap = new Map(); // normalized mobile -> selected family name
+const DEFAULT_RECEIPT_FOOTER = 'Thank you! — Zahid School System';
+let receiptFooterText = DEFAULT_RECEIPT_FOOTER;
 
 function cleanCollectorName(value) {
     return String(value || '').trim().replace(/\s*\([^)]*\)\s*$/, '').trim();
+}
+
+function applyPaymentReceiptFooter() {
+    const footer = document.getElementById('rctFooter');
+    if (footer) footer.textContent = receiptFooterText;
+}
+
+async function loadReceiptFooterText() {
+    const schoolId = getCurrentSchoolId();
+    if (!schoolId) {
+        receiptFooterText = DEFAULT_RECEIPT_FOOTER;
+        applyPaymentReceiptFooter();
+        return;
+    }
+    try {
+        const { data, error } = await db
+            .from('school_receipt_settings')
+            .select('footer_text')
+            .eq('school_id', schoolId)
+            .maybeSingle();
+        if (error) throw error;
+        receiptFooterText = String(data?.footer_text || '').trim() || DEFAULT_RECEIPT_FOOTER;
+    } catch (error) {
+        console.info('Custom receipt footer is unavailable; using the default.', error.message);
+        receiptFooterText = DEFAULT_RECEIPT_FOOTER;
+    }
+    applyPaymentReceiptFooter();
 }
 
 // ─── DOM Refs ─────────────────────────────────────────────────────────────────
@@ -129,6 +158,8 @@ function applyThermalSettings(moduleName) {
 
 window.onAppReady(async () => {
     await waitForFamilyFeeAuth();
+    await loadReceiptFooterText();
+    window.addEventListener('focus', loadReceiptFooterText);
     await loadFamiliesData();
 
     // Close workspace on button / backdrop / Escape
@@ -609,8 +640,7 @@ function reprintFromHistory(receipt) {
     if(rowReceiptNo) rowReceiptNo.style.display = 'flex';
     const rowTotalPaid = document.getElementById('rowTotalPaid');
     if(rowTotalPaid) rowTotalPaid.style.display = 'flex';
-    const rctFooter = document.getElementById('rctFooter');
-    if(rctFooter) rctFooter.textContent = 'Thank you! — Zahid School System';
+    applyPaymentReceiptFooter();
 
     const lines = Array.isArray(receipt.fee_lines) ? receipt.fee_lines : [];
     
@@ -695,8 +725,7 @@ window.printDaySummary = function(dateStr, collectorKey = '', combineAllUsers = 
     const dividerBeforeTotals = document.getElementById('dividerBeforeTotals');
     if(dividerBeforeTotals) dividerBeforeTotals.style.display = 'none';
     
-    const rctFooter = document.getElementById('rctFooter');
-    if(rctFooter) rctFooter.textContent = 'Thank you! — Zahid School System';
+    applyPaymentReceiptFooter();
 
     document.getElementById('rctBody').innerHTML = allLines.map(line => `
         <div class="th-fee-row">
@@ -1202,8 +1231,7 @@ function printReceipt(receiptId, txRecords, totalPaid, remaining, fine = 0, disc
     if(rowReceiptNo) rowReceiptNo.style.display = 'flex';
     const rowTotalPaid = document.getElementById('rowTotalPaid');
     if(rowTotalPaid) rowTotalPaid.style.display = 'flex';
-    const rctFooter = document.getElementById('rctFooter');
-    if(rctFooter) rctFooter.textContent = 'Thank you! — Zahid School System';
+    applyPaymentReceiptFooter();
 
     const rctBody = document.getElementById('rctBody');
     rctBody.innerHTML = txRecords.map(tx => {

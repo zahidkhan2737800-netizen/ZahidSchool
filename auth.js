@@ -118,6 +118,7 @@ const SCHOOL_ACCESS_SECTIONS = [
         { href: 'curriculum_and_session.html', label: 'Curriculum & Session', icon: 'fas fa-book', key: 'classes' },
         { href: 'class_subjects_assignment.html', label: 'Class Subjects', icon: 'fas fa-link', key: 'classes' },
         { href: 'thermal_print_settings.html', label: 'Thermal Print Settings', icon: 'fas fa-print', key: 'collect_fee' },
+        { href: 'receipt_footer_settings.html', label: 'Receipt Footer', icon: 'fas fa-receipt', key: 'collect_fee' },
         { href: 'access_control.html', label: 'Access Control', icon: 'fas fa-lock', key: 'access_control' },
         { href: 'quick_actions.html', label: 'Dashboard Shortcuts', icon: 'fas fa-cog', key: 'access_control' },
         { href: 'alarm_system.html', label: 'Alarm Schedule', icon: 'fas fa-bell', key: 'access_control' }
@@ -155,6 +156,9 @@ window.isSchoolPageAllowed = function(href) {
     if (pageKey === 'daily_class_absent.html') {
         return window.schoolPageAccess.has(pageKey) || window.schoolPageAccess.has('daily_attendance.html');
     }
+    if (pageKey === 'receipt_footer_settings.html') {
+        return window.schoolPageAccess.has(pageKey) || window.schoolPageAccess.has('collect_fee.html');
+    }
     return window.schoolPageAccess.has(pageKey);
 };
 
@@ -176,6 +180,7 @@ const PAGE_KEY_MAP = {
     'create_challan.html':      'challans',
     'collect_fee.html':         'collect_fee',
     'thermal_print_settings.html': 'collect_fee',
+    'receipt_footer_settings.html': 'collect_fee',
     'fee_paid_log.html':        'collect_fee',
     'monthly_fee_report.html':  'collect_fee',
     'fee_register.html':        'collect_fee',
@@ -477,6 +482,7 @@ function filterSidebarNav() {
         'create_challan.html':      'challans',
         'collect_fee.html':         'collect_fee',
         'thermal_print_settings.html': 'collect_fee',
+        'receipt_footer_settings.html': 'collect_fee',
         'fee_paid_log.html':        'collect_fee',
         'monthly_fee_report.html':  'collect_fee',
         'fee_register.html':        'collect_fee',

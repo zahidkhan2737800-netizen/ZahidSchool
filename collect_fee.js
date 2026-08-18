@@ -18,9 +18,38 @@ let pendingDues   = [];   // challans for active student
 let selectedIds   = new Set();
 let grandTotal    = 0;
 let receiptCache  = [];   // saved receipts for current student (for reprint)
+const DEFAULT_RECEIPT_FOOTER = 'Thank you! — Zahid School System';
+let receiptFooterText = DEFAULT_RECEIPT_FOOTER;
 
 function cleanCollectorName(value) {
     return String(value || '').trim().replace(/\s*\([^)]*\)\s*$/, '').trim();
+}
+
+function applyPaymentReceiptFooter() {
+    const footer = document.getElementById('rctFooter');
+    if (footer) footer.textContent = receiptFooterText;
+}
+
+async function loadReceiptFooterText() {
+    const schoolId = getCurrentSchoolId();
+    if (!schoolId) {
+        receiptFooterText = DEFAULT_RECEIPT_FOOTER;
+        applyPaymentReceiptFooter();
+        return;
+    }
+    try {
+        const { data, error } = await db
+            .from('school_receipt_settings')
+            .select('footer_text')
+            .eq('school_id', schoolId)
+            .maybeSingle();
+        if (error) throw error;
+        receiptFooterText = String(data?.footer_text || '').trim() || DEFAULT_RECEIPT_FOOTER;
+    } catch (error) {
+        console.info('Custom receipt footer is unavailable; using the default.', error.message);
+        receiptFooterText = DEFAULT_RECEIPT_FOOTER;
+    }
+    applyPaymentReceiptFooter();
 }
 
 // ─── DOM Refs ─────────────────────────────────────────────────────────────────
@@ -145,6 +174,8 @@ function setTodayDate() {
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 window.onAppReady(async () => {
     await waitForFeeAuth();
+    await loadReceiptFooterText();
+    window.addEventListener('focus', loadReceiptFooterText);
     
     setTodayDate();
     const backdateLabel = document.getElementById('backdateToggleLabel');
@@ -496,7 +527,7 @@ function reprintFromHistory(receipt) {
     // Ensure visibility
     document.getElementById('rowReceiptNo').style.display = 'flex';
     document.getElementById('rowTotalPaid').style.display = 'flex';
-    document.getElementById('rctFooter').textContent = 'Thank you! — Zahid School System';
+    applyPaymentReceiptFooter();
     
     // Method, Ref, Remarks removed from receipt layout
 
@@ -565,7 +596,7 @@ window.printDaySummary = function(dateStr, collectorKey = '') {
 
     document.getElementById('rowReceiptNo').style.display = 'flex';
     document.getElementById('rowTotalPaid').style.display = 'flex';
-    document.getElementById('rctFooter').textContent = 'Thank you! — Zahid School System';
+    applyPaymentReceiptFooter();
 
     document.getElementById('rctBody').innerHTML = allLines.map(line => `
         <div class="th-fee-row">
@@ -1038,7 +1069,7 @@ function printReceipt(receiptId, txRecords, totalPaid, remaining, collectorName)
     // Ensure visibility
     document.getElementById('rowReceiptNo').style.display = 'flex';
     document.getElementById('rowTotalPaid').style.display = 'flex';
-    document.getElementById('rctFooter').textContent = 'Thank you! — Zahid School System';
+    applyPaymentReceiptFooter();
     // Method, Ref, Remarks removed from receipt layout
 
     // Build itemised fee lines for thermal receipt
