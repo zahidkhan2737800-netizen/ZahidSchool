@@ -529,13 +529,23 @@ async function loadHistory(famMembers) {
             return;
         }
 
+        const combinedDatesShown = new Set();
         historyBody.innerHTML = historyArray.map((r, idx) => {
             const dateStr = new Date(r.created_at).toLocaleDateString('en-PK', { timeZone: 'Asia/Karachi' });
+            const dayCollectorKeys = new Set(historyArray
+                .filter(item => new Date(item.created_at).toLocaleDateString('en-PK', { timeZone: 'Asia/Karachi' }) === dateStr)
+                .map(item => cleanCollectorName(item.collected_by).toLowerCase() || 'unknown'));
+            const showCombinedUsers = dayCollectorKeys.size > 1 && !combinedDatesShown.has(dateStr);
+            if (showCombinedUsers) combinedDatesShown.add(dateStr);
+            const combinedUsersButton = showCombinedUsers
+                ? `<button onclick="window.printCombinedUsersDaySummaryForReceipt(${idx})" style="margin-left:5px;font-size:0.72rem;background:#ede9fe;border:1px solid #8b5cf6;border-radius:4px;padding:3px 6px;cursor:pointer;color:#5b21b6;font-weight:800;white-space:nowrap;" title="Combine every user's payments for this family and day">👥 Combined</button>`
+                : '';
             return `
             <tr>
                 <td>
                     ${dateStr}
                     <button onclick="window.printDaySummaryForReceipt(${idx})" style="margin-left:5px; font-size:0.75rem; background:#f8fafc; border:1px solid #cbd5e1; border-radius:4px; padding:2px 4px; cursor:pointer; color:#334155;" title="Print this collector's combined summary for this day">📅</button>
+                    ${combinedUsersButton}
                 </td>
                 <td style="font-family:monospace; font-weight:600; font-size:0.82rem;">${r.receipt_number}</td>
                 <td style="color:#16a34a; font-weight:700;">Rs ${Number(r.total_paid).toLocaleString()}</td>
@@ -606,12 +616,20 @@ window.printDaySummaryForReceipt = function(receiptIndex) {
     window.printDaySummary(dateStr, sourceReceipt.collected_by || '');
 };
 
-window.printDaySummary = function(dateStr, collectorKey = '') {
+window.printCombinedUsersDaySummaryForReceipt = function(receiptIndex) {
+    const sourceReceipt = receiptCache[receiptIndex];
+    if (!sourceReceipt) return;
+
+    const dateStr = new Date(sourceReceipt.created_at).toLocaleDateString('en-PK', { timeZone: 'Asia/Karachi' });
+    window.printDaySummary(dateStr, '', true);
+};
+
+window.printDaySummary = function(dateStr, collectorKey = '', combineAllUsers = false) {
     if (!receiptCache || receiptCache.length === 0) return;
 
     const dayReceipts = receiptCache.filter(r =>
         new Date(r.created_at).toLocaleDateString('en-PK', { timeZone: 'Asia/Karachi' }) === dateStr &&
-        String(r.collected_by || '').trim() === String(collectorKey || '').trim()
+        (combineAllUsers || String(r.collected_by || '').trim() === String(collectorKey || '').trim())
     );
     if (dayReceipts.length === 0) return;
     
@@ -639,7 +657,7 @@ window.printDaySummary = function(dateStr, collectorKey = '') {
     applyThermalSettings('collect_family_fee');
     document.getElementById('rctNo').textContent        = `DAY-${dateStr.replace(/\//g, '')}`;
     document.getElementById('rctDate').textContent      = `${dateStr} (Combined Summary)`;
-    const collectorName = cleanCollectorName(sorted[0]?.collected_by);
+    const collectorName = combineAllUsers ? 'Combined' : cleanCollectorName(sorted[0]?.collected_by);
     document.getElementById('rctUser').textContent     = collectorName ? `User: ${collectorName}` : '';
     document.getElementById('rctName').textContent      = `${activeFamily.primaryName}`;
     const rctFamNode = document.getElementById('rctFamilyNo');
