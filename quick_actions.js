@@ -31,6 +31,7 @@ var NAV_CATEGORIES = [
         items: [
             { href: 'attendance.html', label: 'Attendance Hub', icon: 'fas fa-calendar-check', key: 'attendance' },
             { href: 'daily_attendance.html', label: 'Daily Attendance Report', icon: 'fas fa-clipboard-list', key: 'attendance' },
+            { href: 'daily_class_absent.html', label: 'Daily Class Absent', icon: 'fas fa-receipt', key: 'attendance' },
             { href: 'attendance_register.html', label: 'Attendance Register', icon: 'fas fa-table', key: 'attendance' },
             { href: 'Absent_days.html', label: 'Absent Days', icon: 'fas fa-calendar-minus', key: 'attendance' },
             { href: 'Absent_Report Card.html', label: 'Absent Days Reports', icon: 'fas fa-id-card', key: 'attendance' },
@@ -50,6 +51,7 @@ var NAV_CATEGORIES = [
     id: 'fee_reports', label: 'Fee Reports', icon: 'fas fa-chart-bar',
     items: [
       { href: 'fee_paid_log.html', label: 'Fee Paid Log', icon: 'fas fa-list-check', key: 'collect_fee' },
+      { href: 'monthly_fee_report.html', label: 'Monthly Fee', icon: 'fas fa-coins', key: 'collect_fee' },
       { href: 'fee_register.html', label: 'Fee Register', icon: 'fas fa-table', key: 'collect_fee' },
       { href: 'fee_type_report.html', label: 'Fee Type Report', icon: 'fas fa-file-invoice', key: 'collect_fee' },
       { href: 'head_wise_fee_report.html', label: 'Head Wise Collection', icon: 'fas fa-chart-bar', key: 'collect_fee' },

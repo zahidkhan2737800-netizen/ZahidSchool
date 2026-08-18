@@ -297,7 +297,7 @@ async function loadFamiliesData() {
     try {
         let studentsQuery = db
             .from('admissions')
-            .select('id, roll_number, full_name, father_name, father_mobile, applying_for_class, status, family_id_manual')
+            .select('id, roll_number, full_name, father_name, father_mobile, applying_for_class, monthly_fee, status, family_id_manual')
             .eq('status', 'Active')
             .order('roll_number');
         let displayNamesQuery = db
@@ -407,13 +407,25 @@ async function openFamily(fam) {
     if(wsFamilyNoEl) wsFamilyNoEl.textContent = fam.familyNo || 'N/A';
 
     // Clear member chips — will repopulate after dues load
-    if(wsMembersList) wsMembersList.innerHTML = fam.members.map(m =>
-        `<span class="member-chip">${m.full_name.split(' ')[0]} <span class="chip-due">…</span></span>`
-    ).join('');
+    if(wsMembersList) wsMembersList.innerHTML = fam.members.map(m => `
+        <div class="member-chip">
+            <div class="member-chip-head">
+                <span class="member-chip-name">${m.full_name}</span>
+                <span class="chip-due">Due …</span>
+            </div>
+            <div class="member-chip-meta">Roll ${m.roll_number || '—'} · Class ${m.applying_for_class || '—'}</div>
+            <div class="member-chip-monthly">Monthly Fee: Rs ${Number(m.monthly_fee || 0).toLocaleString()}</div>
+        </div>
+    `).join('');
 
     // Show total fee as loading
     const wsTotalFeeEl = document.getElementById('wsTotalFee');
     if(wsTotalFeeEl) wsTotalFeeEl.textContent = 'Loading…';
+    const wsMonthlyFeeEl = document.getElementById('wsMonthlyFee');
+    if(wsMonthlyFeeEl) {
+        const familyMonthlyFee = fam.members.reduce((sum, member) => sum + Math.max(0, Number(member.monthly_fee || 0)), 0);
+        wsMonthlyFeeEl.textContent = `Rs ${familyMonthlyFee.toLocaleString()}`;
+    }
 
     // Reset checkout
     if(inputFine) inputFine.value = '0';
@@ -499,13 +511,18 @@ async function loadHistory(famMembers) {
              // in Family payments, remaining is stored independently per student. Adding them up gives the correct family total remaining at that moment!
              grouped[base].remaining += parseFloat(r.remaining || 0);
              
-             // Ensure RCT- receipts have the student name prepended so they match FAM- format when reprinted
+             // Always rebuild the leading student label from the current admission
+             // record. This keeps old receipts that stored only a first name (for
+             // example "Abu") readable as the full name ("Abu sufiyan").
              const rLines = Array.isArray(r.fee_lines) ? r.fee_lines.map(line => {
-                 let desc = line.desc;
-                 if (base.startsWith('RCT-') && !desc.startsWith('[')) {
-                     const firstName = (r.student_name || 'Unknown').split(' ')[0];
-                     desc = `[${firstName} (${r.roll_number || '?'})] ${desc}`;
-                 }
+                 let desc = String(line.desc || '');
+                 const currentStudent = famMembers.find(member => String(member.id) === String(r.student_id));
+                 const studentName = currentStudent?.full_name || r.student_name || 'Unknown';
+                 const studentRoll = currentStudent?.roll_number || r.roll_number || '?';
+                 const fullStudentLabel = `[${studentName} (${studentRoll})]`;
+                 desc = /^\[[^\]]*\]/.test(desc)
+                     ? desc.replace(/^\[[^\]]*\]/, fullStudentLabel)
+                     : `${fullStudentLabel} ${desc}`;
                  return { ...line, desc };
              }) : [];
              
@@ -770,6 +787,7 @@ async function loadFamilyDues(members) {
 // ─── Update family balance badge and per-member chips ─────────────────────────
 function updateFamilyBalanceSummary() {
     const wsTotalFeeEl = document.getElementById('wsTotalFee');
+    const wsMonthlyFeeEl = document.getElementById('wsMonthlyFee');
     
     // Calculate total family due
     let familyTotal = 0;
@@ -779,6 +797,10 @@ function updateFamilyBalanceSummary() {
     familyTotal = Math.round(familyTotal * 100) / 100;
     
     if(wsTotalFeeEl) wsTotalFeeEl.textContent = `Rs ${familyTotal.toLocaleString()}`;
+    if(wsMonthlyFeeEl && activeFamily) {
+        const monthlyTotal = activeFamily.members.reduce((sum, member) => sum + Math.max(0, Number(member.monthly_fee || 0)), 0);
+        wsMonthlyFeeEl.textContent = `Rs ${monthlyTotal.toLocaleString()}`;
+    }
 
     // Build per-member chip breakdown
     if(wsMembersList && activeFamily) {
@@ -794,7 +816,14 @@ function updateFamilyBalanceSummary() {
         wsMembersList.innerHTML = activeFamily.members.map(m => {
             const due = Math.round((memberTotals[m.id] || 0) * 100) / 100;
             const color = due > 0 ? '#dc2626' : '#16a34a';
-            return `<span class="member-chip">${m.full_name.split(' ')[0]} <span class="chip-due" style="color:${color};">Rs ${due.toLocaleString()}</span></span>`;
+            return `<div class="member-chip">
+                <div class="member-chip-head">
+                    <span class="member-chip-name">${m.full_name}</span>
+                    <span class="chip-due" style="color:${color};">Due Rs ${due.toLocaleString()}</span>
+                </div>
+                <div class="member-chip-meta">Roll ${m.roll_number || '—'} · Class ${m.applying_for_class || '—'}</div>
+                <div class="member-chip-monthly">Monthly Fee: Rs ${Number(m.monthly_fee || 0).toLocaleString()}</div>
+            </div>`;
         }).join('');
     }
 }
@@ -897,7 +926,7 @@ function recalcCart() {
             const debit      = Math.min(wallet, adjusted);
             
             if (debit > 0) {
-                let desc = `[${c._studentName.split(' ')[0]}] ${c.fee_type}`;
+                let desc = `[${c._studentName}] ${c.fee_type}`;
                 if (c.fee_month && c.fee_month !== 'N/A') desc += ` (${c.fee_month})`;
                 html += `<div style="display:flex; justify-content:space-between; margin-bottom:0.3rem;">
                             <span>➔ ${desc}</span>
@@ -985,7 +1014,7 @@ async function submitPayment() {
                 db.from('challans').update({ paid_amount: newPaid, status: newStatus, payment_method: method }).eq('id', c.id)
             );
 
-            let desc = `[${c._studentName.split(' ')[0]} (${c._studentRoll})] ${c.fee_type}`;
+            let desc = `[${c._studentName} (${c._studentRoll})] ${c.fee_type}`;
             if (c.fee_month && c.fee_month !== 'N/A') desc += ` (${c.fee_month})`;
 
             txRecords.push({
@@ -1202,7 +1231,7 @@ function printBill() {
         let desc = c.fee_type;
         if (c.fee_month && c.fee_month !== 'N/A') desc += ` (${c.fee_month})`;
         
-        desc = `[${c._studentName.split(' ')[0]} (${c._studentRoll})] ${desc}`;
+        desc = `[${c._studentName} (${c._studentRoll})] ${desc}`;
 
         return {
            fee_details: desc,
@@ -1311,7 +1340,7 @@ async function applyDiscountToChallans() {
             // Build fee description for log
             let feeDesc = challan.fee_type;
             if (challan.fee_month && challan.fee_month !== 'N/A') feeDesc += ' (' + challan.fee_month + ')';
-            feeDesc = '[' + challan._studentName.split(' ')[0] + ' (' + challan._studentRoll + ')] ' + feeDesc;
+            feeDesc = '[' + challan._studentName + ' (' + challan._studentRoll + ')] ' + feeDesc;
 
             discountLogs.push({
                 receipt_number:    'DISC-' + Date.now().toString().slice(-7) + '-' + discountLogs.length,
@@ -1390,7 +1419,7 @@ async function loadDiscountHistory(famMembers) {
 
         discountBody.innerHTML = rows.map(row => {
             const stu = famMembers.find(m => m.id === row.student_id);
-            const stuName = stu ? stu.full_name.split(' ')[0] + ' (' + (stu.roll_number || row.roll_number || '?') + ')' : (row.roll_number || 'Unknown');
+            const stuName = stu ? stu.full_name + ' (' + (stu.roll_number || row.roll_number || '?') + ')' : (row.roll_number || 'Unknown');
             const dateStr = new Date(row.created_at).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Karachi' });
             const timeStr = new Date(row.created_at).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Karachi' });
             const reason  = row.fee_details || row.payment_reference || '—';

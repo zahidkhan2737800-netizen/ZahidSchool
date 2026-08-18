@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zahid School - Daily Class Absent</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: "Segoe UI", Tahoma, sans-serif; background: linear-gradient(140deg,#ecfeff,#f8fafc 45%,#eef2ff); color:#0f172a; }
+        .page-shell { max-width: 920px; margin: 0 auto; padding: 20px; }
+        .screen-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; box-shadow:0 8px 24px rgba(15,23,42,.07); padding:16px 18px; margin-bottom:16px; }
+        .page-head { display:flex; justify-content:space-between; align-items:center; gap:16px; }
+        .page-head h1 { margin:0; font-size:1.4rem; }
+        .page-head p { margin:4px 0 0; color:#64748b; font-size:.9rem; }
+        .head-links { display:flex; gap:8px; flex-wrap:wrap; }
+        .head-links a { text-decoration:none; color:#115e59; background:#f0fdfa; border:1px solid #99f6e4; border-radius:8px; padding:8px 10px; font-size:.84rem; font-weight:700; }
+        .controls { display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap; }
+        .field label { display:block; margin-bottom:5px; color:#475569; font-size:.82rem; font-weight:700; }
+        .field input { min-width:190px; padding:10px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:.95rem; }
+        .btn { border:0; border-radius:8px; padding:11px 15px; color:#fff; background:#0f766e; font-weight:800; cursor:pointer; }
+        .btn:hover { background:#115e59; }
+        .btn.print { background:#10b981; }
+        .btn:disabled { opacity:.6; cursor:not-allowed; }
+        #statusText { margin-left:auto; color:#64748b; font-size:.83rem; }
+        .note { margin:0 0 12px; color:#64748b; font-size:.82rem; text-align:center; }
+        .receipt-shell { background:#fff; border:1px dashed #94a3b8; border-radius:8px; width:max-content; max-width:100%; margin:0 auto; padding:10px; }
+
+        /* Exact compact thermal typography and spacing used by TeacherFee. */
+        #thermalReceipt { font-family:monospace; width:100%; max-width:260px; box-sizing:border-box; margin:0 auto; padding:5px; color:#000; font-size:12px; background:#fff; }
+        #thermalReceipt h3 { text-align:center; margin:5px 0; font-size:14px; text-transform:uppercase; }
+        #thermalReceipt .report-name { text-align:center; font-weight:800; font-size:12px; margin:3px 0; text-transform:uppercase; }
+        #thermalReceipt .meta { text-align:center; margin-bottom:10px; font-size:11px; border-bottom:1px dashed #000; padding-bottom:5px; }
+        #thermalReceipt table { width:100%; border-collapse:collapse; margin-top:5px; table-layout:auto; }
+        #thermalReceipt th, #thermalReceipt td { text-align:left; padding:4px 0; vertical-align:top; word-wrap:break-word; }
+        #thermalReceipt th { border-bottom:1px dashed #000; }
+        #thermalReceipt .num { text-align:right; }
+        #thermalReceipt tfoot td { border-top:1px dashed #000; font-weight:800; }
+        #thermalReceipt .receipt-footer { text-align:center; margin-top:15px; font-size:10px; }
+
+        @media(max-width:700px) {
+            .page-head { align-items:flex-start; flex-direction:column; }
+            #statusText { width:100%; margin-left:0; }
+        }
+        @media print {
+            @page { margin:0; }
+            body { margin:0; padding:5px; background:#fff; }
+            .screen-only { display:none!important; }
+            .page-shell { max-width:none; margin:0; padding:0; }
+            .receipt-shell { border:0; border-radius:0; padding:0; margin:0 auto; }
+        }
+    </style>
+</head>
+<body>
+    <div class="page-shell">
+        <header class="screen-card page-head screen-only">
+            <div>
+                <h1>Daily Class Absent</h1>
+                <p>Thermal class-wise attendance summary</p>
+            </div>
+            <div class="head-links">
+                <a href="dashboard.html"><i class="fas fa-chart-line"></i> Dashboard</a>
+                <a href="attendance.html"><i class="fas fa-calendar-check"></i> Attendance</a>
+                <a href="daily_attendance.html"><i class="fas fa-clipboard-list"></i> Daily Attendance</a>
+            </div>
+        </header>
+
+        <section class="screen-card controls screen-only">
+            <div class="field">
+                <label for="reportDate">Attendance Date</label>
+                <input id="reportDate" type="date">
+            </div>
+            <button id="loadBtn" class="btn"><i class="fas fa-sync"></i> Load</button>
+            <button id="printBtn" class="btn print"><i class="fas fa-print"></i> Thermal Print</button>
+            <span id="statusText">Loading report...</span>
+        </section>
+
+        <p class="note screen-only">P includes Present and Late. A includes attendance marked Absent.</p>
+
+        <section class="receipt-shell">
+            <div id="thermalReceipt">
+                <h3 id="schoolName">Zahid School</h3>
+                <div class="report-name">Daily Class Absent</div>
+                <div class="meta">Date: <span id="printedDate">—</span></div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width:55%">Class</th>
+                            <th class="num" style="width:17%">Total</th>
+                            <th class="num" style="width:14%">P</th>
+                            <th class="num" style="width:14%">A</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reportBody">
+                        <tr><td colspan="4">Loading...</td></tr>
+                    </tbody>
+                    <tfoot id="reportFoot"></tfoot>
+                </table>
+                <div id="receiptFooter" class="receipt-footer">Total Classes: 0</div>
+            </div>
+        </section>
+    </div>
+
+    <script src="karachi_date.js"></script>
+    <script src="auth.js"></script>
+    <script src="daily_class_absent.js?v=1"></script>
+</body>
+</html>

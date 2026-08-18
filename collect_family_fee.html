@@ -279,6 +279,8 @@
         }
 
         #wsTotalFee { font-size: 1.35rem; font-weight: 800; color: #7c3aed; display: block; }
+        #wsMonthlyFee { font-size: 1.2rem; font-weight: 800; color: #0369a1; display: block; }
+        .profile-total-divider { height: 1px; background: #c4b5fd; margin: 0.4rem 0; }
 
         .profile-bottom {
             display: flex; align-items: center;
@@ -288,13 +290,17 @@
         .profile-actions { display: flex; gap: 0.8rem; align-items: center; flex-wrap: wrap; }
 
         /* Per-member fee chip breakdown */
-        .family-balance-grid { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+        .family-balance-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 0.6rem; margin-top: 0.65rem; }
 
         .member-chip {
             background: #f5f3ff; border: 1px solid #ddd6fe;
-            border-radius: 8px; padding: 0.3rem 0.7rem;
+            border-radius: 9px; padding: 0.5rem 0.65rem;
             font-size: 0.78rem; color: #5b21b6; font-weight: 600;
         }
+        .member-chip-head { display:flex; align-items:center; justify-content:space-between; gap:0.5rem; }
+        .member-chip-name { color:#312e81; font-size:0.88rem; font-weight:800; }
+        .member-chip-meta { color:#475569; font-size:0.72rem; margin-top:0.2rem; }
+        .member-chip-monthly { color:#0369a1; font-size:0.74rem; font-weight:800; margin-top:0.18rem; }
         .member-chip .chip-due { color: #dc2626; font-weight: 800; }
 
         /* Button styles */
@@ -351,6 +357,7 @@
             .workspace-dialog { width: calc(100vw - 16px); max-height: calc(100vh - 16px); padding: 0; }
             .profile-strip, .section-panel { padding-left: 1rem; padding-right: 1rem; }
             .dues-header, .challan-item { padding-left: 1rem; padding-right: 1rem; }
+            .profile-top { flex-wrap: wrap; }
             .profile-data h2, .profile-data p { white-space: normal; }
             .profile-total { width: 100%; }
         }    </style>
@@ -407,6 +414,9 @@
                         <div class="family-balance-grid" id="wsMembersList"></div>
                     </div>
                     <div class="profile-total">
+                        <small style="font-size:0.7rem;font-weight:600;color:#0369a1;text-transform:uppercase;letter-spacing:0.04em;">Family Monthly Fee</small>
+                        <span id="wsMonthlyFee">Rs 0</span>
+                        <div class="profile-total-divider"></div>
                         <small style="font-size:0.75rem;font-weight:600;color:#7c3aed;text-transform:uppercase;letter-spacing:0.04em;">Total Family Due</small>
                         <span id="wsTotalFee">Rs 0</span>
                     </div>
@@ -781,7 +791,7 @@
 
     <script src="karachi_date.js"></script>
     <script src="auth.js"></script>
-    <script src="collect_family_fee.js?v=16"></script>
+    <script src="collect_family_fee.js?v=18"></script>
 </body>
 
 </html>

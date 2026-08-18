@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zahid School - Monthly Fee Report</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="fee_paid_log.css?v=3">
+    <style>
+        .nav-bar{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+        .nav-bar>a{text-decoration:none;color:var(--brand-dark);font-weight:600;font-size:.85rem;border:1px solid #c7d2fe;background:#eef2ff;padding:.4rem .65rem;border-radius:8px;white-space:nowrap}
+        .nav-bar>a:hover{background:#e0e7ff}
+        .nav-dropdown{position:relative}
+        .nav-dropdown-btn{display:flex;align-items:center;gap:.4rem;color:var(--brand-dark);font-weight:700;font-size:.85rem;border:1px solid #c7d2fe;background:#e0e7ff;padding:.4rem .75rem;border-radius:8px;cursor:pointer;white-space:nowrap;user-select:none}
+        .nav-dropdown-menu{display:none;position:absolute;top:calc(100% + 6px);right:0;background:#fff;border:1px solid #c7d2fe;border-radius:10px;box-shadow:0 8px 24px rgba(79,70,229,.12);z-index:999;min-width:240px;padding:.4rem 0;overflow:hidden}
+        .nav-dropdown:hover .nav-dropdown-menu,.nav-dropdown:focus-within .nav-dropdown-menu{display:block}
+        .nav-dropdown-menu a{display:flex;align-items:center;gap:.5rem;padding:.48rem 1rem;font-size:.84rem;font-weight:600;color:#334155;text-decoration:none}
+        .nav-dropdown-menu a:hover{background:#eef2ff;color:var(--brand)}
+        .nav-dropdown-menu a.active-page{background:#eef2ff;color:var(--brand);border-left:3px solid var(--brand);padding-left:calc(1rem - 3px)}
+        .nav-dropdown-menu a i{width:16px;text-align:center}
+        .nav-sep{height:1px;background:#e2e8f0;margin:.3rem 0}
+        .filters{grid-template-columns:minmax(240px,1fr) 210px 170px 170px auto}
+        .summary{flex-wrap:wrap}
+        .summary .fee-total-card{border-color:#99f6e4;background:#f0fdfa}
+        .summary .fee-total-card strong{color:#0f766e}
+        .summary .discount-total-card{border-color:#ddd6fe;background:#f5f3ff}
+        .summary .discount-total-card strong{color:#7c3aed}
+        table{min-width:760px}
+        .number-cell{text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
+        .discount-cell{color:#7c3aed}
+        .fee-cell{color:#0f766e}
+        tfoot td{padding:var(--table-th-pad);border-top:2px solid #94a3b8;background:#f8fafc;font-size:var(--table-font-size);font-weight:800}
+        .print-report-title{display:none;font-size:15px;font-weight:800;text-align:center;margin-bottom:2px;color:#000}
+        @media(max-width:860px){.filters{grid-template-columns:1fr}}
+        @media print{
+            .nav-bar,.nav-dropdown{display:none!important}
+            .print-report-title{display:block}
+            tfoot{display:table-row-group}
+            tfoot td{font-size:var(--print-font-size);padding:var(--print-th-pad);border:1px solid #000;background:#fff;color:#000}
+        }
+    </style>
+</head>
+<body>
+    <div class="page-wrap">
+        <header class="top-head">
+            <div class="title-wrap">
+                <div class="icon">🧾</div>
+                <div>
+                    <h1>Monthly Fee Report</h1>
+                    <p>Active students, monthly fees and admission discounts</p>
+                </div>
+            </div>
+            <div class="nav-bar">
+                <a href="dashboard.html"><i class="fas fa-chart-line"></i> Dashboard</a>
+                <div class="nav-dropdown">
+                    <span class="nav-dropdown-btn" tabindex="0"><i class="fas fa-file-invoice-dollar"></i> Fee Reports <i class="fas fa-chevron-down" style="font-size:.7rem"></i></span>
+                    <div class="nav-dropdown-menu">
+                        <a href="fee_paid_log.html"><i class="fas fa-list-check"></i> Fee Paid Log</a>
+                        <a href="monthly_fee_report.html" class="active-page"><i class="fas fa-coins"></i> Monthly Fee</a>
+                        <a href="fee_register.html"><i class="fas fa-table"></i> Fee Register</a>
+                        <div class="nav-sep"></div>
+                        <a href="fee_type_report.html"><i class="fas fa-file-invoice"></i> Fee Type Report</a>
+                        <a href="head_wise_fee_report.html"><i class="fas fa-chart-bar"></i> Head Wise Collection</a>
+                        <a href="fee_unpaid_head_report.html"><i class="fas fa-exclamation-circle"></i> Fee Not Paid Head Wise</a>
+                        <a href="discount_report.html"><i class="fas fa-tag"></i> Discount Report</a>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <section class="filters">
+            <div class="field search-field">
+                <label for="searchText">Search Student / Roll / Class</label>
+                <input type="text" id="searchText" placeholder="Type student name, roll number, or class">
+            </div>
+            <div class="field">
+                <label for="classFilter">Class</label>
+                <select id="classFilter"><option value="">All Classes</option></select>
+            </div>
+            <div class="field slider-field">
+                <label for="fontSizeRange">Font Size <span id="fontSizeValue">10.0px</span></label>
+                <input type="range" id="fontSizeRange" min="7" max="20" step="0.5" value="10">
+            </div>
+            <div class="field slider-field">
+                <label for="compactnessRange">Compactness <span id="compactnessValue">70%</span></label>
+                <input type="range" id="compactnessRange" min="0" max="100" step="5" value="70">
+            </div>
+            <div class="actions">
+                <button id="loadBtn" class="btn-primary"><i class="fas fa-sync"></i> Load</button>
+                <button id="printBtn" class="btn-primary"><i class="fas fa-print"></i> Print</button>
+            </div>
+        </section>
+
+        <section class="summary">
+            <div class="card">
+                <span class="lbl">Active Students</span>
+                <strong id="activeCount">0</strong>
+            </div>
+            <div class="card fee-total-card">
+                <span class="lbl">Total Monthly Fee</span>
+                <strong id="totalMonthlyFee">Rs 0</strong>
+            </div>
+            <div class="card discount-total-card">
+                <span class="lbl">Total School Discount</span>
+                <strong id="totalDiscount">Rs 0</strong>
+            </div>
+            <div class="card">
+                <span class="lbl">Visible Students</span>
+                <strong id="visibleCount">0</strong>
+            </div>
+        </section>
+
+        <section class="table-wrap">
+            <div id="printTitle" class="print-report-title">Zahid School — Monthly Fee Report</div>
+            <div id="printDateHeader" class="print-date-header"></div>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:42px">#</th>
+                        <th>Roll No</th>
+                        <th>Student Name</th>
+                        <th>Class</th>
+                        <th style="text-align:right">Discount</th>
+                        <th style="text-align:right">Monthly Fee</th>
+                    </tr>
+                </thead>
+                <tbody id="reportBody">
+                    <tr><td colspan="6" class="empty">Loading active students...</td></tr>
+                </tbody>
+                <tfoot id="reportFoot"></tfoot>
+            </table>
+        </section>
+    </div>
+
+    <script src="auth.js"></script>
+    <script src="monthly_fee_report.js?v=2"></script>
+</body>
+</html>

@@ -44,6 +44,7 @@ const SCHOOL_ACCESS_SECTIONS = [
     { id: 'attendance_tools', label: 'Attendance', icon: 'fas fa-calendar-check', items: [
         { href: 'attendance.html', label: 'Attendance Hub', icon: 'fas fa-calendar-check', key: 'attendance' },
         { href: 'daily_attendance.html', label: 'Daily Attendance Report', icon: 'fas fa-clipboard-list', key: 'attendance' },
+        { href: 'daily_class_absent.html', label: 'Daily Class Absent', icon: 'fas fa-receipt', key: 'attendance' },
         { href: 'attendance_register.html', label: 'Attendance Register', icon: 'fas fa-table', key: 'attendance' },
         { href: 'Absent_days.html', label: 'Absent Days', icon: 'fas fa-calendar-minus', key: 'attendance' },
         { href: 'absent_range_report.html', label: 'Absent Days Range', icon: 'fas fa-calendar-alt', key: 'attendance' },
@@ -60,6 +61,7 @@ const SCHOOL_ACCESS_SECTIONS = [
     ]},
     { id: 'fee_reports', label: 'Fee Reports', icon: 'fas fa-chart-bar', items: [
         { href: 'fee_paid_log.html', label: 'Fee Paid Log', icon: 'fas fa-list-check', key: 'collect_fee' },
+        { href: 'monthly_fee_report.html', label: 'Monthly Fee', icon: 'fas fa-coins', key: 'collect_fee' },
         { href: 'fee_register.html', label: 'Fee Register', icon: 'fas fa-table', key: 'collect_fee' },
         { href: 'fee_type_report.html', label: 'Fee Type Report', icon: 'fas fa-file-invoice', key: 'collect_fee' },
         { href: 'head_wise_fee_report.html', label: 'Head Wise Collection', icon: 'fas fa-chart-bar', key: 'collect_fee' },
@@ -145,6 +147,14 @@ window.isSchoolPageAllowed = function(href) {
     const pageKey = normalizeSchoolPageHref(href);
     if (!pageKey || pageKey === 'dashboard.html') return true;
     if (!window.schoolAccessConfigured) return true;
+    // Monthly Fee is part of the existing Fee Paid Log/report entitlement, so
+    // current accountants can use the new report without a separate migration.
+    if (pageKey === 'monthly_fee_report.html') {
+        return window.schoolPageAccess.has(pageKey) || window.schoolPageAccess.has('fee_paid_log.html');
+    }
+    if (pageKey === 'daily_class_absent.html') {
+        return window.schoolPageAccess.has(pageKey) || window.schoolPageAccess.has('daily_attendance.html');
+    }
     return window.schoolPageAccess.has(pageKey);
 };
 
@@ -155,6 +165,7 @@ const PAGE_KEY_MAP = {
     'students.html':            'students',
     'attendance.html':          'attendance',
     'daily_attendance.html':    'attendance',
+    'daily_class_absent.html':  'attendance',
     'attendance_register.html': 'attendance',
     'absent_days.html':         'attendance',
     'absent_range_report.html': 'attendance',
@@ -166,6 +177,7 @@ const PAGE_KEY_MAP = {
     'collect_fee.html':         'collect_fee',
     'thermal_print_settings.html': 'collect_fee',
     'fee_paid_log.html':        'collect_fee',
+    'monthly_fee_report.html':  'collect_fee',
     'fee_register.html':        'collect_fee',
     'fee_contacts.html':        'fee_contacts',
     'family_contacts.html':     'fee_contacts',
@@ -458,6 +470,7 @@ function filterSidebarNav() {
         'students.html':            'students',
         'attendance.html':          'attendance',
         'daily_attendance.html':    'attendance',
+        'daily_class_absent.html':  'attendance',
         'attendance_register.html': 'attendance',
         'monitoring.html':          'monitoring',
         'pending_withdrawn.html':   'pending_withdrawn',
@@ -465,6 +478,7 @@ function filterSidebarNav() {
         'collect_fee.html':         'collect_fee',
         'thermal_print_settings.html': 'collect_fee',
         'fee_paid_log.html':        'collect_fee',
+        'monthly_fee_report.html':  'collect_fee',
         'fee_register.html':        'collect_fee',
         'fee_contacts.html':        'fee_contacts',
         'family_contacts.html':     'fee_contacts',
