@@ -32,6 +32,13 @@
     table{ width:100%; border-collapse:collapse; background:var(--card); table-layout:fixed; font-size:14px; }
     th,td{ padding:6px 5px; text-align:center; border-bottom:1px solid #f0f3f8; vertical-align:middle; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     thead th{ position:sticky; top:0; background:#0b73ff; color:white; z-index:2; font-weight:700; font-size:13px; padding:8px 5px; }
+    thead th.month-header{ min-width:96px; overflow:visible; padding:5px 3px; }
+    .month-head-label{ display:block; margin-bottom:4px; line-height:1; }
+    .month-head-actions{ display:flex; justify-content:center; gap:3px; }
+    .month-action-btn{ padding:3px 5px; border-radius:4px; font-size:9px; line-height:1.1; background:#fff; color:#0b5dcc; border:1px solid rgba(255,255,255,.65); }
+    .month-action-btn:hover{ background:#eaf3ff; }
+    .month-action-btn.clear{ color:#b42318; background:#fff1f0; }
+    .month-action-btn:disabled{ opacity:.55; cursor:not-allowed; }
     .table-input{ width:100%; padding:8px 4px; font-size:16px; border-radius:6px; border:1px solid #e6eef8; box-sizing:border-box; text-align:center; color:#0b0b0b; background:#fff; }
     .month-input{ font-weight:700; font-size:18px; line-height:1.1; min-width:42px; padding:10px 4px; }
     .wa-btn{ background:#25D366; color:#fff; border:none; border-radius:6px; padding:6px 8px; font-size:12px; font-weight:700; cursor:pointer; }
@@ -122,6 +129,7 @@
     // ── State ─────────────────────────────────────────────────────────────────
     const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
     let allStudents = [], admissionClasses = [], waTemplates = [], currentWaStudentId = null;
+    let monthActionBusy = false;
 
     const CURRENT_YEAR      = new Date().getFullYear();
     const CURRENT_MONTH_IDX = new Date().getMonth();
@@ -227,16 +235,6 @@
       return Number.isFinite(n) && v !== "" ? n : "";
     }
 
-    function hasAnyMonthValue(raw) {
-      if (!raw || typeof raw !== "object") return false;
-      const keys = Object.keys(raw);
-      const yearKeyed = keys.length === 0 || keys.every(k => /^\d{4}$/.test(k));
-      const vals = yearKeyed
-        ? Object.values(raw).flatMap(yd => months.map(m => (yd || {})[m]))
-        : months.map(m => raw[m]);
-      return vals.some(v => v !== "" && v !== undefined && Number(v) > 0);
-    }
-
     function computeTD(s) {
       let t = 0;
       getVisibleCols().forEach(col => { const v = getCellValue(s.rawMonths, col.year, col.month); if (v !== "") t += +v || 0; });
@@ -246,12 +244,34 @@
     function ensureMonthHeaders() {
       while (theadRow.children.length > 4) theadRow.removeChild(theadRow.lastChild);
       const cols = getVisibleCols();
+      document.getElementById("studentsTable").style.minWidth = `${Math.max(760, 430 + cols.length * 100)}px`;
       const w = cols.length > 0 ? ((100 - 4 - 12 - 12 - 4 - 6) / cols.length).toFixed(2) : "5";
       let prevYear = null;
       cols.forEach(col => {
         const th = document.createElement("th");
         const changed = col.year !== prevYear;
-        th.textContent = changed ? `${col.month} '${String(col.year).slice(-2)}` : col.month;
+        th.className = "month-header";
+        const label = document.createElement("span");
+        label.className = "month-head-label";
+        label.textContent = changed ? `${col.month} '${String(col.year).slice(-2)}` : col.month;
+        const actions = document.createElement("span");
+        actions.className = "month-head-actions";
+        const readBtn = document.createElement("button");
+        readBtn.type = "button";
+        readBtn.className = "month-action-btn";
+        readBtn.textContent = "Read";
+        readBtn.title = `Read Absent attendance for ${col.month} ${col.year}`;
+        readBtn.disabled = monthActionBusy || allStudents.length === 0;
+        readBtn.addEventListener("click", () => readAttendanceMonth(col));
+        const clearBtn = document.createElement("button");
+        clearBtn.type = "button";
+        clearBtn.className = "month-action-btn clear";
+        clearBtn.textContent = "Clear";
+        clearBtn.title = `Clear saved totals for ${col.month} ${col.year}`;
+        clearBtn.disabled = monthActionBusy || allStudents.length === 0;
+        clearBtn.addEventListener("click", () => clearMonthValues(col));
+        actions.append(readBtn, clearBtn);
+        th.append(label, actions);
         if (changed) th.style.borderLeft = "2px solid rgba(255,255,255,0.35)";
         th.style.width = w + "%";
         prevYear = col.year;
@@ -329,7 +349,6 @@
       allStudents = adms.map(adm => {
         const ab = abMap.get(adm.id);
         const cc = adm.applying_for_class || (ab && ab.class_name) || "";
-        const pc = (ab && ab.class_name) || cc;
         return {
           id:           ab ? ab.id : adm.id,
           _admId:       adm.id,
@@ -340,8 +359,7 @@
           father_mobile:adm.father_mobile || "",
           father_whatsapp:adm.father_whatsapp || "",
           rawMonths:    (ab && ab.months) || {},
-          current_class: cc, previous_class: pc,
-          promoted: !!(pc && cc && pc !== cc && ab && hasAnyMonthValue(ab.months))
+          current_class: cc
         };
       });
       allStudents.sort((a,b) => {
@@ -433,10 +451,6 @@
           inp.type = "text"; inp.inputMode = "numeric"; inp.pattern = "[0-9]*";
           const v = getCellValue(s.rawMonths, col.year, col.month);
           inp.value = v === "" ? "N/A" : v;
-          if (s.promoted && v !== "") {
-            inp.style.background = "#fff7ed"; inp.style.borderColor = "#f59e0b";
-            inp.title = `Filled in previous class (${s.previous_class})`;
-          }
           inp.addEventListener("focus", () => { if (inp.value.toUpperCase() === "N/A") inp.value = ""; });
           inp.addEventListener("input", () => {
             inp.value = inp.value.replace(/[^0-9]/g, "");
@@ -474,6 +488,139 @@
       if (schoolId) q = q.eq("school_id", schoolId);
       const {error} = await q;
       if (error) throw error;
+    }
+
+    // ── Read/Clear month from the main attendance table ──────────────────────
+    function setMonthActionButtonsDisabled(disabled) {
+      document.querySelectorAll(".month-action-btn").forEach(btn => {
+        btn.disabled = disabled || allStudents.length === 0;
+      });
+    }
+
+    function getMonthDateRange(col) {
+      const monthIndex = months.indexOf(col.month);
+      const startMonth = String(monthIndex + 1).padStart(2, "0");
+      const start = `${col.year}-${startMonth}-01`;
+      const nextYear = monthIndex === 11 ? col.year + 1 : col.year;
+      const nextMonth = monthIndex === 11 ? 1 : monthIndex + 2;
+      const end = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`;
+      return { start, end };
+    }
+
+    async function fetchAbsentAttendance(col) {
+      const { start, end } = getMonthDateRange(col);
+      const rows = [];
+      const pageSize = 1000;
+      for (let offset = 0; offset < 100000; offset += pageSize) {
+        let q = window.supabaseClient
+          .from("attendance")
+          .select("id,student_id,date")
+          .eq("status", "Absent")
+          .gte("date", start)
+          .lt("date", end)
+          .order("id", {ascending:true})
+          .range(offset, offset + pageSize - 1);
+        if (window.currentSchoolId) q = q.eq("school_id", window.currentSchoolId);
+        const {data, error} = await q;
+        if (error) throw error;
+        rows.push(...(data || []));
+        if (!data || data.length < pageSize) break;
+      }
+      return rows;
+    }
+
+    async function persistImportedMonth(s, col, value) {
+      const raw = JSON.parse(JSON.stringify(s.rawMonths || {}));
+      const yearKey = String(col.year);
+      if (!raw[yearKey] || typeof raw[yearKey] !== "object") raw[yearKey] = {};
+      raw[yearKey][col.month] = value;
+      const schoolId = window.currentSchoolId || null;
+
+      if (s._hasAb) {
+        let q = window.supabaseClient
+          .from("absent_days")
+          .update({months:raw, updated_at:new Date().toISOString()})
+          .eq("id", s.id);
+        if (schoolId) q = q.eq("school_id", schoolId);
+        const {error} = await q;
+        if (error) throw error;
+      } else {
+        const payload = {
+          student_id:s._admId, roll:s.roll || "", name:s.name || "",
+          father:s.father || "", class_name:s.current_class || "",
+          months:raw, updated_at:new Date().toISOString(),
+          ...(schoolId ? {school_id:schoolId} : {})
+        };
+        const {data, error} = await window.supabaseClient
+          .from("absent_days").insert(payload).select("id").single();
+        if (error) throw error;
+        s.id = data.id;
+        s._hasAb = true;
+      }
+      s.rawMonths = raw;
+    }
+
+    async function updateMonthForAllStudents(col, valueForStudent, actionLabel) {
+      monthActionBusy = true;
+      setMonthActionButtonsDisabled(true);
+      const originalCounts = countsEl.textContent;
+      try {
+        const batchSize = 15;
+        for (let i = 0; i < allStudents.length; i += batchSize) {
+          countsEl.textContent = `${actionLabel}: ${Math.min(i + batchSize, allStudents.length)} / ${allStudents.length}`;
+          const batch = allStudents.slice(i, i + batchSize);
+          await Promise.all(batch.map(s => persistImportedMonth(s, col, valueForStudent(s))));
+        }
+        renderTable();
+      } finally {
+        monthActionBusy = false;
+        setMonthActionButtonsDisabled(false);
+        if (countsEl.textContent.includes(actionLabel)) countsEl.textContent = originalCounts;
+      }
+    }
+
+    async function readAttendanceMonth(col) {
+      if (monthActionBusy || allStudents.length === 0) return;
+      const label = `${col.month} ${col.year}`;
+      if (!window.confirm(`Read ${label} from Attendance and replace this month for all active students?`)) return;
+      try {
+        monthActionBusy = true;
+        setMonthActionButtonsDisabled(true);
+        countsEl.textContent = `Reading ${label} attendance…`;
+        const attendanceRows = await fetchAbsentAttendance(col);
+        const counts = new Map();
+        attendanceRows.forEach(row => {
+          const studentId = String(row.student_id || "");
+          if (studentId) counts.set(studentId, (counts.get(studentId) || 0) + 1);
+        });
+        monthActionBusy = false;
+        await updateMonthForAllStudents(col, s => counts.get(String(s._admId)) || 0, `Saving ${label}`);
+        showToast(`${label} read successfully from Attendance.`);
+      } catch (error) {
+        console.error("Attendance month read failed:", error);
+        showToast(`Could not read ${label}: ${error.message || error}`, "error");
+      } finally {
+        monthActionBusy = false;
+        setMonthActionButtonsDisabled(false);
+        renderTable();
+      }
+    }
+
+    async function clearMonthValues(col) {
+      if (monthActionBusy || allStudents.length === 0) return;
+      const label = `${col.month} ${col.year}`;
+      if (!window.confirm(`Clear every saved ${label} absent total? Manual values in this month will also be cleared.`)) return;
+      try {
+        await updateMonthForAllStudents(col, () => "", `Clearing ${label}`);
+        showToast(`${label} totals cleared.`);
+      } catch (error) {
+        console.error("Clear month failed:", error);
+        showToast(`Could not clear ${label}: ${error.message || error}`, "error");
+      } finally {
+        monthActionBusy = false;
+        setMonthActionButtonsDisabled(false);
+        renderTable();
+      }
     }
 
     // ── WA Templates ──────────────────────────────────────────────────────────
@@ -650,6 +797,7 @@
       }
       console.log("[AbsentDays] auth done | schoolId =", window.currentSchoolId);
       await loadData();
+      setMonthActionButtonsDisabled(false);
       await loadWaTemplates();
     })();
   </script>

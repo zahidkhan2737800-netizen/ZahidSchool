@@ -84,6 +84,8 @@ window.onAppReady(async () => {
     const realDateStr = await getRealDate();
     picker.value = realDateStr;
     selectedDate = realDateStr;
+    document.getElementById('holidayFrom').value = realDateStr;
+    document.getElementById('holidayTo').value = realDateStr;
     document.getElementById('tableDateDisplay').textContent =
         new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-GB');
 
@@ -108,6 +110,7 @@ window.onAppReady(async () => {
     document.getElementById('btnBulkPresent').addEventListener('click', () => applyBulkStatus('Present'));
     document.getElementById('btnBulkAbsent').addEventListener('click',  () => applyBulkStatus('Absent'));
     document.getElementById('btnBulkHoliday').addEventListener('click', () => applyBulkStatus('Holiday'));
+    document.getElementById('btnHolidayRange').addEventListener('click', applyHolidayRange);
     document.getElementById('btnThermalPrint').addEventListener('click', generateThermalPrint);
 
     // ── Cross-device sync: refresh data when tab regains focus ──
@@ -116,6 +119,7 @@ window.onAppReady(async () => {
     showToast('Initializing System...', 'success');
     await loadWaTemplates();
     await loadDatabase();
+    document.getElementById('btnHolidayRange').disabled = allStudents.length === 0;
 });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -445,6 +449,95 @@ async function applyBulkStatus(status) {
     if (toUpsert.length === 0) return showToast('No rows visible', 'error');
     showToast(`Bulk applying ${status}...`);
     await performUpsert(toUpsert);
+}
+
+// ─── School-wide Holiday Date Range ──────────────────────────────────────────
+function enumerateDateRange(startValue, endValue) {
+    const parse = value => {
+        const [year, month, day] = String(value || '').split('-').map(Number);
+        return new Date(Date.UTC(year, month - 1, day));
+    };
+    const start = parse(startValue);
+    const end = parse(endValue);
+    if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || start > end) return [];
+
+    const dates = [];
+    for (let cursor = start; cursor <= end; cursor = new Date(cursor.getTime() + 86400000)) {
+        dates.push(cursor.toISOString().slice(0, 10));
+        if (dates.length > 366) break;
+    }
+    return dates;
+}
+
+async function applyHolidayRange() {
+    if (_saveInProgress) return;
+    const fromInput = document.getElementById('holidayFrom');
+    const toInput = document.getElementById('holidayTo');
+    const button = document.getElementById('btnHolidayRange');
+    const dates = enumerateDateRange(fromInput.value, toInput.value);
+
+    if (!fromInput.value || !toInput.value) return showToast('Select both holiday dates.', 'error');
+    if (dates.length === 0) return showToast('Holiday end date must be on or after the start date.', 'error');
+    if (dates.length > 366) return showToast('Choose a holiday range of 366 days or less.', 'error');
+    if (allStudents.length === 0) return showToast('No active students are available.', 'error');
+
+    const totalRecords = dates.length * allStudents.length;
+    const fromLabel = new Date(fromInput.value + 'T00:00:00').toLocaleDateString('en-GB');
+    const toLabel = new Date(toInput.value + 'T00:00:00').toLocaleDateString('en-GB');
+    const confirmed = window.confirm(
+        `Mark ${dates.length} date${dates.length === 1 ? '' : 's'} (${fromLabel} to ${toLabel}) as Holiday for ` +
+        `${allStudents.length} active students?\n\nThis will replace any Present, Absent, or Late records already saved inside this range.`
+    );
+    if (!confirmed) return;
+
+    _saveInProgress = true;
+    button.disabled = true;
+    const originalButton = button.innerHTML;
+
+    try {
+        const batchSize = 500;
+        let batch = [];
+        let saved = 0;
+
+        async function saveBatch() {
+            if (batch.length === 0) return;
+            const { error } = await window.supabaseClient
+                .from('attendance')
+                .upsert(batch, { onConflict: 'student_id,date' });
+            if (error) throw error;
+            saved += batch.length;
+            button.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Saving ${saved.toLocaleString()} / ${totalRecords.toLocaleString()}`;
+            batch = [];
+        }
+
+        for (const date of dates) {
+            for (const student of allStudents) {
+                batch.push({
+                    student_id: student.id,
+                    date,
+                    status: 'Holiday',
+                    ...(window.currentSchoolId ? { school_id: window.currentSchoolId } : {})
+                });
+                if (batch.length >= batchSize) await saveBatch();
+            }
+        }
+        await saveBatch();
+
+        // A Holiday may replace an Absent record, so refresh both the selected
+        // date and all-time absence counters before redrawing the dashboard.
+        await Promise.all([refreshTodayAttendance(), refreshAbsenceCounts()]);
+        renderData();
+        showToast(`${dates.length} holiday date${dates.length === 1 ? '' : 's'} saved for all active students.`);
+    } catch (error) {
+        console.error('Holiday range save failed:', error);
+        await Promise.all([refreshTodayAttendance(), refreshAbsenceCounts()]);
+        renderData();
+        showToast(`Holiday range stopped: ${error.message || error}`, 'error');
+    } finally {
+        _saveInProgress = false;
+        button.disabled = allStudents.length === 0;
+        button.innerHTML = originalButton;
+    }
 }
 
 // ─── Class Filter Population ──────────────────────────────────────────────────

@@ -79,6 +79,7 @@ var NAV_CATEGORIES_LEGACY = [
       { href: 'collect_fee.html', label: 'Collect Student Fee', icon: 'fas fa-hand-holding-usd', key: 'collect_fee' },
       { href: 'collect_family_fee.html', label: 'Collect Family Fee', icon: 'fas fa-users-cog', key: 'collect_family_fee' },
       { href: 'bulk_print_family_bills.html', label: 'Bulk Print Family Bills', icon: 'fas fa-print', key: 'collect_family_fee' },
+      { href: 'TeacherFee.html', label: 'Teacher Fee Follow-up', icon: 'fas fa-user-check', key: 'fee_contacts' },
       { href: 'fee_heads.html', label: 'Fee Config', icon: 'fas fa-cogs', key: 'fee_heads' },
       { href: 'fee_complaint_msg.html', label: 'Fee Complaint Msg', icon: 'fas fa-comment-dots', key: 'collect_fee' }
     ]

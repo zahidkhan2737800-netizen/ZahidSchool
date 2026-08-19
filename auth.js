@@ -56,7 +56,6 @@ const SCHOOL_ACCESS_SECTIONS = [
         { href: 'family_contacts.html', label: 'Family Fee Contact', icon: 'fas fa-phone-volume', key: 'fee_contacts' },
         { href: 'family_fee_commitments.html', label: 'Commitments', icon: 'fas fa-handshake', key: 'fee_contacts' },
         { href: 'fee_contacts.html', label: 'Student Fee Contact', icon: 'fas fa-phone-alt', key: 'fee_contacts' },
-        { href: 'TeacherFee.html', label: 'Teacher Fee Follow-up', icon: 'fas fa-user-check', key: 'fee_contacts', hiddenFromNavigation: true },
         { href: 'All Fee Contact.html', label: 'All Fee Contact', icon: 'fas fa-users', key: 'fee_contacts' }
     ]},
     { id: 'fee_reports', label: 'Fee Reports', icon: 'fas fa-chart-bar', items: [
@@ -81,6 +80,7 @@ const SCHOOL_ACCESS_SECTIONS = [
         { href: 'collect_fee.html', label: 'Collect Student Fee', icon: 'fas fa-hand-holding-usd', key: 'collect_fee' },
         { href: 'collect_family_fee.html', label: 'Collect Family Fee', icon: 'fas fa-users-cog', key: 'collect_family_fee' },
         { href: 'bulk_print_family_bills.html', label: 'Bulk Print Family Bills', icon: 'fas fa-print', key: 'collect_family_fee' },
+        { href: 'TeacherFee.html', label: 'Teacher Fee Follow-up', icon: 'fas fa-user-check', key: 'fee_contacts' },
         { href: 'Family Bill.html', label: 'Family Bill', icon: 'fas fa-file-invoice', key: 'collect_family_fee', hiddenFromNavigation: true },
         { href: 'fee_heads.html', label: 'Fee Config', icon: 'fas fa-cogs', key: 'fee_heads' },
         { href: 'fee_complaint_msg.html', label: 'Fee Complaint Msg', icon: 'fas fa-comment-dots', key: 'collect_fee' },
@@ -148,17 +148,6 @@ window.isSchoolPageAllowed = function(href) {
     const pageKey = normalizeSchoolPageHref(href);
     if (!pageKey || pageKey === 'dashboard.html') return true;
     if (!window.schoolAccessConfigured) return true;
-    // Monthly Fee is part of the existing Fee Paid Log/report entitlement, so
-    // current accountants can use the new report without a separate migration.
-    if (pageKey === 'monthly_fee_report.html') {
-        return window.schoolPageAccess.has(pageKey) || window.schoolPageAccess.has('fee_paid_log.html');
-    }
-    if (pageKey === 'daily_class_absent.html') {
-        return window.schoolPageAccess.has(pageKey) || window.schoolPageAccess.has('daily_attendance.html');
-    }
-    if (pageKey === 'receipt_footer_settings.html') {
-        return window.schoolPageAccess.has(pageKey) || window.schoolPageAccess.has('collect_fee.html');
-    }
     return window.schoolPageAccess.has(pageKey);
 };
 

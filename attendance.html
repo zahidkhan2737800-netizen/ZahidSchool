@@ -88,6 +88,23 @@
             </form>
         </div>
 
+        <!-- School-wide holiday range -->
+        <div class="holiday-range-panel">
+            <div class="holiday-range-title">
+                <span class="holiday-range-icon">🎉</span>
+                <div><strong>Holiday Date Range</strong><small>Mark every active student Holiday for all dates in the range.</small></div>
+            </div>
+            <div class="holiday-range-controls">
+                <label for="holidayFrom">From</label>
+                <input type="date" id="holidayFrom" class="control-input holiday-date">
+                <label for="holidayTo">To</label>
+                <input type="date" id="holidayTo" class="control-input holiday-date">
+                <button id="btnHolidayRange" type="button" class="btn-action holiday-range-btn" disabled>
+                    <i class="fas fa-calendar-check"></i> Mark Range Holiday
+                </button>
+            </div>
+        </div>
+
         <!-- Filters & Bulk Actions -->
         <div class="advanced-filters">
             <div class="filter-group">
@@ -170,6 +187,6 @@
 
     <!-- Essential Javascript Linking -->
     <script src="auth.js"></script>
-    <script src="attendance.js?v=2"></script>
+    <script src="attendance.js?v=3"></script>
 </body>
 </html>

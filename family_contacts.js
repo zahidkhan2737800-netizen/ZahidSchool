@@ -821,7 +821,8 @@ function renderTable() {
                 if (st === 'Leave')   return `<div class="att-pill L" style="width:18px;height:18px;font-size:0.5rem;" title="Leave ${dateStr}">${lbl}</div>`;
                 return `<div class="att-pill" style="width:18px;height:18px;font-size:0.5rem;" title="${dateStr}">-</div>`;
             }).reverse().join('');
-            return `<div style="display:flex;align-items:center;gap:4px;padding:2px 0;">• <span style="font-size:0.85rem;color:#475569;flex:1;">${m.full_name} <b>(${m.roll_number})</b></span><div style="display:flex;gap:2px;">${pills}</div></div>`;
+            const className = m.applying_for_class || 'No Class';
+            return `<div style="display:flex;align-items:center;gap:4px;padding:2px 0;">• <span style="font-size:0.85rem;color:#475569;flex:1;min-width:0;">${m.full_name} <b>(${m.roll_number})</b><span class="family-student-class">${className}</span></span><div style="display:flex;gap:2px;">${pills}</div></div>`;
         }).join('');
         const paymentSummaryHtml = generateFamilyPaymentSummary(fam.mobile);
 

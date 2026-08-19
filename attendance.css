@@ -79,6 +79,23 @@ body.auth-ready { opacity: 1; }
 }
 .entry-form, .filter-group { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; }
 
+.holiday-range-panel {
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+    background: linear-gradient(135deg, #f8fafc, #f1f5f9); border: 1px solid #cbd5e1;
+    border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1.5rem;
+    box-shadow: 0 4px 6px -1px rgba(15,23,42,0.06);
+}
+.holiday-range-title { display: flex; align-items: center; gap: .75rem; min-width: 230px; }
+.holiday-range-icon { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 10px; background: #e2e8f0; font-size: 1.25rem; }
+.holiday-range-title strong { display: block; color: #0f172a; font-size: .95rem; }
+.holiday-range-title small { display: block; color: #64748b; margin-top: 2px; font-size: .75rem; }
+.holiday-range-controls { display: flex; align-items: center; gap: .55rem; flex-wrap: wrap; }
+.holiday-range-controls label { color: #64748b; font-size: .78rem; font-weight: 800; text-transform: uppercase; }
+.control-input.holiday-date { flex: 0 0 auto; min-width: 145px; padding: .7rem .8rem; }
+.holiday-range-btn { background: #475569; color: #fff; }
+.holiday-range-btn:hover { background: #334155; transform: translateY(-1px); }
+.holiday-range-btn:disabled { opacity: .55; cursor: not-allowed; transform: none; }
+
 .control-input {
     padding: 0.85rem 1.1rem; border: 1px solid #cbd5e1; border-radius: 10px;
     font-family: inherit; font-size: 0.95rem; outline: none; background: white;
@@ -167,3 +184,11 @@ body.auth-ready { opacity: 1; }
 
 @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 @keyframes fadeOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+
+@media (max-width: 760px) {
+    .holiday-range-panel { align-items: flex-start; }
+    .holiday-range-controls { width: 100%; }
+    .holiday-range-controls label { width: 42px; }
+    .control-input.holiday-date { flex: 1 1 180px; }
+    .holiday-range-btn { width: 100%; }
+}
