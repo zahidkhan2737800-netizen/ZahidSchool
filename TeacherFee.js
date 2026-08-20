@@ -4,6 +4,8 @@ let allActiveStudents = [];
 let showOnlyUnfilledTeacherFeeRows = false;
 let teacherCommitmentRowId = null;
 let classOrderMap = {};
+let teacherWaTemplates = [];
+let teacherWaRowId = null;
 
 const teacherFeeBody = document.getElementById('teacherFeeBody');
 const teacherFeeSearch = document.getElementById('teacherFeeSearch');
@@ -107,6 +109,134 @@ function formatTeacherFeeCommitmentDate(ymd) {
 
 function formatTeacherFeeAmount(value) {
     return `Rs ${Math.max(0, Number(value || 0)).toLocaleString('en-PK')}`;
+}
+
+function normalizeTeacherWaPhone(value) {
+    let phone = String(value || '').replace(/\D/g, '');
+    if (phone.startsWith('0') && phone.length === 11) phone = `92${phone.slice(1)}`;
+    return phone;
+}
+
+async function loadTeacherWaTemplates() {
+    const dropdown = document.getElementById('teacherWaTemplate');
+    try {
+        const { data, error } = await window.supabaseClient
+            .from('wa_templates')
+            .select('id, title, message_text, is_default, created_at')
+            .order('created_at', { ascending: true });
+        if (error) throw error;
+        teacherWaTemplates = data || [];
+        const lastUsed = localStorage.getItem('lastWaTemplate');
+        const selected = teacherWaTemplates.find(item => String(item.id) === String(lastUsed))
+            || teacherWaTemplates.find(item => item.is_default)
+            || teacherWaTemplates[0];
+        dropdown.innerHTML = teacherWaTemplates.length
+            ? teacherWaTemplates.map(item => `<option value="${escapeTeacherFeeHtml(item.id)}"${selected && String(selected.id) === String(item.id) ? ' selected' : ''}>${escapeTeacherFeeHtml(item.title || 'Template')}</option>`).join('')
+            : '<option value="">Default fee message</option>';
+        if (teacherWaRowId) applyTeacherWaTemplate();
+    } catch (error) {
+        console.warn('Could not load WhatsApp templates:', error);
+        teacherWaTemplates = [];
+        dropdown.innerHTML = '<option value="">Default fee message</option>';
+    }
+}
+
+async function applyTeacherWaTemplate() {
+    const row = teacherFeeRows.find(item => String(item.id) === String(teacherWaRowId));
+    if (!row) return;
+    const student = row.student;
+    const dropdown = document.getElementById('teacherWaTemplate');
+    const template = teacherWaTemplates.find(item => String(item.id) === String(dropdown.value));
+    if (template) localStorage.setItem('lastWaTemplate', String(template.id));
+    const messageBox = document.getElementById('teacherWaMessage');
+    messageBox.value = 'Generating current fee bill...';
+
+    let pendingChallans = [];
+    try {
+        let challansQuery = window.supabaseClient
+            .from('challans')
+            .select('*')
+            .eq('student_id', student.id)
+            .in('status', ['Unpaid', 'Partially Paid']);
+        if (window.currentSchoolId) challansQuery = challansQuery.eq('school_id', window.currentSchoolId);
+        const { data, error } = await challansQuery;
+        if (error) throw error;
+        pendingChallans = data || [];
+    } catch (error) {
+        console.warn('Could not refresh challans for TeacherFee WhatsApp message:', error);
+        showTeacherFeeToast('Could not load the latest fee bill.', true);
+    }
+
+    const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Karachi' });
+    let studentTotal = 0;
+    const studentLines = [];
+    pendingChallans.forEach(challan => {
+        const remaining = Number(challan.amount || 0) - Number(challan.paid_amount || 0);
+        if (remaining <= 0) return;
+        let description = '';
+        if (challan.fee_month && challan.fee_month !== 'N/A') {
+            const cleanMonth = String(challan.fee_month).replace(/\s*\d{4}\s*/g, '').trim();
+            if (cleanMonth) description += `${cleanMonth} `;
+        }
+        description += challan.fee_type || 'Fee';
+        description += ' '.repeat(Math.max(3, 28 - description.length));
+        description += remaining.toLocaleString();
+        studentLines.push(description);
+        studentTotal += remaining;
+    });
+
+    const billDetails = studentLines.length
+        ? `*${String(student.full_name || 'Student').trim()}*\n\`\`\`\n${studentLines.join('\n')}\n\`\`\``
+        : '';
+    const source = template?.message_text || 'Zahid School\nDear {{FATHER_NAME}},\n\n{{BILL_DETAILS}}\nTotal: Rs {{GRAND_TOTAL}}';
+    const replacements = {
+        TODAY_DATE: today,
+        STUDENT_NAME: student.full_name || 'Student',
+        FATHER_NAME: student.father_name || 'Parent',
+        BILL_DETAILS: billDetails,
+        GRAND_TOTAL: studentTotal
+    };
+    let message = 'All dues are clear! Thank you for your continued support.';
+    if (studentTotal > 0) {
+        message = source;
+        Object.entries(replacements).forEach(([key, value]) => {
+            message = message.replace(new RegExp(`{{${key}}}`, 'g'), value);
+        });
+    }
+    messageBox.value = message;
+}
+
+function openTeacherWaModal(rowId) {
+    const row = teacherFeeRows.find(item => String(item.id) === String(rowId));
+    if (!row) return;
+    if (!normalizeTeacherWaPhone(row.student.father_mobile)) {
+        showTeacherFeeToast(`${row.student.full_name} has no mobile number.`, true);
+        return;
+    }
+    teacherWaRowId = String(rowId);
+    document.getElementById('teacherWaStudent').textContent = `${row.student.full_name} \u00b7 ${row.student.father_mobile}`;
+    const modal = document.getElementById('teacherWaModal');
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    applyTeacherWaTemplate();
+}
+
+function closeTeacherWaModal() {
+    teacherWaRowId = null;
+    const modal = document.getElementById('teacherWaModal');
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+}
+
+function sendTeacherWaMessage() {
+    const row = teacherFeeRows.find(item => String(item.id) === String(teacherWaRowId));
+    if (!row) return;
+    const phone = normalizeTeacherWaPhone(row.student.father_mobile);
+    const message = document.getElementById('teacherWaMessage').value.trim();
+    if (!phone) return showTeacherFeeToast('This student has no mobile number.', true);
+    if (!message) return showTeacherFeeToast('WhatsApp message is empty.', true);
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
+    closeTeacherWaModal();
 }
 
 function teacherCommitmentToday(date = new Date()) {
@@ -335,7 +465,7 @@ async function fetchTeacherFeeRows() {
 }
 
 async function loadTeacherFeeList() {
-    teacherFeeBody.innerHTML = '<tr><td colspan="13" class="empty">Loading TeacherFee list...</td></tr>';
+    teacherFeeBody.innerHTML = '<tr><td colspan="14" class="empty">Loading TeacherFee list...</td></tr>';
     try {
         teacherFeeRows = await fetchTeacherFeeRows();
         populateClassFilter();
@@ -344,7 +474,7 @@ async function loadTeacherFeeList() {
         console.error('Could not load TeacherFee list:', error);
         teacherFeeRows = [];
         const message = teacherFeeErrorMessage(error);
-        teacherFeeBody.innerHTML = `<tr><td colspan="13" class="empty">${escapeTeacherFeeHtml(message)}</td></tr>`;
+        teacherFeeBody.innerHTML = `<tr><td colspan="14" class="empty">${escapeTeacherFeeHtml(message)}</td></tr>`;
         updateTeacherFeeSummary([]);
         if (isMissingTeacherFeeTable(error)) showTeacherFeeToast(message, true);
     }
@@ -373,7 +503,7 @@ function renderTeacherFeeList() {
         if (classFilter && String(student.applying_for_class || '') !== classFilter) return false;
         if (showOnlyUnfilledTeacherFeeRows && (row.choice_1 || row.choice_2 || row.choice_3 || row.choice_4)) return false;
         if (!search) return true;
-        return [student.roll_number, student.full_name, student.applying_for_class, student.father_name, student.family_id_manual, row.commitment_due_date, row.choice_1, row.choice_2, row.choice_3, row.choice_4]
+        return [student.roll_number, student.full_name, student.applying_for_class, student.father_name, student.father_mobile, student.family_id_manual, row.commitment_due_date, row.choice_1, row.choice_2, row.choice_3, row.choice_4]
             .filter(Boolean).join(' ').toLowerCase().includes(search);
     }).sort((a, b) => {
         const aClass = String(a.student.applying_for_class || '').trim();
@@ -389,7 +519,7 @@ function renderTeacherFeeList() {
         const message = teacherFeeRows.length
             ? (showOnlyUnfilledTeacherFeeRows ? 'No completely unfilled student rows match the selected filters.' : 'No student rows match the selected filters.')
             : 'No students selected. Click T in Family Fee Contacts or Student Fee Contacts.';
-        teacherFeeBody.innerHTML = `<tr><td colspan="13" class="empty">${message}</td></tr>`;
+        teacherFeeBody.innerHTML = `<tr><td colspan="14" class="empty">${message}</td></tr>`;
         updateTeacherFeeSummary([]);
         return;
     }
@@ -407,6 +537,7 @@ function renderTeacherFeeList() {
             <td class="student-name">${escapeTeacherFeeHtml(student.full_name || 'Student')} <span class="attendance-str" style="color: #6b7280; font-size: 0.9em; margin-left: 4px;">${escapeTeacherFeeHtml(row.att_str || '')}</span></td>
             <td class="class-cell">${escapeTeacherFeeHtml(student.applying_for_class || '—')}</td>
             <td>${escapeTeacherFeeHtml(student.father_name || '—')}</td>
+            <td class="mobile-cell"><div class="mobile-wrap"><span>${escapeTeacherFeeHtml(student.father_mobile || '—')}</span><button type="button" class="teacher-wa-btn screen-only${student.father_mobile ? '' : ' no-mobile'}" data-row-id="${escapeTeacherFeeHtml(row.id)}" title="Send WhatsApp template"><i class="fab fa-whatsapp"></i></button></div></td>
             <td>${escapeTeacherFeeHtml(student.family_id_manual || '—')}</td>
             <td><div class="commitment-cell"><span class="commitment-date ${row.commitment_due_date ? '' : 'none'}" title="${row.commitment_due_date ? `Payment due ${escapeTeacherFeeHtml(row.commitment_due_date)}` : 'No pending commitment'}">${formatTeacherFeeCommitmentDate(row.commitment_due_date)}</span><button type="button" class="teacher-commitment-btn screen-only" data-row-id="${escapeTeacherFeeHtml(row.id)}">Co</button></div></td>
             <td class="remaining-cell screen-only">${formatTeacherFeeAmount(row.remaining_amount)}${row.has_payment ? `<span class="payment-amount">Paid ${formatTeacherFeeAmount(row.paid_since_added)}</span>` : ''}</td>
@@ -812,7 +943,15 @@ window.onAppReady(async () => {
     applyTeacherFeeLayout();
     setupTeacherCommitmentModal();
     await waitForTeacherFeeAuth();
-    await loadTeacherFeeList();
+    await Promise.all([loadTeacherFeeList(), loadTeacherWaTemplates()]);
+
+    document.getElementById('teacherWaTemplate').addEventListener('change', applyTeacherWaTemplate);
+    document.getElementById('teacherWaRefresh').addEventListener('click', loadTeacherWaTemplates);
+    document.getElementById('teacherWaCancel').addEventListener('click', closeTeacherWaModal);
+    document.getElementById('teacherWaSend').addEventListener('click', sendTeacherWaMessage);
+    document.getElementById('teacherWaModal').addEventListener('click', event => {
+        if (event.target.id === 'teacherWaModal') closeTeacherWaModal();
+    });
 
     teacherFeeSearch.addEventListener('input', renderTeacherFeeList);
     teacherClassSelect.addEventListener('change', renderTeacherFeeList);
@@ -837,6 +976,11 @@ window.onAppReady(async () => {
         thermalBtn.addEventListener('click', printTeacherFeeThermalOptionTwo);
     }
     teacherFeeBody.addEventListener('click', event => {
+        const waButton = event.target.closest('.teacher-wa-btn');
+        if (waButton) {
+            openTeacherWaModal(waButton.dataset.rowId);
+            return;
+        }
         const commitmentButton = event.target.closest('.teacher-commitment-btn');
         if (commitmentButton) {
             openTeacherCommitmentModal(commitmentButton.dataset.rowId);

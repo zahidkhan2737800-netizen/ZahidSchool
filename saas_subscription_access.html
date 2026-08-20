@@ -24,22 +24,22 @@
         </header>
 
         <section class="saas-hero">
-            <div><h2>School Subscription Access</h2><p>Build each school's paid package using complete sections or individual pages.</p></div>
+            <div><h2>School Subscription Access</h2><p>Build each school's paid package using complete sections or individual pages, including Assets Management and Library Books.</p></div>
             <i class="fas fa-layer-group saas-hero-icon"></i>
         </section>
 
         <section class="saas-panel" data-accent="pink">
             <div class="saas-panel-head">
-                <div><h2><i class="fas fa-sliders"></i> Package Permissions</h2><p>Dashboard access always remains available. Only the Super Admin can change these settings.</p></div>
+                <div><h2><i class="fas fa-sliders"></i> Package Permissions</h2><p>Sell full modules or individual pages. Assets and Library can be enabled together or sold separately. Dashboard access always remains available.</p></div>
             </div>
             <div id="schoolAccessManager"></div>
         </section>
     </main>
     <div class="saas-toast" id="saasToast"></div>
 
-    <script src="auth.js?v=9"></script>
+    <script src="auth.js?v=13"></script>
     <script src="saas_common.js?v=1"></script>
-    <script src="school_access_manager.js?v=2"></script>
+    <script src="school_access_manager.js?v=3"></script>
     <script>
         document.addEventListener('DOMContentLoaded', async () => {
             if (!await window.SaasAdmin.ready('access')) return;

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact Detail and Emergency - Zahid School</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="fee_paid_log.css?v=6">
+    <style>
+        :root {
+            --table-font-size: 11px;
+            --table-td-pad: 5px 6px;
+            --table-th-pad: 6px 6px;
+            --print-font-size: 9px;
+            --print-td-pad: 2px 3px;
+            --print-th-pad: 2.5px 3px;
+        }
+        .page-wrap { max-width: 1800px; }
+        .filters { grid-template-columns: minmax(220px,1fr) 170px 175px 150px 150px auto; }
+        .contact-table { min-width: 1750px; }
+        .contact-table th { white-space: nowrap; }
+        .student-cell strong { display:block; color:#0f172a; }
+        .subtext { display:block; margin-top:2px; color:#64748b; font-size:.86em; }
+        .contact-lines { display:grid; gap:3px; min-width:155px; }
+        .contact-line { display:grid; grid-template-columns:28px 1fr; gap:4px; align-items:start; }
+        .contact-label { color:#64748b; font-size:.78em; font-weight:800; padding-top:2px; }
+        .editable-field { display:inline-block; min-width:30px; padding:1px 3px; border-radius:4px; cursor:text; border-bottom:1px dashed transparent; }
+        .editable-field:hover { background:#fef9c3; border-bottom-color:#ca8a04; }
+        .editable-field:focus { outline:2px solid #60a5fa; background:#fff; }
+        .editable-field.saving { opacity:.55; }
+        .editable-field.saved { background:#dcfce7; }
+        .class-name { color:#4338ca; font-weight:800; white-space:nowrap; }
+        .primary-contact { color:#1d4ed8; font-weight:900; white-space:nowrap; }
+        .whatsapp-contact { color:#15803d; font-weight:900; white-space:nowrap; }
+        .wa-open { display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; margin-left:4px; border-radius:50%; background:#dcfce7; color:#16a34a; text-decoration:none; }
+        .medical-cell { min-width:180px; color:#b91c1c; font-weight:700; }
+        .medical-cell.clear { color:#64748b; font-weight:500; }
+        .address-cell { min-width:190px; }
+        .summary .card strong { color:#0f766e; }
+        #contactToast { display:none; position:fixed; right:18px; top:18px; z-index:5000; padding:10px 14px; border:1px solid #86efac; border-radius:9px; background:#dcfce7; color:#166534; font-weight:700; box-shadow:0 8px 22px rgba(15,23,42,.16); }
+        #contactToast.error { border-color:#fca5a5; background:#fee2e2; color:#991b1b; }
+        @media (max-width:1000px) { .filters { grid-template-columns:1fr 1fr; } .actions { grid-column:1/-1; } }
+        @media print {
+            @page { size:A4 landscape; margin:5mm; }
+            .page-wrap { max-width:none; }
+            .contact-table { min-width:0; width:100%; table-layout:auto; }
+            .contact-table th, .contact-table td { overflow-wrap:anywhere; }
+            .editable-field { padding:0; border:0; }
+            .wa-open, #contactToast { display:none!important; }
+            .medical-cell, .address-cell, .contact-lines { min-width:0; }
+        }
+    </style>
+</head>
+<body>
+    <div id="contactToast" role="status"></div>
+    <div class="page-wrap">
+        <header class="top-head">
+            <div class="title-wrap">
+                <div class="icon">🚑</div>
+                <div>
+                    <h1>Contact Detail and Emergency</h1>
+                    <p>All parent contacts, WhatsApp numbers and medical information</p>
+                </div>
+            </div>
+            <div class="head-links">
+                <a href="students.html"><i class="fas fa-users"></i> Active Students</a>
+                <a href="index.html"><i class="fas fa-file-signature"></i> Admission</a>
+                <a href="dashboard.html"><i class="fas fa-chart-line"></i> Dashboard</a>
+            </div>
+        </header>
+
+        <section class="filters">
+            <div class="field search-field">
+                <label for="contactSearch">Search Student / Roll / Parent / Number</label>
+                <input id="contactSearch" type="search" placeholder="Type a name, roll or contact number">
+            </div>
+            <div class="field">
+                <label for="contactClass">Class</label>
+                <select id="contactClass"><option value="">All Classes</option></select>
+            </div>
+            <div class="field">
+                <label for="medicalFilter">Medical Filter</label>
+                <select id="medicalFilter">
+                    <option value="all">All Students</option>
+                    <option value="alerts">Medical Alerts Only</option>
+                    <option value="clear">No Medical Alert</option>
+                </select>
+            </div>
+            <div class="field slider-field">
+                <label for="fontSizeRange">Font Size <span id="fontSizeValue">11px</span></label>
+                <input id="fontSizeRange" type="range" min="7" max="20" step="0.5" value="11">
+            </div>
+            <div class="field slider-field">
+                <label for="compactnessRange">Compactness <span id="compactnessValue">65%</span></label>
+                <input id="compactnessRange" type="range" min="0" max="100" step="5" value="65">
+            </div>
+            <div class="actions">
+                <button id="refreshContacts" class="btn-primary"><i class="fas fa-rotate"></i> Refresh</button>
+                <button id="printContacts" class="btn-primary"><i class="fas fa-print"></i> Print</button>
+            </div>
+        </section>
+
+        <section class="summary">
+            <div class="card"><span class="lbl">Visible Students</span><strong id="contactCount">0</strong></div>
+            <div class="card"><span class="lbl">Medical Alerts</span><strong id="medicalCount">0</strong></div>
+            <div class="card"><span class="lbl">Missing Primary Contact</span><strong id="missingCount">0</strong></div>
+        </section>
+
+        <section class="table-wrap">
+            <div id="contactPrintHeader" class="print-date-header"></div>
+            <table class="contact-table">
+                <thead>
+                    <tr>
+                        <th>Roll</th>
+                        <th>Student</th>
+                        <th>Class</th>
+                        <th>Medical Condition</th>
+                        <th>Father</th>
+                        <th>Father Contacts</th>
+                        <th>Mother</th>
+                        <th>Mother Contacts</th>
+                        <th>Guardian</th>
+                        <th>Guardian Contact</th>
+                        <th>Primary Mobile</th>
+                        <th>WhatsApp</th>
+                        <th>Address</th>
+                    </tr>
+                </thead>
+                <tbody id="contactBody"><tr><td colspan="13" class="empty">Loading contact details...</td></tr></tbody>
+            </table>
+        </section>
+    </div>
+
+    <script src="auth.js?v=11"></script>
+    <script src="contact_detail_emergency.js?v=4"></script>
+</body>
+</html>

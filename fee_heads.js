@@ -49,7 +49,7 @@ async function loadFeeHeadTypes() {
     try {
         const { data, error } = await applySchoolScope(window.supabaseClient
             .from('fee_head_types')
-            .select('id, name')
+            .select('id, name, requires_student_assignment')
             .order('name'));
         if (error) throw error;
 
@@ -70,6 +70,7 @@ function renderTypeTags(types) {
     container.innerHTML = types.map(t => `
         <span class="type-tag">
             ${t.name}
+            <button onclick="toggleFeeTypeAssignment('${t.id}', ${!t.requires_student_assignment})" title="${t.requires_student_assignment ? 'Assigned students only — click to make universal' : 'Universal — click to require student assignment'}" style="width:auto;padding:0 0.35rem;border-radius:999px;font-size:0.67rem;background:${t.requires_student_assignment ? '#fff7ed' : '#f1f5f9'};color:${t.requires_student_assignment ? '#c2410c' : '#64748b'};">${t.requires_student_assignment ? 'Assigned only' : 'All students'}</button>
             <button onclick="deleteFeeType('${t.id}', '${t.name.replace(/'/g, "\\'")}')" title="Remove">✕</button>
         </span>
     `).join('');
@@ -91,13 +92,14 @@ function populateFeeTypeDropdown(types) {
 window.addFeeType = async function() {
     const input = document.getElementById('newTypeName');
     const name = input.value.trim();
+    const requiresStudentAssignment = document.getElementById('newTypeAssignedOnly')?.checked || false;
     if (!name) { showToast('Please enter a type name.', 'error'); return; }
     if (!getFeeHeadSchoolId()) { showToast('School could not be identified. Refresh and try again.', 'error'); return; }
 
     try {
         const { error } = await window.supabaseClient
             .from('fee_head_types')
-            .insert({ name, created_by: window.currentUser?.id, ...getTenantScopePatch() });
+            .insert({ name, requires_student_assignment: requiresStudentAssignment, created_by: window.currentUser?.id, ...getTenantScopePatch() });
         if (error) {
             if (error.message.includes('unique') || error.code === '23505') {
                 showToast(`"${name}" already exists in this school.`, 'error');
@@ -105,10 +107,27 @@ window.addFeeType = async function() {
             return;
         }
         input.value = '';
+        document.getElementById('newTypeAssignedOnly').checked = false;
         showToast(`"${name}" added to fee types!`, 'success');
         loadFeeHeadTypes();
     } catch(err) {
         showToast('Failed to add: ' + err.message, 'error');
+    }
+};
+
+window.toggleFeeTypeAssignment = async function(id, requiresStudentAssignment) {
+    const label = requiresStudentAssignment ? 'assigned students only' : 'all students';
+    if (!confirm(`Change this fee type to ${label}?`)) return;
+    try {
+        const { error } = await applySchoolScope(window.supabaseClient
+            .from('fee_head_types')
+            .update({ requires_student_assignment: requiresStudentAssignment })
+            .eq('id', id));
+        if (error) throw error;
+        showToast(`Fee type now applies to ${label}.`, 'success');
+        loadFeeHeadTypes();
+    } catch (err) {
+        showToast('Could not update fee type: ' + err.message, 'error');
     }
 };
 

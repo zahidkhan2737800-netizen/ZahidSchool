@@ -4,7 +4,9 @@
 let cache = {
     admissions: [],
     classes: [],
-    feeHeads: []
+    feeHeads: [],
+    feeTypes: [],
+    feeAssignments: []
     // challans are NOT cached — loaded page by page from DB
 };
 let isInitializing = true;
@@ -43,6 +45,18 @@ window.onAppReady(async () => {
     const filterTextInput = document.getElementById('filterText');
     const challanBody = document.getElementById('challanBody');
     const rollStatus = document.getElementById('rollStatus');
+
+    const getFeeTypeRule = feeType => cache.feeTypes.find(item => item.name === feeType) || null;
+    const requiresStudentAssignment = feeType => Boolean(getFeeTypeRule(feeType)?.requires_student_assignment);
+    const isRecurringFeeType = feeType => requiresStudentAssignment(feeType)
+        || cache.feeHeads.some(item => item.fee_type === feeType && item.is_monthly);
+    const isTuitionMonthlyFee = feeType => String(feeType || '').trim().toLowerCase() === 'monthly fee';
+    const getActiveAssignment = (studentId, feeType) => cache.feeAssignments.find(item =>
+        item.student_id === studentId && item.fee_type === feeType && item.is_active
+    ) || null;
+    const eligibleStudentsForFeeType = (students, feeType) => requiresStudentAssignment(feeType)
+        ? students.filter(student => getActiveAssignment(student.id, feeType))
+        : students;
 
     // Default Due Date to +7 days
     const kn = karachiNow();
@@ -176,7 +190,7 @@ window.onAppReady(async () => {
     // 3. Fee Type Selection logic (Fee Head Sensitivity)
     feeTypeSelect.addEventListener('change', () => {
         const type = feeTypeSelect.value;
-        const isMonthlyType = cache.feeHeads.some(f => f.fee_type === type && f.is_monthly);
+        const isMonthlyType = isRecurringFeeType(type);
         
         if (isMonthlyType) {
             monthPickerGroup.style.display = 'block';
@@ -218,7 +232,7 @@ window.onAppReady(async () => {
 
         // Try to find the fee amount matching this student's class and selected type
         let foundAmount = null;
-        const isMonthlyType = cache.feeHeads.some(f => f.fee_type === type && f.is_monthly);
+        const isMonthlyType = isRecurringFeeType(type);
 
         // 1. Resolve from class/global fee head first (source of truth)
         const matchedClass = cache.classes.find(c => `${c.class_name} ${c.section}`.trim().toLowerCase() === student.applying_for_class.trim().toLowerCase());
@@ -240,7 +254,7 @@ window.onAppReady(async () => {
         }
         
         // 3. Apply student discount if applicable for monthly fee
-        if (foundAmount !== null && isMonthlyType && student.discount) {
+        if (foundAmount !== null && isTuitionMonthlyFee(type) && student.discount) {
             foundAmount = Math.max(0, foundAmount - student.discount);
         }
         
@@ -305,14 +319,15 @@ window.onAppReady(async () => {
             customAmountInput.value = matchedFee.amount;
             
             // Count students in this class
-            const studentCount = cache.admissions.filter(s => s.applying_for_class === selClassStr).length;
+            const allClassStudents = cache.admissions.filter(s => s.applying_for_class === selClassStr);
+            const studentCount = eligibleStudentsForFeeType(allClassStudents, feeType).length;
             
             el.style.display = 'block';
             el.style.background = '#eff6ff';
             el.style.color = '#1e40af';
             el.style.border = '1px solid #bfdbfe';
             el.innerHTML = `✅ <strong>Rs ${Number(matchedFee.amount).toLocaleString()}</strong> auto-filled from ${feeSource}` +
-                `<br>📋 <strong>${studentCount}</strong> active student(s) in ${selClassStr}` +
+                `<br>📋 <strong>${studentCount}</strong> ${requiresStudentAssignment(feeType) ? 'assigned' : 'active'} student(s) in ${selClassStr}` +
                 `<br><small style="color:#64748b;">💡 Individual discounts will be applied automatically per student. You can override the base amount above.</small>`;
         } else {
             customAmountInput.value = '';
@@ -334,7 +349,8 @@ window.onAppReady(async () => {
         }
 
         const el = getOrCreatePreviewEl();
-        const isMonthlyType = cache.feeHeads.some(f => f.fee_type === feeType && f.is_monthly);
+        const isMonthlyType = isRecurringFeeType(feeType);
+        const assignedOnly = requiresStudentAssignment(feeType);
 
         // Build per-class breakdown
         let breakdownRows = [];
@@ -346,9 +362,12 @@ window.onAppReady(async () => {
         const classNames = [...new Set(cache.admissions.map(s => s.applying_for_class))].sort();
 
         for(const className of classNames) {
-            const classStudents = cache.admissions.filter(s => s.applying_for_class === className);
+            const allClassStudents = cache.admissions.filter(s => s.applying_for_class === className);
+            const classStudents = eligibleStudentsForFeeType(allClassStudents, feeType);
             const count = classStudents.length;
             totalStudents += count;
+
+            if (assignedOnly && count === 0) continue;
 
             const matchedClass = cache.classes.find(c => `${c.class_name} ${c.section}`.trim().toLowerCase() === className.trim().toLowerCase());
             let matchedFee = null;
@@ -383,8 +402,9 @@ window.onAppReady(async () => {
         el.style.background = '#f0fdf4';
         el.style.color = '#166534';
         el.style.border = '1px solid #bbf7d0';
-        el.innerHTML = `🏫 <strong>Whole School — ${feeType}</strong> (${totalStudents} students across ${classNames.length} classes)` +
-            `<br><small style="color:#64748b;">Amounts will be auto-calculated per class from fee heads. Discounts applied per student.</small>` +
+        const includedClassCount = breakdownRows.length;
+        el.innerHTML = `🏫 <strong>Whole School — ${feeType}</strong> (${totalStudents} ${assignedOnly ? 'assigned ' : ''}students across ${includedClassCount} classes)` +
+            `<br><small style="color:#64748b;">${assignedOnly ? 'Only students assigned to this service in Admission are included. ' : ''}Amounts will be auto-calculated per class from fee heads. Discounts applied per student.</small>` +
             `<table style="width:100%;margin-top:0.5rem;border-collapse:collapse;font-size:0.8rem;">` +
             `<tr style="background:#e2e8f0;"><th style="padding:3px 8px;text-align:left;">Class</th><th style="padding:3px 8px;text-align:center;">Students</th><th style="padding:3px 8px;text-align:right;">Amount</th><th style="padding:3px 8px;text-align:center;">Source</th></tr>` +
             breakdownRows.join('') +
@@ -414,35 +434,54 @@ window.onAppReady(async () => {
             const match = cache.admissions.find(s => String(s.roll_number).toLowerCase() === val);
             if(!match) return showAlert('Valid student roll number is required.', true);
             if(!overrideAmount) return showAlert('Amount could not be retrieved and is not provided.', true);
-            
-            targetStudents.push({ student: match, amount: overrideAmount });
+
+            if (requiresStudentAssignment(feeType)) {
+                const assignment = getActiveAssignment(match.id, feeType);
+                const serviceDiscount = Math.min(overrideAmount, Math.max(0, Number(assignment?.discount_amount) || 0));
+                targetStudents.push({
+                    student: match,
+                    baseAmount: overrideAmount,
+                    discount: serviceDiscount,
+                    amount: Math.max(0, overrideAmount - serviceDiscount)
+                });
+            } else {
+                targetStudents.push({ student: match, baseAmount: overrideAmount, discount: 0, amount: overrideAmount });
+            }
         } 
         else if (scope === 'class') {
             const selClassStr = targetClassSelect.value; // e.g., "Class 1 A"
             if(!selClassStr) return showAlert('Target class selection required.', true);
             
-            const classAdmissions = cache.admissions.filter(s => s.applying_for_class === selClassStr);
-            if(classAdmissions.length === 0) return showAlert(`No active students found in ${selClassStr}.`, true);
+            const classAdmissions = eligibleStudentsForFeeType(
+                cache.admissions.filter(s => s.applying_for_class === selClassStr),
+                feeType
+            );
+            if(classAdmissions.length === 0) {
+                return showAlert(requiresStudentAssignment(feeType)
+                    ? `No students in ${selClassStr} are assigned to ${feeType}. Add the service in their Admission record first.`
+                    : `No active students found in ${selClassStr}.`, true);
+            }
             
             targetStudents = await calculateBulkPayload(classAdmissions, feeType, overrideAmount);
         }
         else if (scope === 'school') {
             if(cache.admissions.length === 0) return showAlert('No active students in school.', true);
-            targetStudents = await calculateBulkPayload(cache.admissions, feeType, overrideAmount);
+            targetStudents = await calculateBulkPayload(eligibleStudentsForFeeType(cache.admissions, feeType), feeType, overrideAmount);
         }
 
         if(targetStudents.length === 0) {
-            return showAlert('No applicable students found with valid fee configurations for this type.', true);
+            return showAlert(requiresStudentAssignment(feeType)
+                ? `No active students are assigned to ${feeType}. Add it in each service user's Admission record first.`
+                : 'No applicable students found with valid fee configurations for this type.', true);
         }
 
         // PREPARE SUPABASE PAYLOAD (AND CHECK DUPLICATES VIA DB)
         generateBtn.innerHTML = '⏳ Checking Duplicates...';
         generateBtn.disabled = true;
 
-        // Only block duplicates for MONTHLY fee types.
-        // Non-monthly fees (Books, Stationery, etc.) are allowed to be created
-        // multiple times for the same student — no duplicate check applied.
-        const isMonthlyFeeType = cache.feeHeads.some(f => f.fee_type === feeType && f.is_monthly);
+        // Monthly and assigned recurring services (Transport/Hostel) are unique
+        // per student + fee type + month. One-time heads can still repeat.
+        const isMonthlyFeeType = isRecurringFeeType(feeType);
 
         let existingStudentIds = new Set();
 
@@ -451,18 +490,20 @@ window.onAppReady(async () => {
                 const studentIds = targetStudents.map(t => t.student.id);
 
                 // Fetch existing challans for same student + fee type + month
-                const { data: existingData, error: existingErr } = await supabaseClient
+                const { data: existingData, error: existingErr } = await applySchoolScope(supabaseClient
                     .from('challans')
                     .select('student_id')
                     .in('student_id', studentIds)
                     .eq('fee_type', feeType)
-                    .eq('fee_month', feeMonth);
+                    .eq('fee_month', feeMonth));
 
-                if (!existingErr && existingData) {
-                    existingData.forEach(row => existingStudentIds.add(row.student_id));
-                }
+                if (existingErr) throw existingErr;
+                (existingData || []).forEach(row => existingStudentIds.add(row.student_id));
             } catch(err) {
                 console.error('Duplicate check failed', err);
+                generateBtn.innerHTML = 'Generate Challan(s)';
+                generateBtn.disabled = false;
+                return showAlert('Could not safely check duplicate challans: ' + err.message, true);
             }
         }
         // For non-monthly fees: existingStudentIds stays empty → no duplicates blocked
@@ -482,10 +523,14 @@ window.onAppReady(async () => {
                     class_name: t.student.applying_for_class,
                     fee_type: feeType,
                     amount: t.amount,
+                    base_amount: t.baseAmount ?? t.amount,
+                    assigned_discount: t.discount || 0,
                     paid_amount: 0,
                     fee_month: isMonthlyFeeType ? feeMonth : null,
                     due_date: dueDate,
-                    status: 'Unpaid'
+                    status: t.amount <= 0 ? 'Paid' : 'Unpaid',
+                    school_id: window.currentSchoolId,
+                    ...(window.campusFeatureReady && window.currentCampusId ? { campus_id: window.currentCampusId } : {})
                 });
             }
         }
@@ -532,10 +577,15 @@ window.onAppReady(async () => {
     // Helpers for Bulk payload mapping
     async function calculateBulkPayload(studentsArray, feeType, manualOverrideBase) {
         let validPayloads = [];
-        const isMonthlyType = cache.feeHeads.some(f => f.fee_type === feeType && f.is_monthly);
+        const isMonthlyType = isRecurringFeeType(feeType);
         
         for(let s of studentsArray) {
+            const serviceAssignment = getActiveAssignment(s.id, feeType);
             let assignedAmt = manualOverrideBase;
+
+            if ((assignedAmt === null || isNaN(assignedAmt)) && serviceAssignment?.amount_override != null) {
+                assignedAmt = Number(serviceAssignment.amount_override);
+            }
             
             // If manual amount isn't globally provided, compute from fee heads first.
             if(assignedAmt === null || isNaN(assignedAmt)) {
@@ -555,13 +605,19 @@ window.onAppReady(async () => {
                 }
             }
             
-            // Apply student discount if applicable for monthly fee
-            if (assignedAmt !== null && !isNaN(assignedAmt) && isMonthlyType && s.discount) {
-                assignedAmt = Math.max(0, assignedAmt - s.discount);
-            }
-            
             if(assignedAmt !== null && !isNaN(assignedAmt)) {
-                validPayloads.push({ student: s, amount: assignedAmt });
+                const baseAmount = Math.max(0, Number(assignedAmt));
+                const discount = requiresStudentAssignment(feeType)
+                    ? Math.min(baseAmount, Math.max(0, Number(serviceAssignment?.discount_amount) || 0))
+                    : (isTuitionMonthlyFee(feeType)
+                        ? Math.min(baseAmount, Math.max(0, Number(s.discount) || 0))
+                        : 0);
+                validPayloads.push({
+                    student: s,
+                    baseAmount,
+                    discount,
+                    amount: Math.max(0, baseAmount - discount)
+                });
             }
         }
         return validPayloads;
@@ -595,18 +651,25 @@ window.onAppReady(async () => {
     // ===================================
     async function initializeCaches() {
         try {
-            const [classesRes, feeHeadsRes, admissionsRes] = await Promise.all([
+            if (!window.currentSchoolId) throw new Error('School could not be identified. Refresh and sign in again.');
+            const [classesRes, feeHeadsRes, feeTypesRes, assignmentsRes, admissionsRes] = await Promise.all([
                 applySchoolScope(supabaseClient.from('classes').select('id, class_name, section').order('class_name')),
                 applySchoolScope(supabaseClient.from('fee_heads').select('id, class_id, fee_type, amount, is_monthly')),
+                applySchoolScope(supabaseClient.from('fee_head_types').select('name, requires_student_assignment')),
+                applySchoolScope(supabaseClient.from('student_fee_head_assignments').select('student_id, fee_type, amount_override, discount_amount, is_active').eq('is_active', true)),
                 applySchoolScope(supabaseClient.from('admissions').select('id, roll_number, full_name, father_name, applying_for_class, monthly_fee, discount').eq('status', 'Active'))
             ]);
 
             if (classesRes.error) throw new Error("Classes Table: " + classesRes.error.message);
             if (feeHeadsRes.error) throw new Error("Fee Heads Table: " + feeHeadsRes.error.message);
+            if (feeTypesRes.error) throw new Error("Fee Head Types: Run student_fee_head_assignments_setup.sql first. " + feeTypesRes.error.message);
+            if (assignmentsRes.error) throw new Error("Student Fee Assignments: Run student_fee_head_assignments_setup.sql first. " + assignmentsRes.error.message);
             if (admissionsRes.error) throw new Error("Admissions Table: " + admissionsRes.error.message);
 
             cache.classes = classesRes.data || [];
             cache.feeHeads = feeHeadsRes.data || [];
+            cache.feeTypes = feeTypesRes.data || [];
+            cache.feeAssignments = assignmentsRes.data || [];
             cache.admissions = admissionsRes.data || [];
             
             // Populate datalist for Student Search
@@ -698,6 +761,10 @@ window.onAppReady(async () => {
             const feeDesc = c.fee_month && c.fee_month !== 'N/A' 
                 ? `${c.fee_type} <br><small style="color:var(--text-muted);">${c.fee_month}</small>`
                 : `${c.fee_type}`;
+            const feeDiscount = Math.max(0, Number(c.assigned_discount) || 0);
+            const feeDescWithDiscount = feeDiscount > 0
+                ? `${feeDesc}<br><small style="color:#7c3aed;">Base Rs ${Number(c.base_amount || c.amount).toLocaleString()} − Discount Rs ${feeDiscount.toLocaleString()}</small>`
+                : feeDesc;
 
             const paidAmt = c.paid_amount || 0;
             const remAmt = c.amount - paidAmt;
@@ -717,7 +784,7 @@ window.onAppReady(async () => {
                 <td>${c.student_name}</td>
                 <td>${c.father_name || 'N/A'}</td>
                 <td>${c.class_name}</td>
-                <td>${feeDesc}</td>
+                <td>${feeDescWithDiscount}</td>
                 <td>Rs ${c.amount}</td>
                 <td>${paidDesc}</td>
                 <td><span class="badge ${badgeClass}">${c.status}</span></td>

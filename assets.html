@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assets Management - Zahid School</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        :root{--a-blue:#2563eb;--a-navy:#0f172a;--a-bg:#f1f5f9;--a-border:#dbe3ee;--a-green:#16a34a;--a-red:#dc2626;--a-amber:#d97706;--a-purple:#7c3aed}
+        *{box-sizing:border-box} body{margin:0;background:var(--a-bg);color:#1e293b;font-family:Inter,Segoe UI,Arial,sans-serif;opacity:0;transition:opacity .2s}body.auth-ready{opacity:1}
+        .asset-shell{width:min(1800px,100%);margin:auto;padding:18px}.asset-header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:17px 20px;border:1px solid var(--a-border);border-radius:16px;background:#fff;box-shadow:0 5px 20px rgba(15,23,42,.06)}
+        .asset-title{display:flex;align-items:center;gap:13px}.asset-logo{display:grid;place-items:center;width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#dbeafe,#ede9fe);color:var(--a-blue);font-size:22px}.asset-title h1{margin:0;font-size:1.45rem}.asset-title p{margin:4px 0 0;color:#64748b;font-size:.87rem}.header-actions{display:flex;gap:8px;flex-wrap:wrap}
+        .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:0;border-radius:9px;padding:9px 13px;font-weight:800;cursor:pointer;text-decoration:none;font-size:.84rem}.btn-primary{background:var(--a-blue);color:#fff}.btn-success{background:var(--a-green);color:#fff}.btn-light{background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe}.btn-danger{background:#fee2e2;color:#b91c1c}.btn-amber{background:#fef3c7;color:#92400e}.btn:disabled{opacity:.5;cursor:not-allowed}
+        .setup-warning{display:none;margin:14px 0;padding:13px 15px;border:1px solid #fbbf24;border-radius:11px;background:#fffbeb;color:#92400e;font-weight:700}.tabs{display:flex;gap:7px;margin:14px 0;overflow-x:auto;padding-bottom:2px}.tab-btn{white-space:nowrap;border:1px solid var(--a-border);border-radius:10px;background:#fff;color:#475569;padding:9px 13px;font-weight:800;cursor:pointer}.tab-btn.active{background:var(--a-navy);border-color:var(--a-navy);color:#fff}.tab-panel{display:none}.tab-panel.active{display:block}
+        .stats-grid{display:grid;grid-template-columns:repeat(6,minmax(150px,1fr));gap:10px}.stat-card{position:relative;overflow:hidden;padding:14px;border:1px solid var(--a-border);border-radius:13px;background:#fff;min-height:95px}.stat-card .label{color:#64748b;font-size:.75rem;font-weight:800}.stat-card strong{display:block;margin-top:8px;font-size:1.22rem;color:var(--a-navy)}.stat-card i{position:absolute;right:12px;bottom:10px;font-size:26px;opacity:.12}.stat-card.red strong{color:var(--a-red)}.stat-card.green strong{color:var(--a-green)}.stat-card.amber strong{color:var(--a-amber)}.stat-card.purple strong{color:var(--a-purple)}
+        .charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}.panel{border:1px solid var(--a-border);border-radius:14px;background:#fff;padding:14px;box-shadow:0 3px 14px rgba(15,23,42,.04)}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:11px}.panel-head h2,.panel-head h3{margin:0;color:var(--a-navy);font-size:1rem}.chart-box{height:270px}
+        .filters{display:grid;grid-template-columns:minmax(220px,1.4fr) repeat(4,minmax(140px,.7fr)) 130px;gap:8px;margin-bottom:11px}.input,.select,.textarea{width:100%;border:1px solid #cbd5e1;border-radius:8px;background:#fff;padding:8px 10px;color:#1e293b;font:inherit;font-size:.84rem}.textarea{min-height:75px;resize:vertical}.input:focus,.select:focus,.textarea:focus{outline:2px solid #bfdbfe;border-color:#60a5fa}
+        .table-scroll{overflow:auto;border:1px solid var(--a-border);border-radius:10px}.data-table{width:100%;border-collapse:collapse;min-width:1500px}.data-table.compact{min-width:1050px}.data-table th{position:sticky;top:0;z-index:1;background:#f8fafc;color:#475569;font-size:.7rem;text-transform:uppercase;letter-spacing:.03em;padding:8px 7px;text-align:left;border-bottom:1px solid var(--a-border);white-space:nowrap}.data-table td{padding:7px;border-bottom:1px solid #eef2f7;font-size:.77rem;vertical-align:top}.data-table tr:hover td{background:#f8fbff}.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}.asset-name{font-weight:900;color:var(--a-navy)}.sub{display:block;margin-top:2px;color:#64748b;font-size:.68rem}.badge{display:inline-flex;align-items:center;padding:3px 7px;border-radius:999px;background:#e2e8f0;color:#475569;font-size:.66rem;font-weight:900;white-space:nowrap}.badge.good,.badge.active,.badge.working{background:#dcfce7;color:#166534}.badge.damaged,.badge.poor,.badge.deleted{background:#fee2e2;color:#991b1b}.badge.repair,.badge.fair{background:#fef3c7;color:#92400e}.badge.lost{background:#ede9fe;color:#6d28d9}.actions{display:flex;gap:4px;flex-wrap:wrap;min-width:225px}.icon-btn{width:28px;height:28px;border:1px solid var(--a-border);border-radius:7px;background:#fff;color:#334155;cursor:pointer}.icon-btn:hover{background:#eff6ff;color:#1d4ed8}.pagination{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;color:#64748b;font-size:.8rem}
+        .empty{padding:28px!important;text-align:center;color:#94a3b8}.report-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:end}.report-tools label{display:block;margin-bottom:3px;color:#64748b;font-size:.72rem;font-weight:800}.manager-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.inline-form{display:grid;grid-template-columns:1fr 1fr auto;gap:7px}.chip-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.chip{padding:5px 8px;border-radius:999px;background:#eff6ff;color:#1d4ed8;font-size:.73rem;font-weight:800}
+        .modal{display:none;position:fixed;inset:0;z-index:6000;align-items:center;justify-content:center;padding:14px;background:rgba(15,23,42,.52)}.modal.open{display:flex}.modal-card{width:min(1080px,100%);max-height:94vh;overflow:auto;border-radius:16px;background:#fff;box-shadow:0 30px 90px rgba(15,23,42,.35)}.modal-card.medium{width:min(720px,100%)}.modal-card.wide{width:min(1350px,100%)}.modal-head{position:sticky;top:0;z-index:3;display:flex;align-items:center;justify-content:space-between;padding:14px 17px;border-bottom:1px solid var(--a-border);background:#fff}.modal-head h2{margin:0;font-size:1.1rem}.close-btn{border:0;background:#f1f5f9;border-radius:8px;width:32px;height:32px;cursor:pointer}.modal-body{padding:16px}.form-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.form-group label{display:block;margin-bottom:4px;color:#475569;font-size:.72rem;font-weight:800}.span-2{grid-column:span 2}.span-4{grid-column:1/-1}.calc-box{padding:9px 11px;border-radius:8px;background:#ecfdf5;color:#166534;font-weight:900}.modal-foot{position:sticky;bottom:0;display:flex;justify-content:flex-end;gap:8px;padding:12px 17px;border-top:1px solid var(--a-border);background:#fff}.conditional{display:none}.conditional.show{display:block}.detail-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:13px}.detail-card{padding:10px;border:1px solid var(--a-border);border-radius:9px;background:#f8fafc}.detail-card span{display:block;color:#64748b;font-size:.68rem;font-weight:800}.detail-card strong{display:block;margin-top:4px;color:#0f172a}.timeline{border-left:2px solid #cbd5e1;margin-left:8px;padding-left:18px}.timeline-item{position:relative;padding:0 0 13px}.timeline-item:before{content:'';position:absolute;left:-24px;top:4px;width:10px;height:10px;border-radius:50%;background:#2563eb;border:2px solid #fff;box-shadow:0 0 0 1px #93c5fd}.timeline-item h4{margin:0;font-size:.82rem}.timeline-item p{margin:4px 0;color:#64748b;font-size:.74rem}.toast{position:fixed;right:18px;bottom:18px;z-index:9000;display:none;max-width:390px;padding:11px 14px;border-radius:10px;background:#0f172a;color:#fff;font-weight:800;box-shadow:0 12px 30px rgba(15,23,42,.3)}.toast.show{display:block}.toast.error{background:#b91c1c}
+        @media(max-width:1250px){.stats-grid{grid-template-columns:repeat(4,1fr)}.filters{grid-template-columns:repeat(3,1fr)}.form-grid{grid-template-columns:repeat(3,1fr)}.span-4{grid-column:1/-1}}
+        @media(max-width:800px){.asset-shell{padding:9px}.asset-header{align-items:flex-start}.stats-grid{grid-template-columns:repeat(2,1fr)}.charts-grid,.manager-grid{grid-template-columns:1fr}.filters{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr 1fr}.span-2,.span-4{grid-column:1/-1}.detail-grid{grid-template-columns:1fr 1fr}}
+        @media(max-width:520px){.asset-header{display:block}.header-actions{margin-top:12px}.stats-grid,.filters,.form-grid,.detail-grid{grid-template-columns:1fr}.inline-form{grid-template-columns:1fr}.span-2,.span-4{grid-column:auto}}
+        @media print{body{background:#fff}.asset-header,.tabs,.filters,.header-actions,.pagination,.report-tools,.icon-btn,.setup-warning{display:none!important}.asset-shell{padding:0;width:100%;max-width:none}.panel{border:0;box-shadow:none;padding:0}.tab-panel{display:none!important}#reportsPanel.active,#registerPanel.active,#damagePanel.active,#repairsPanel.active{display:block!important}.table-scroll{overflow:visible;border:0}.data-table{min-width:0}.data-table th,.data-table td{font-size:9px;padding:4px}.data-table th:last-child,.data-table td:last-child{display:none}.panel-head h2:after{content:' — Zahid School';font-weight:400}}
+    </style>
+</head>
+<body>
+<main class="asset-shell">
+    <header class="asset-header">
+        <div class="asset-title"><div class="asset-logo"><i class="fas fa-building-shield"></i></div><div><h1>Assets Management</h1><p>Purchase, location, condition, repair, loss, disposal and depreciation ledger</p></div></div>
+        <div class="header-actions"><a class="btn btn-light" href="library_books.html"><i class="fas fa-book-open-reader"></i> Library Books</a><a class="btn btn-light" href="dashboard.html"><i class="fas fa-house"></i> Dashboard</a><button id="addAssetBtn" class="btn btn-primary"><i class="fas fa-plus"></i> Add Asset</button></div>
+    </header>
+    <div id="setupWarning" class="setup-warning"><i class="fas fa-triangle-exclamation"></i> Assets database is not installed. Run <strong>assets_setup.sql</strong> in Supabase, then refresh this page.</div>
+    <nav class="tabs" aria-label="Assets sections">
+        <button class="tab-btn active" data-tab="dashboardPanel"><i class="fas fa-chart-pie"></i> Dashboard</button>
+        <button class="tab-btn" data-tab="registerPanel"><i class="fas fa-table-list"></i> Asset Register</button>
+        <button class="tab-btn" data-tab="damagePanel"><i class="fas fa-triangle-exclamation"></i> Damage & Loss</button>
+        <button class="tab-btn" data-tab="repairsPanel"><i class="fas fa-screwdriver-wrench"></i> Repairs</button>
+        <button class="tab-btn" data-tab="reportsPanel"><i class="fas fa-file-lines"></i> Reports</button>
+        <button class="tab-btn" data-tab="setupPanel"><i class="fas fa-location-dot"></i> Categories & Locations</button>
+    </nav>
+
+    <section id="dashboardPanel" class="tab-panel active">
+        <div id="assetStats" class="stats-grid"></div>
+        <div class="charts-grid">
+            <article class="panel"><div class="panel-head"><h2>Assets by Category</h2></div><div class="chart-box"><canvas id="categoryChart"></canvas></div></article>
+            <article class="panel"><div class="panel-head"><h2>Current Unit Condition</h2></div><div class="chart-box"><canvas id="conditionChart"></canvas></div></article>
+        </div>
+    </section>
+
+    <section id="registerPanel" class="tab-panel panel">
+        <div class="panel-head"><h2>Asset Register</h2><span id="registerCount" class="badge">0 assets</span></div>
+        <div class="filters">
+            <input id="assetSearch" class="input" placeholder="Search asset ID, name, serial, invoice...">
+            <select id="categoryFilter" class="select"><option value="">All Categories</option></select>
+            <select id="locationFilter" class="select"><option value="">All Locations</option></select>
+            <select id="conditionFilter" class="select"><option value="">All Conditions</option><option>New</option><option>Good</option><option>Fair</option><option>Poor</option></select>
+            <select id="statusFilter" class="select"><option value="Active" selected>Active Assets</option><option value="">All Statuses</option><option>Archived</option><option>Deleted</option></select>
+            <select id="sortAssets" class="select"><option value="name">Name</option><option value="value_desc">Value ↓</option><option value="date_desc">Newest Purchase</option><option value="damaged_desc">Damaged ↓</option></select>
+        </div>
+        <div class="table-scroll"><table class="data-table"><thead><tr><th>Asset ID</th><th>Asset Name</th><th>Category</th><th class="num">Original</th><th class="num">Working</th><th class="num">Damaged</th><th class="num">Repair</th><th class="num">Lost</th><th class="num">Disposed</th><th class="num">Purchase Cost</th><th>Purchase Date / Age</th><th class="num">Depreciation</th><th class="num">Book Value</th><th>Location</th><th>Condition</th><th>Status</th><th>Actions</th></tr></thead><tbody id="assetTableBody"></tbody></table></div>
+        <div class="pagination"><button id="prevAssetPage" class="btn btn-light">Previous</button><span id="assetPageInfo">Page 1</span><button id="nextAssetPage" class="btn btn-light">Next</button></div>
+    </section>
+
+    <section id="damagePanel" class="tab-panel panel">
+        <div class="panel-head"><h2>Damage & Loss Register</h2><button class="btn btn-danger" data-new-transaction="DAMAGE"><i class="fas fa-burst"></i> Report Damage</button></div>
+        <div class="table-scroll"><table class="data-table compact"><thead><tr><th>Date</th><th>Asset</th><th>Event</th><th class="num">Qty</th><th>Reason</th><th>Repairable</th><th>Responsible</th><th class="num">Estimated Loss</th><th class="num">Recorded Loss</th><th>By</th></tr></thead><tbody id="damageTableBody"></tbody></table></div>
+    </section>
+
+    <section id="repairsPanel" class="tab-panel panel">
+        <div class="panel-head"><h2>Repair Management</h2><button class="btn btn-amber" data-new-transaction="SEND_REPAIR"><i class="fas fa-screwdriver-wrench"></i> Send for Repair</button></div>
+        <div class="table-scroll"><table class="data-table compact"><thead><tr><th>Date</th><th>Asset</th><th>Status</th><th class="num">Qty</th><th>Shop / Technician</th><th>Expected Return</th><th class="num">Repair Cost</th><th>Notes</th><th>By</th></tr></thead><tbody id="repairTableBody"></tbody></table></div>
+    </section>
+
+    <section id="reportsPanel" class="tab-panel panel">
+        <div class="panel-head"><h2>Asset Reports</h2></div>
+        <div class="report-tools">
+            <div><label for="reportType">Report</label><select id="reportType" class="select"><option value="all">Complete Asset Register</option><option value="category">Assets by Category</option><option value="location">Assets by Location</option><option value="damaged">Damaged Assets</option><option value="lost">Lost Assets</option><option value="repair">Assets Under Repair</option><option value="disposed">Disposed Assets</option><option value="depreciation">Depreciation Report</option><option value="repair_expenses">Repair Expenses</option><option value="loss">Asset Loss Report</option></select></div>
+            <div><label for="reportGroup">Category / Location</label><select id="reportGroup" class="select"><option value="">All</option></select></div>
+            <button id="generateReport" class="btn btn-primary"><i class="fas fa-filter"></i> Generate</button>
+            <button id="printReport" class="btn btn-light"><i class="fas fa-print"></i> Print / PDF</button>
+            <button id="exportCsv" class="btn btn-success"><i class="fas fa-file-csv"></i> CSV / Excel</button>
+        </div>
+        <div class="panel-head" style="margin-top:16px"><h2 id="reportTitle">Complete Asset Register</h2><span id="reportSummary" class="badge"></span></div>
+        <div class="table-scroll"><table class="data-table compact"><thead id="reportHead"></thead><tbody id="reportBody"></tbody></table></div>
+    </section>
+
+    <section id="setupPanel" class="tab-panel">
+        <div class="manager-grid">
+            <article class="panel"><div class="panel-head"><h2>Asset Categories</h2></div><form id="categoryForm" class="inline-form"><input id="newCategoryName" class="input" placeholder="Category name" required><span></span><button class="btn btn-primary">Add Category</button></form><div id="categoryChips" class="chip-list"></div></article>
+            <article class="panel"><div class="panel-head"><h2>Asset Locations</h2></div><form id="locationForm" class="inline-form"><input id="newLocationName" class="input" placeholder="Location name" required><input id="newLocationRoom" class="input" placeholder="Building / room"><button class="btn btn-primary">Add Location</button></form><div id="locationChips" class="chip-list"></div></article>
+        </div>
+    </section>
+</main>
+
+<div id="assetModal" class="modal" aria-hidden="true"><form id="assetForm" class="modal-card">
+    <div class="modal-head"><h2 id="assetModalTitle">Add Asset</h2><button type="button" class="close-btn" data-close="assetModal">×</button></div>
+    <div class="modal-body"><div class="form-grid">
+        <div class="form-group span-2"><label>Asset Name *</label><input id="assetName" class="input" list="assetNameSuggestions" required><datalist id="assetNameSuggestions"></datalist></div>
+        <div class="form-group"><label>Asset Category</label><input id="assetCategory" class="input" list="assetCategorySuggestions" placeholder="Select or type"><datalist id="assetCategorySuggestions"></datalist></div>
+        <div class="form-group"><label>Tracking Type</label><select id="trackingType" class="select"><option value="quantity">Quantity Based</option><option value="individual">Individually Tracked</option></select></div>
+        <div class="form-group span-4"><label>Description</label><textarea id="assetDescription" class="textarea"></textarea></div>
+        <div class="form-group"><label>Quantity *</label><input id="assetQuantity" type="number" min="1" step="1" class="input" required></div>
+        <div class="form-group"><label>Purchase Date</label><input id="assetPurchaseDate" type="date" class="input"></div>
+        <div class="form-group"><label>Price Per Unit (Rs)</label><input id="assetUnitPrice" type="number" min="0" step="0.01" class="input"></div>
+        <div class="form-group"><label>Total Purchase Value</label><div id="assetTotalValue" class="calc-box">Rs 0</div></div>
+        <div class="form-group"><label>Supplier / Vendor</label><input id="assetSupplier" class="input"></div>
+        <div class="form-group"><label>Invoice Number</label><input id="assetInvoice" class="input"></div>
+        <div class="form-group"><label>Location</label><select id="assetLocation" class="select"><option value="">Unassigned</option></select></div>
+        <div class="form-group"><label>Building</label><input id="assetBuilding" class="input"></div>
+        <div class="form-group"><label>Floor</label><input id="assetFloor" class="input"></div>
+        <div class="form-group"><label>Room / Classroom</label><input id="assetRoom" class="input"></div>
+        <div class="form-group"><label>Condition</label><select id="assetCondition" class="select"><option>New</option><option selected>Good</option><option>Fair</option><option>Poor</option></select></div>
+        <div class="form-group"><label>Useful Life (Years)</label><input id="assetLife" type="number" min="0.1" step="0.1" class="input"></div>
+        <div class="form-group"><label>Yearly Depreciation %</label><input id="assetDepPercent" type="number" min="0" max="100" step="0.01" class="input"></div>
+        <div class="form-group"><label>Depreciation Method</label><select id="assetDepMethod" class="select"><option>Straight Line</option></select></div>
+        <div class="form-group"><label>Warranty Expiry</label><input id="assetWarranty" type="date" class="input"></div>
+        <div class="form-group"><label>Asset Code</label><input id="assetCode" class="input" placeholder="Optional, e.g. AC-001"></div>
+        <div class="form-group"><label>Serial Number</label><input id="assetSerial" class="input"></div>
+        <div class="form-group"><label>Model Number</label><input id="assetModel" class="input"></div>
+        <div class="form-group"><label>Barcode / QR Code</label><input id="assetBarcode" class="input"></div>
+        <div class="form-group span-4"><label>Notes</label><textarea id="assetNotes" class="textarea"></textarea></div>
+    </div></div>
+    <div class="modal-foot"><button type="button" class="btn btn-light" data-close="assetModal">Cancel</button><button id="saveAssetBtn" class="btn btn-primary">Save Asset</button></div>
+</form></div>
+
+<div id="transactionModal" class="modal" aria-hidden="true"><form id="transactionForm" class="modal-card medium">
+    <div class="modal-head"><h2 id="transactionTitle">Asset Transaction</h2><button type="button" class="close-btn" data-close="transactionModal">×</button></div>
+    <div class="modal-body"><div id="transactionAvailability" class="calc-box" style="margin-bottom:10px">Select an asset</div><div class="form-grid">
+        <div class="form-group span-2"><label>Asset *</label><select id="transactionAsset" class="select" required></select></div>
+        <div class="form-group"><label>Quantity *</label><input id="transactionQuantity" type="number" min="1" step="1" class="input" required></div>
+        <div class="form-group"><label>Date *</label><input id="transactionDate" type="date" class="input" required></div>
+        <div id="sourceBucketGroup" class="form-group"><label>Take Units From</label><select id="transactionSource" class="select"><option value="working">Working</option><option value="damaged">Damaged</option><option value="repair">Under Repair</option></select></div>
+        <div id="unitCostGroup" class="form-group conditional"><label>Price Per Added Unit</label><input id="transactionUnitCost" type="number" min="0" step="0.01" class="input"></div>
+        <div id="incidentTypeGroup" class="form-group conditional"><label>Type</label><select id="transactionIncident" class="select"><option>Damaged</option><option>Broken</option><option>Burnt</option><option>Missing</option><option>Stolen</option><option>Destroyed</option></select></div>
+        <div id="repairableGroup" class="form-group conditional"><label>Repairable?</label><select id="transactionRepairable" class="select"><option value="true">Yes</option><option value="false">No</option></select></div>
+        <div id="reasonGroup" class="form-group span-2 conditional"><label>Reason / Description</label><input id="transactionReason" class="input"></div>
+        <div id="responsibleGroup" class="form-group conditional"><label>Responsible Person</label><input id="transactionResponsible" class="input"></div>
+        <div id="estimatedRepairGroup" class="form-group conditional"><label>Estimated Repair Cost</label><input id="transactionEstimatedRepair" type="number" min="0" step="0.01" class="input"></div>
+        <div id="estimatedLossGroup" class="form-group conditional"><label>Estimated Loss</label><input id="transactionEstimatedLoss" type="number" min="0" step="0.01" class="input"></div>
+        <div id="vendorGroup" class="form-group conditional"><label>Repair Shop / Technician</label><input id="transactionVendor" class="input"></div>
+        <div id="expectedReturnGroup" class="form-group conditional"><label>Expected Return Date</label><input id="transactionExpectedReturn" type="date" class="input"></div>
+        <div id="repairCostGroup" class="form-group conditional"><label>Repair Cost</label><input id="transactionRepairCost" type="number" min="0" step="0.01" class="input"></div>
+        <div id="fromLocationGroup" class="form-group conditional"><label>From Location</label><select id="transactionFromLocation" class="select"></select></div>
+        <div id="toLocationGroup" class="form-group conditional"><label>To Location</label><select id="transactionToLocation" class="select"></select></div>
+        <div id="disposalReasonGroup" class="form-group span-2 conditional"><label>Disposal Reason</label><select id="transactionDisposalReason" class="select"><option>Broken beyond repair</option><option>Obsolete</option><option>Sold</option><option>Lost</option><option>Stolen</option><option>Donated</option><option>Scrapped</option><option>Other</option></select></div>
+        <div id="bookValueGroup" class="form-group conditional"><label>Current Book Value</label><div id="transactionBookValue" class="calc-box">Rs 0</div></div>
+        <div id="recoveryGroup" class="form-group conditional"><label>Sale / Recovery Amount</label><input id="transactionRecovery" type="number" min="0" step="0.01" class="input"></div>
+        <div id="lossGroup" class="form-group conditional"><label>Financial Loss</label><div id="transactionLoss" class="calc-box">Rs 0</div></div>
+        <div class="form-group span-4"><label>Notes</label><textarea id="transactionNotes" class="textarea"></textarea></div>
+    </div></div>
+    <div class="modal-foot"><button type="button" class="btn btn-light" data-close="transactionModal">Cancel</button><button id="saveTransactionBtn" class="btn btn-primary">Save Transaction</button></div>
+</form></div>
+
+<div id="detailModal" class="modal" aria-hidden="true"><section class="modal-card wide"><div class="modal-head"><h2 id="detailTitle">Asset Detail</h2><button class="close-btn" data-close="detailModal">×</button></div><div id="detailBody" class="modal-body"></div></section></div>
+<div id="assetToast" class="toast"></div>
+
+<script src="auth.js?v=13"></script>
+<script src="assets.js?v=1"></script>
+</body>
+</html>

@@ -1,9 +1,18 @@
 let profitChartInstance = null;
+const karachiYearMonthFormatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Karachi',
+    year: 'numeric',
+    month: 'numeric'
+});
 
 window.onAppReady(() => {
     const checkAuth = setInterval(() => {
         if (window.authReady && window.currentUser) {
             clearInterval(checkAuth);
+            if (!window.canView('finance')) {
+                window.location.href = 'dashboard.html?denied=1';
+                return;
+            }
             initPage();
         }
     }, 100);
@@ -23,10 +32,49 @@ function initPage() {
     loadMonthlyProfit();
 }
 
+async function fetchAllFinanceRows({ table, columns, dateColumn, start, end, schoolId }) {
+    if (!schoolId) throw new Error('School could not be identified. Refresh and sign in again.');
+    const pageSize = 1000;
+    const rows = [];
+
+    for (let from = 0; ; from += pageSize) {
+        let query = window.supabaseClient
+            .from(table)
+            .select(columns)
+            .gte(dateColumn, start)
+            .lte(dateColumn, end);
+
+        query = query.eq('school_id', schoolId);
+
+        query = query
+            .order(dateColumn, { ascending: true })
+            .order('id', { ascending: true })
+            .range(from, from + pageSize - 1);
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        rows.push(...(data || []));
+        if (!data || data.length < pageSize) break;
+    }
+
+    return rows;
+}
+
+function getKarachiYearMonth(timestamp) {
+    const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) return null;
+    const parts = Object.fromEntries(
+        karachiYearMonthFormatter.formatToParts(date).map(part => [part.type, part.value])
+    );
+    return { year: Number(parts.year), month: Number(parts.month) };
+}
+
 async function loadMonthlyProfit() {
     try {
         const year = document.getElementById('filterYear').value;
         const schoolId = window.currentSchoolId;
+        if (!schoolId) throw new Error('School could not be identified. Refresh and sign in again.');
         const tbody = document.getElementById('reportTableBody');
         tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #94a3b8;">Fetching data...</td></tr>';
 
@@ -40,50 +88,57 @@ async function loadMonthlyProfit() {
         const startOfYear = `${year}-01-01T00:00:00`;
         const endOfYear = `${year}-12-31T23:59:59`;
         
-        const sc = (q) => schoolId ? q.eq('school_id', schoolId) : q;
-
-        // 1. Fee Revenue
-        const { data: feesData, error: feesError } = await sc(window.supabaseClient
-            .from('transactions')
-            .select('amount_paid, created_at')
-            .gte('created_at', startOfYear)
-            .lte('created_at', endOfYear));
-        if (feesError) throw feesError;
+        // Fetch every page. Supabase limits a normal response to 1,000 rows;
+        // an annual fee query can easily exceed that and understate revenue.
+        const [feesData, otherRevData, expData] = await Promise.all([
+            fetchAllFinanceRows({
+                table: 'transactions',
+                columns: 'id, amount_paid, created_at',
+                dateColumn: 'created_at',
+                start: startOfYear,
+                end: endOfYear,
+                schoolId
+            }),
+            fetchAllFinanceRows({
+                table: 'other_revenue',
+                columns: 'id, amount, revenue_date',
+                dateColumn: 'revenue_date',
+                start: `${year}-01-01`,
+                end: `${year}-12-31`,
+                schoolId
+            }),
+            fetchAllFinanceRows({
+                table: 'expenses',
+                columns: 'id, amount, expense_date',
+                dateColumn: 'expense_date',
+                start: `${year}-01-01`,
+                end: `${year}-12-31`,
+                schoolId
+            })
+        ]);
 
         feesData.forEach(r => {
-            const d = new Date(r.created_at);
-            if (d.getFullYear() == year) {
-                monthlyData[d.getMonth()].revenue += Number(r.amount_paid) || 0;
+            // Fee revenue belongs to the month the payment was collected,
+            // never to the month written on its challan or fee head.
+            const collected = getKarachiYearMonth(r.created_at);
+            if (collected?.year == year && collected.month >= 1 && collected.month <= 12) {
+                monthlyData[collected.month - 1].revenue += Number(r.amount_paid) || 0;
             }
         });
 
         // 2. Other Revenue
-        const { data: otherRevData, error: otherRevError } = await sc(window.supabaseClient
-            .from('other_revenue')
-            .select('amount, revenue_date')
-            .gte('revenue_date', `${year}-01-01`)
-            .lte('revenue_date', `${year}-12-31`));
-        if (otherRevError) throw otherRevError;
-
         otherRevData.forEach(r => {
-            const d = new Date(r.revenue_date);
-            if (d.getFullYear() == year) {
-                monthlyData[d.getMonth()].revenue += Number(r.amount) || 0;
+            const [rowYear, rowMonth] = String(r.revenue_date || '').slice(0, 10).split('-').map(Number);
+            if (rowYear == year && rowMonth >= 1 && rowMonth <= 12) {
+                monthlyData[rowMonth - 1].revenue += Number(r.amount) || 0;
             }
         });
 
         // 3. Expenses
-        const { data: expData, error: expError } = await sc(window.supabaseClient
-            .from('expenses')
-            .select('amount, expense_date')
-            .gte('expense_date', `${year}-01-01`)
-            .lte('expense_date', `${year}-12-31`));
-        if (expError) throw expError;
-
         expData.forEach(r => {
-            const d = new Date(r.expense_date);
-            if (d.getFullYear() == year) {
-                monthlyData[d.getMonth()].expense += Number(r.amount) || 0;
+            const [rowYear, rowMonth] = String(r.expense_date || '').slice(0, 10).split('-').map(Number);
+            if (rowYear == year && rowMonth >= 1 && rowMonth <= 12) {
+                monthlyData[rowMonth - 1].expense += Number(r.amount) || 0;
             }
         });
 

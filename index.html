@@ -39,9 +39,194 @@
 
         .container {
             width: 100%;
-            max-width: 1200px;
+            max-width: 1600px;
             margin: 0 auto;
             z-index: 1;
+        }
+
+        .contact-choice-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.45rem;
+            margin-top: 0.45rem;
+        }
+
+        .contact-choice {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            margin: 0;
+            padding: 0.3rem 0.55rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 999px;
+            background: #f8fafc;
+            color: #475569;
+            font-size: 0.72rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .contact-choice:has(input:checked) {
+            border-color: #2563eb;
+            background: #dbeafe;
+            color: #1d4ed8;
+        }
+
+        .contact-choice input {
+            width: 14px;
+            height: 14px;
+            margin: 0;
+            padding: 0;
+            accent-color: #2563eb;
+        }
+
+        .success-message {
+            position: fixed !important;
+            top: 18px !important;
+            right: 18px !important;
+            left: auto !important;
+            width: min(380px, calc(100vw - 36px)) !important;
+            height: auto !important;
+            min-height: 0 !important;
+            padding: 14px 18px !important;
+            border: 1px solid #86efac;
+            border-radius: 12px !important;
+            background: #f0fdf4 !important;
+            backdrop-filter: none !important;
+            box-shadow: 0 14px 35px rgba(15,23,42,.2);
+            z-index: 10000;
+            align-items: flex-start !important;
+            text-align: left !important;
+        }
+
+        .success-message .success-icon { display: none; }
+        .success-message h3 { margin: 0 0 3px; font-size: 1rem; transform: none; }
+        .success-message p { margin: 1px 0; font-size: .8rem; transform: none; }
+
+        .sibling-submit-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.9rem 1.25rem;
+            border: 0;
+            border-radius: 10px;
+            background: #0f766e;
+            color: #fff;
+            font: inherit;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 0 5px 14px rgba(15,118,110,.25);
+        }
+
+        .sibling-submit-btn:hover { background: #115e59; transform: translateY(-1px); }
+        .form-actions { gap: 0.75rem; flex-wrap: wrap; }
+
+        .admission-challan-help {
+            margin: 0 0 1rem;
+            color: #64748b;
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+
+        .admission-challan-rows {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .admission-challan-row {
+            display: grid;
+            grid-template-columns: minmax(190px, 1.7fr) minmax(105px, .8fr) minmax(105px, .8fr) minmax(110px, .8fr) minmax(135px, 1fr) minmax(135px, 1fr) auto;
+            gap: 0.65rem;
+            align-items: end;
+            padding: 0.9rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            background: #f8fafc;
+        }
+
+        .admission-challan-row .input-group { min-width: 0; }
+        .admission-challan-row label { font-size: 0.76rem; }
+
+        .remove-admission-challan {
+            width: 42px;
+            height: 42px;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            background: #fff1f2;
+            color: #dc2626;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 800;
+        }
+
+        .add-admission-challan {
+            margin-top: 0.9rem;
+            border: 1px solid #2563eb;
+            border-radius: 8px;
+            padding: 0.65rem 1rem;
+            background: #eff6ff;
+            color: #1d4ed8;
+            font: inherit;
+            font-size: 0.85rem;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .admission-challan-summary {
+            display: flex;
+            justify-content: space-between;
+            gap: 1rem;
+            margin-top: 0.85rem;
+            padding: 0.65rem 0.85rem;
+            border-radius: 8px;
+            background: #ecfdf5;
+            color: #065f46;
+            font-size: 0.85rem;
+            font-weight: 800;
+        }
+
+        @media (max-width: 980px) {
+            .admission-challan-row { grid-template-columns: 1fr 1fr; }
+            .remove-admission-challan { width: 100%; }
+        }
+
+        #admissionPrintSheet { display: none; }
+
+        @media print {
+            @page { size: A4 portrait; margin: 0; }
+            html, body { width: 210mm; margin: 0 !important; padding: 0 !important; background: #fff !important; }
+            body { display: block !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            body > .container, #cropModal { display: none !important; }
+            #admissionPrintSheet {
+                display: block !important;
+                width: 210mm;
+                min-height: 297mm;
+                box-sizing: border-box;
+                margin: 0;
+                padding: 9mm 10mm;
+                background: #fff;
+                color: #000;
+                font-family: Arial, Helvetica, sans-serif;
+                font-size: 14px;
+                line-height: 1.18;
+            }
+            .admission-print-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 6px; padding-bottom: 6px; border-bottom: 2px solid #000; }
+            .admission-print-title { flex: 1; text-align: center; }
+            .admission-print-title h1 { margin: 0; font-size: 21px; line-height: 1.1; }
+            .admission-print-title h2 { margin: 3px 0 0; font-size: 16px; text-transform: uppercase; }
+            .admission-print-title p { margin: 3px 0 0; font-size: 12px; }
+            .admission-print-photo { width: 72px; height: 88px; flex: 0 0 72px; border: 1px solid #000; display: flex; align-items: center; justify-content: center; overflow: hidden; font-size: 10px; text-align: center; }
+            .admission-print-photo img { width: 100%; height: 100%; object-fit: cover; }
+            .admission-print-section { margin: 5px 0 2px; padding: 3px 5px; border: 1px solid #000; background: #e5e7eb; font-size: 13px; font-weight: 800; text-transform: uppercase; }
+            .admission-print-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+            .admission-print-table th, .admission-print-table td { border: 1px solid #000; padding: 3px 5px; vertical-align: top; overflow-wrap: anywhere; }
+            .admission-print-table th { width: 16%; background: #f3f4f6; text-align: left; font-size: 12px; font-weight: 800; }
+            .admission-print-table td { width: 34%; min-height: 16px; }
+            .admission-print-signatures { display: flex; justify-content: space-between; gap: 30px; margin-top: 24px; }
+            .admission-print-signatures div { width: 31%; padding-top: 4px; border-top: 1px solid #000; text-align: center; font-size: 12px; }
+            .admission-print-footer { margin-top: 8px; text-align: center; font-size: 10px; color: #374151; }
         }
 
         .form-header {
@@ -414,7 +599,7 @@
                     <div class="basic-info-fields">
                         <div class="input-grid">
                             <div class="input-group full-width">
-                                <label for="fullName">Full Name (as per B-Form) <span style="color:red">*</span></label>
+                                <label for="fullName">Full Name <span style="color:red">*</span></label>
                                 <input type="text" id="fullName" name="fullName" required placeholder="Enter full name">
                             </div>
                             <div class="input-group">
@@ -460,29 +645,6 @@
                 </div>
             </section>
 
-            <!-- 2. Identification Details -->
-            <section class="form-section">
-                <h2>🆔 Identification Details</h2>
-                <div class="input-grid">
-                    <div class="input-group">
-                        <label for="bformNumber">B-Form Number (CRC) / CNIC</label>
-                        <input type="text" id="bformNumber" name="bformNumber" placeholder="00000-0000000-0">
-                    </div>
-                </div>
-            </section>
-
-            <!-- 3. Residential Address -->
-            <section class="form-section">
-                <h2>🏠 Residential Address</h2>
-                <div class="input-grid">
-                    <div class="input-group full-width">
-                        <label for="address">Full Home Address</label>
-                        <textarea id="address" name="address" rows="3"
-                            placeholder="Enter complete home address"></textarea>
-                    </div>
-                </div>
-            </section>
-
             <!-- 4. Parent / Guardian Details -->
             <section class="form-section">
                 <h2>👨👩👧 Parent / Guardian Details</h2>
@@ -502,12 +664,28 @@
                         <input type="text" id="fatherOcc" name="fatherOcc" autocomplete="off">
                     </div>
                     <div class="input-group">
-                        <label for="fatherMobile">Mobile Number</label>
+                        <label for="fatherMobile">Mobile Number 1</label>
                         <input type="tel" id="fatherMobile" name="fatherMobile" autocomplete="off">
+                        <div class="contact-choice-row">
+                            <label class="contact-choice"><input type="radio" name="primaryMobileSource" value="fatherMobile" checked> Primary Mobile</label>
+                            <label class="contact-choice"><input type="radio" name="whatsappSource" value="fatherMobile"> WhatsApp</label>
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label for="fatherMobile2">Mobile Number 2</label>
+                        <input type="tel" id="fatherMobile2" name="fatherMobile2" autocomplete="off">
+                        <div class="contact-choice-row">
+                            <label class="contact-choice"><input type="radio" name="primaryMobileSource" value="fatherMobile2"> Primary Mobile</label>
+                            <label class="contact-choice"><input type="radio" name="whatsappSource" value="fatherMobile2"> WhatsApp</label>
+                        </div>
                     </div>
                     <div class="input-group">
                         <label for="fatherWhatsapp">WhatsApp Number</label>
                         <input type="tel" id="fatherWhatsapp" name="fatherWhatsapp" placeholder="e.g. +92 3XX XXXXXXX" autocomplete="off">
+                        <div class="contact-choice-row">
+                            <label class="contact-choice"><input type="radio" name="primaryMobileSource" value="fatherWhatsapp"> Primary Mobile</label>
+                            <label class="contact-choice"><input type="radio" name="whatsappSource" value="fatherWhatsapp" checked> WhatsApp</label>
+                        </div>
                     </div>
                 </div>
 
@@ -526,8 +704,20 @@
                         <input type="text" id="motherOcc" name="motherOcc">
                     </div>
                     <div class="input-group">
-                        <label for="motherMobile">Mobile Number</label>
+                        <label for="motherMobile">Mobile Number 1</label>
                         <input type="tel" id="motherMobile" name="motherMobile" autocomplete="off">
+                        <div class="contact-choice-row">
+                            <label class="contact-choice"><input type="radio" name="primaryMobileSource" value="motherMobile"> Primary Mobile</label>
+                            <label class="contact-choice"><input type="radio" name="whatsappSource" value="motherMobile"> WhatsApp</label>
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label for="motherMobile2">Mobile Number 2</label>
+                        <input type="tel" id="motherMobile2" name="motherMobile2" autocomplete="off">
+                        <div class="contact-choice-row">
+                            <label class="contact-choice"><input type="radio" name="primaryMobileSource" value="motherMobile2"> Primary Mobile</label>
+                            <label class="contact-choice"><input type="radio" name="whatsappSource" value="motherMobile2"> WhatsApp</label>
+                        </div>
                     </div>
                 </div>
 
@@ -544,6 +734,22 @@
                     <div class="input-group">
                         <label for="guardianContact">Contact Number</label>
                         <input type="tel" id="guardianContact" name="guardianContact" autocomplete="off">
+                        <div class="contact-choice-row">
+                            <label class="contact-choice"><input type="radio" name="primaryMobileSource" value="guardianContact"> Primary Mobile</label>
+                            <label class="contact-choice"><input type="radio" name="whatsappSource" value="guardianContact"> WhatsApp</label>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3. Residential Address -->
+            <section class="form-section">
+                <h2>🏠 Residential Address</h2>
+                <div class="input-grid">
+                    <div class="input-group full-width">
+                        <label for="address">Full Home Address</label>
+                        <textarea id="address" name="address" rows="3"
+                            placeholder="Enter complete home address"></textarea>
                     </div>
                 </div>
             </section>
@@ -586,23 +792,14 @@
                     <div class="input-group">
                         <label for="session">Session</label>
                         <select id="session" name="session">
-                            <option value="" disabled selected>Select Session</option>
-                            <option value="2024-2025">2024-2025</option>
-                            <option value="2025-2026">2025-2026</option>
-                            <option value="2026-2027">2026-2027</option>
+                            <option value="" disabled selected>Loading school sessions...</option>
                         </select>
+                        <small style="margin-top:0.3rem; font-size:0.75rem;"><a href="curriculum_and_session.html"
+                                style="color:var(--primary); text-decoration:none;">Manage Sessions</a></small>
                     </div>
                     <div class="input-group">
                         <label for="admissionDate">Admission Date</label>
                         <input type="date" id="admissionDate" name="admissionDate">
-                    </div>
-                    <div class="input-group">
-                        <label for="campus">Campus / Branch</label>
-                        <select id="campus" name="campus">
-                            <option value="" disabled selected>Select Campus</option>
-                            <option value="Main Campus">Main Campus</option>
-                            <option value="North Branch">North Branch</option>
-                        </select>
                     </div>
                 </div>
             </section>
@@ -619,8 +816,17 @@
                 </div>
             </section>
 
-
-
+            <!-- Admission Note -->
+            <section class="form-section">
+                <h2>📝 Note</h2>
+                <div class="input-grid">
+                    <div class="input-group full-width">
+                        <label for="admissionNote">Admission Note</label>
+                        <textarea id="admissionNote" name="admissionNote" rows="4"
+                            placeholder="Type any note or important information related to this admission..."></textarea>
+                    </div>
+                </div>
+            </section>
 
             <!-- 10. Fee Information -->
             <section class="form-section">
@@ -643,15 +849,28 @@
                         <label for="discount">Discount (Rs)</label>
                         <input type="number" id="discount" name="discount" placeholder="e.g. 500">
                     </div>
-                    <div class="input-group">
-                        <label for="siblingInSchool">Sibling in school?</label>
-                        <select id="siblingInSchool" name="siblingInSchool">
-                            <option value="" disabled selected>Select an option</option>
-                            <option value="no">No</option>
-                            <option value="yes">Yes</option>
-                        </select>
-                    </div>
                 </div>
+            </section>
+
+            <!-- Optional student-specific challans -->
+            <section class="form-section" id="studentChallanFeeSection">
+                <h2>🧾 Student-Specific Fee Head Challans</h2>
+                <p class="admission-challan-help">
+                    Add only the extra charges applicable to this student, such as Transport Fee, Hostel Fee,
+                    Book Fee or Exam Fee. Each selected row will be created as an unpaid challan when the admission is saved.
+                </p>
+                <div id="admissionChallanRows" class="admission-challan-rows"></div>
+                <button type="button" id="addAdmissionChallanBtn" class="add-admission-challan">＋ Add Fee Head Challan</button>
+                <div id="admissionChallanSummary" class="admission-challan-summary" style="display:none;">
+                    <span><span id="admissionChallanCount">0</span> challan(s) selected</span>
+                    <span>Discount: Rs <span id="admissionChallanDiscountTotal">0</span></span>
+                    <span>Payable: Rs <span id="admissionChallanTotal">0</span></span>
+                </div>
+                <small style="display:block;margin-top:.7rem;color:#64748b;">
+                    Fee-head names come from <a href="fee_heads.html" style="color:var(--primary);text-decoration:none;">Fee Heads Management</a>.
+                    Transport, Hostel, or another <strong>Assigned only</strong> fee remains linked to this student for future class/whole-school monthly challans.
+                    These student-specific rows are cleared before adding the next sibling.
+                </small>
             </section>
 
             <div class="form-actions hide-on-print">
@@ -663,7 +882,13 @@
                         <polyline points="12 5 19 12 12 19"></polyline>
                     </svg>
                 </button>
+                <button type="submit" class="sibling-submit-btn" id="saveSiblingBtn">
+                    <span>👨‍👩‍👧‍👦 Save &amp; Add Next Child</span>
+                </button>
             </div>
+            <p class="hide-on-print" style="margin:.7rem 0 0;text-align:center;color:#64748b;font-size:.82rem;">
+                Keeps parent, address, contact, class, session and fee details; clears only the saved child’s personal details.
+            </p>
 
             <div id="successMessage" class="success-message hidden hide-on-print">
                 <div class="success-icon">✓</div>
@@ -678,6 +903,8 @@
             </div>
         </form>
     </div>
+
+    <section id="admissionPrintSheet" aria-hidden="true"></section>
 
     <!-- ── Crop Modal ───────────────────────────────────────────── -->
     <div id="cropModal" role="dialog" aria-modal="true" aria-label="Crop Student Photo">
@@ -715,8 +942,8 @@
 
     <!-- Cropper.js -->
     <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
-    <script src="auth.js"></script>
-    <script src="script.js?v=3"></script>
+    <script src="auth.js?v=11"></script>
+    <script src="script.js?v=12"></script>
 </body>
 
 </html>

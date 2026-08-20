@@ -302,7 +302,11 @@
                     </select>
                 </div>
                 <div class="filter-group">
-                    <label for="mobileNumberFilter">Mobile Number</label>
+                    <label for="mobileSearch">Search Mobile Number</label>
+                    <input type="tel" id="mobileSearch" inputmode="tel" placeholder="e.g. 0333 or +92 333...">
+                </div>
+                <div class="filter-group">
+                    <label for="mobileNumberFilter">Mobile Number Quality</label>
                     <select id="mobileNumberFilter">
                         <option value="All" selected>All Mobile Numbers</option>
                         <option value="Invalid">Missing / Not 11 Digits</option>
@@ -338,7 +342,7 @@
                             <th>Student Name</th>
                             <th>Class</th>
                             <th>Father Name</th>
-                            <th>Father Mobile</th>
+                            <th>Primary Mobile</th>
                             <th>WhatsApp</th>
                             <th>WhatsApp Group</th>
                             <th>Added On</th>
@@ -355,8 +359,8 @@
             </div>
         </div>
     </div>
-    <script src="auth.js"></script>
-    <script src="students.js?v=6"></script>
+    <script src="auth.js?v=11"></script>
+    <script src="students.js?v=8"></script>
 </body>
 
 </html>

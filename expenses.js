@@ -1,5 +1,15 @@
 let expenseChart = null;
 
+function requireExpenseSchoolId() {
+    const schoolId = window.currentSchoolId || null;
+    if (!schoolId) throw new Error('School could not be identified. Refresh and sign in again.');
+    return schoolId;
+}
+
+function scopeExpenseQuery(query) {
+    return query.eq('school_id', requireExpenseSchoolId());
+}
+
 window.onAppReady(() => {
     const checkAuth = setInterval(() => {
         if (window.authReady) {
@@ -14,6 +24,12 @@ window.onAppReady(() => {
 });
 
 function initExpenseModule() {
+    try {
+        requireExpenseSchoolId();
+    } catch (error) {
+        showToast(error.message, 'error');
+        return;
+    }
     const kn = karachiNow();
     const fmtDate = (y, m, d) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     const firstDay = fmtDate(kn.year, kn.month + 1, 1);
@@ -43,11 +59,11 @@ async function loadExpenseData() {
     document.getElementById('expenseSubtitle').textContent = 'Loading...';
 
     try {
-        const { data: expensesData, error: expErr } = await window.supabaseClient
+        const { data: expensesData, error: expErr } = await scopeExpenseQuery(window.supabaseClient
             .from('expenses')
             .select('id, category, amount, expense_date, description')
             .gte('expense_date', start)
-            .lte('expense_date', end);
+            .lte('expense_date', end));
         if (expErr) throw expErr;
 
         processAndRender(expensesData);
@@ -115,7 +131,10 @@ function renderTable(tbodyId, items) {
 window.deleteExpenseRecord = async function(id) {
     if (!confirm('Delete this record permanently?')) return;
     try {
-        const { error } = await window.supabaseClient.from('expenses').delete().eq('id', id);
+        const { error } = await scopeExpenseQuery(window.supabaseClient
+            .from('expenses')
+            .delete()
+            .eq('id', id));
         if (error) throw error;
         showToast('Record deleted.', 'success');
         loadExpenseData();
@@ -135,8 +154,10 @@ window.editExpenseRecord = async function(id, currentAmount, currentDesc) {
     if (newDesc === null) return;
 
     try {
-        const { error } = await window.supabaseClient.from('expenses')
-            .update({ amount: parseFloat(newAmount), description: newDesc }).eq('id', id);
+        const { error } = await scopeExpenseQuery(window.supabaseClient
+            .from('expenses')
+            .update({ amount: parseFloat(newAmount), description: newDesc })
+            .eq('id', id));
         if (error) throw error;
         showToast('Record updated successfully!', 'success');
         loadExpenseData();
@@ -207,6 +228,8 @@ async function handleAddExpense(e) {
     btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
 
     const payload = {
+        school_id: requireExpenseSchoolId(),
+        ...(window.campusFeatureReady && window.currentCampusId ? { campus_id: window.currentCampusId } : {}),
         category: document.getElementById('expCategory').value,
         amount: parseFloat(document.getElementById('expAmount').value),
         expense_date: document.getElementById('expDate').value,

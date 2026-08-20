@@ -15,6 +15,36 @@ document.addEventListener('DOMContentLoaded', () => {
     
     let editingStudentRecordId = null;
     let originalSubmitBtnHtml = '';
+    let admissionSearchRequestId = 0;
+
+    const CONTACT_SOURCE_DEFAULTS = {
+        primary_mobile_source: 'fatherMobile',
+        whatsapp_source: 'fatherWhatsapp'
+    };
+
+    function parseContactPreferences(value) {
+        try {
+            const parsed = JSON.parse(String(value || ''));
+            if (parsed && parsed.type === 'admission_contacts_v1') return parsed;
+        } catch (_) {}
+        return { type: 'admission_contacts_v1', ...CONTACT_SOURCE_DEFAULTS };
+    }
+
+    function setContactChoice(groupName, source, fallback) {
+        const wanted = source || fallback;
+        const selected = form.querySelector(`input[name="${groupName}"][value="${wanted}"]`)
+            || form.querySelector(`input[name="${groupName}"][value="${fallback}"]`);
+        if (selected) selected.checked = true;
+    }
+
+    function resetContactChoices() {
+        setContactChoice('primaryMobileSource', CONTACT_SOURCE_DEFAULTS.primary_mobile_source, 'fatherMobile');
+        setContactChoice('whatsappSource', CONTACT_SOURCE_DEFAULTS.whatsapp_source, 'fatherWhatsapp');
+    }
+
+    function getSelectedContactSource(groupName, fallback) {
+        return form.querySelector(`input[name="${groupName}"]:checked`)?.value || fallback;
+    }
     
     // Fetch and populate classes dynamically
     const classSelect = document.getElementById('admissionClass');
@@ -63,8 +93,448 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     loadClasses();
+
+    // Load only sessions belonging to the signed-in school. The newest saved
+    // session is treated as the current session for new admissions.
+    const sessionSelect = document.getElementById('session');
+    async function loadSchoolSessions() {
+        if (!sessionSelect) return;
+        const schoolId = getAdmissionSchoolId();
+        if (!schoolId) {
+            sessionSelect.innerHTML = '<option value="" disabled selected>School session unavailable</option>';
+            return;
+        }
+        try {
+            const { data, error } = await supabaseClient
+                .from('session')
+                .select('id, session_value, created_at')
+                .eq('school_id', schoolId)
+                .order('created_at', { ascending: false });
+            if (error) throw error;
+
+            const sessions = data || [];
+            sessionSelect.innerHTML = '';
+            if (!sessions.length) {
+                sessionSelect.innerHTML = '<option value="" disabled selected>No school sessions configured</option>';
+                return;
+            }
+            sessions.forEach((item, index) => {
+                const option = document.createElement('option');
+                option.value = item.session_value;
+                option.textContent = `${item.session_value}${index === 0 ? ' (Current)' : ''}`;
+                option.selected = index === 0;
+                option.defaultSelected = index === 0;
+                sessionSelect.appendChild(option);
+            });
+        } catch (error) {
+            console.error('Could not load school sessions:', error);
+            sessionSelect.innerHTML = '<option value="" disabled selected>Could not load school sessions</option>';
+        }
+    }
+    loadSchoolSessions();
     
     let baseMonthlyFee = 0;
+    let admissionFeeHeadTypes = [];
+    let admissionFeeHeadConfigs = [];
+    let admissionFeeHeadTypeRules = new Map();
+    const admissionChallanRows = document.getElementById('admissionChallanRows');
+    const addAdmissionChallanBtn = document.getElementById('addAdmissionChallanBtn');
+    const admissionChallanSummary = document.getElementById('admissionChallanSummary');
+    const admissionChallanCount = document.getElementById('admissionChallanCount');
+    const admissionChallanTotal = document.getElementById('admissionChallanTotal');
+    const admissionChallanDiscountTotal = document.getElementById('admissionChallanDiscountTotal');
+
+    function karachiDateParts() {
+        const parts = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Karachi', year: 'numeric', month: '2-digit', day: '2-digit'
+        }).formatToParts(new Date());
+        const value = type => parts.find(part => part.type === type)?.value || '';
+        return { year: value('year'), month: value('month'), day: value('day') };
+    }
+
+    function karachiIsoDate() {
+        const { year, month, day } = karachiDateParts();
+        return `${year}-${month}-${day}`;
+    }
+
+    function karachiMonthValue() {
+        const { year, month } = karachiDateParts();
+        return `${year}-${month}`;
+    }
+
+    function formatFeeMonth(value) {
+        const match = String(value || '').match(/^(\d{4})-(\d{2})$/);
+        if (!match) return null;
+        return new Intl.DateTimeFormat('en-US', {
+            month: 'long', year: 'numeric', timeZone: 'UTC'
+        }).format(new Date(`${match[1]}-${match[2]}-01T00:00:00Z`));
+    }
+
+    function selectedAdmissionClassId() {
+        return classSelect?.options[classSelect.selectedIndex]?.dataset?.classId || null;
+    }
+
+    function applicableFeeHeadConfig(feeType) {
+        const classId = selectedAdmissionClassId();
+        return admissionFeeHeadConfigs.find(item => item.fee_type === feeType && item.class_id === classId)
+            || admissionFeeHeadConfigs.find(item => item.fee_type === feeType && !item.class_id)
+            || null;
+    }
+
+    function populateAdmissionFeeHeadSelect(select, selectedValue = '') {
+        select.innerHTML = '<option value="">-- Select Fee Head --</option>';
+        if (selectedValue && !admissionFeeHeadTypes.includes(selectedValue)) {
+            const preserved = document.createElement('option');
+            preserved.value = selectedValue;
+            preserved.textContent = `${selectedValue} — assigned service`;
+            select.appendChild(preserved);
+        }
+        admissionFeeHeadTypes.forEach(type => {
+            const option = document.createElement('option');
+            option.value = type;
+            const assignedOnly = admissionFeeHeadTypeRules.get(type)?.requiresStudentAssignment;
+            option.textContent = `${type}${assignedOnly ? ' — assigned service' : ''}`;
+            option.selected = type === selectedValue;
+            select.appendChild(option);
+        });
+    }
+
+    function updateAdmissionChallanSummary() {
+        if (!admissionChallanRows) return;
+        const completeRows = [...admissionChallanRows.querySelectorAll('.admission-challan-row')]
+            .filter(row => row.querySelector('.admission-challan-type')?.value);
+        let total = 0;
+        let discountTotal = 0;
+        completeRows.forEach(row => {
+            const baseAmount = Math.max(0, Number(row.querySelector('.admission-challan-amount')?.value) || 0);
+            const requestedDiscount = Math.max(0, Number(row.querySelector('.admission-challan-discount')?.value) || 0);
+            const discount = Math.min(baseAmount, requestedDiscount);
+            const payable = Math.max(0, baseAmount - discount);
+            const payableInput = row.querySelector('.admission-challan-payable');
+            if (payableInput) payableInput.value = payable;
+            discountTotal += discount;
+            total += payable;
+        });
+        if (admissionChallanCount) admissionChallanCount.textContent = completeRows.length;
+        if (admissionChallanTotal) admissionChallanTotal.textContent = total.toLocaleString('en-PK');
+        if (admissionChallanDiscountTotal) admissionChallanDiscountTotal.textContent = discountTotal.toLocaleString('en-PK');
+        if (admissionChallanSummary) admissionChallanSummary.style.display = completeRows.length ? 'flex' : 'none';
+    }
+
+    function applyAdmissionChallanType(row, keepUserAmount = false) {
+        const select = row.querySelector('.admission-challan-type');
+        const amountInput = row.querySelector('.admission-challan-amount');
+        const monthGroup = row.querySelector('.admission-challan-month-group');
+        const monthInput = row.querySelector('.admission-challan-month');
+        const config = applicableFeeHeadConfig(select?.value || '');
+        const requiresStudentAssignment = Boolean(admissionFeeHeadTypeRules.get(select?.value || '')?.requiresStudentAssignment);
+        const isMonthly = requiresStudentAssignment || Boolean(config?.is_monthly) || /monthly/i.test(select?.value || '');
+        row.dataset.requiresStudentAssignment = requiresStudentAssignment ? 'true' : 'false';
+        row.dataset.isMonthly = isMonthly ? 'true' : 'false';
+        if (monthGroup) monthGroup.style.display = isMonthly ? 'flex' : 'none';
+        if (isMonthly && monthInput && !monthInput.value) monthInput.value = karachiMonthValue();
+        if (!isMonthly && monthInput) monthInput.value = '';
+        if (amountInput && !keepUserAmount) {
+            amountInput.value = config?.amount !== null && config?.amount !== undefined
+                ? Number(config.amount)
+                : '';
+        }
+        updateAdmissionChallanSummary();
+    }
+
+    function addAdmissionChallanRow(initial = {}) {
+        if (!admissionChallanRows) return;
+        const row = document.createElement('div');
+        row.className = 'admission-challan-row';
+        row.dataset.existingAssignment = initial.existingAssignment ? 'true' : 'false';
+        row.innerHTML = `
+            <div class="input-group">
+                <label>Fee Head * ${initial.existingAssignment ? '<span style="color:#15803d;font-size:0.72rem;">Assigned</span>' : ''}</label>
+                <select class="admission-challan-type"></select>
+            </div>
+            <div class="input-group">
+                <label>Base Amount (Rs) *</label>
+                <input type="number" min="0.01" step="0.01" class="admission-challan-amount" placeholder="e.g. 3000">
+            </div>
+            <div class="input-group">
+                <label>Discount (Rs)</label>
+                <input type="number" min="0" step="0.01" class="admission-challan-discount" value="0" placeholder="0">
+            </div>
+            <div class="input-group">
+                <label>Payable (Rs)</label>
+                <input type="number" class="admission-challan-payable" value="0" readonly tabindex="-1" style="background:#ecfdf5;color:#166534;font-weight:800;">
+            </div>
+            <div class="input-group admission-challan-month-group" style="display:none;">
+                <label>Fee Month *</label>
+                <input type="month" class="admission-challan-month">
+            </div>
+            <div class="input-group">
+                <label>Due Date *</label>
+                <input type="date" class="admission-challan-due-date">
+            </div>
+            <button type="button" class="remove-admission-challan" title="Remove this challan">✕</button>
+        `;
+        const typeSelect = row.querySelector('.admission-challan-type');
+        const amountInput = row.querySelector('.admission-challan-amount');
+        const discountInput = row.querySelector('.admission-challan-discount');
+        const monthInput = row.querySelector('.admission-challan-month');
+        const dueDateInput = row.querySelector('.admission-challan-due-date');
+        populateAdmissionFeeHeadSelect(typeSelect, initial.feeType || '');
+        if (initial.existingAssignment) {
+            typeSelect.disabled = true;
+            typeSelect.title = 'Remove this row and add a new one to change the assigned service.';
+        }
+        if (initial.amount !== undefined) amountInput.value = initial.amount;
+        discountInput.value = Math.max(0, Number(initial.discount) || 0);
+        monthInput.value = initial.monthValue || '';
+        dueDateInput.value = initial.dueDate || document.getElementById('admissionDate')?.value || karachiIsoDate();
+
+        typeSelect.addEventListener('change', () => applyAdmissionChallanType(row, false));
+        amountInput.addEventListener('input', updateAdmissionChallanSummary);
+        discountInput.addEventListener('input', updateAdmissionChallanSummary);
+        [amountInput, discountInput].forEach(input => input.addEventListener('wheel', event => input.blur(), { passive: true }));
+        row.querySelector('.remove-admission-challan').addEventListener('click', () => {
+            row.remove();
+            updateAdmissionChallanSummary();
+        });
+        admissionChallanRows.appendChild(row);
+        if (initial.feeType) applyAdmissionChallanType(row, initial.amount !== undefined);
+        updateAdmissionChallanSummary();
+    }
+
+    function resetAdmissionChallanRows() {
+        if (admissionChallanRows) admissionChallanRows.innerHTML = '';
+        updateAdmissionChallanSummary();
+    }
+
+    function readAdmissionChallanSelections(validate = true) {
+        if (!admissionChallanRows) return [];
+        const selections = [];
+        const seenMonthly = new Set();
+        const rows = [...admissionChallanRows.querySelectorAll('.admission-challan-row')];
+        rows.forEach((row, index) => {
+            const feeType = String(row.querySelector('.admission-challan-type')?.value || '').trim();
+            const baseAmount = Number(row.querySelector('.admission-challan-amount')?.value);
+            const discount = Number(row.querySelector('.admission-challan-discount')?.value) || 0;
+            const amount = baseAmount - discount;
+            const dueDate = row.querySelector('.admission-challan-due-date')?.value || '';
+            const isMonthly = row.dataset.isMonthly === 'true';
+            const monthValue = row.querySelector('.admission-challan-month')?.value || '';
+            const feeMonth = isMonthly ? formatFeeMonth(monthValue) : null;
+
+            if (!feeType && !baseAmount) {
+                if (validate) throw new Error(`Select a Fee Head in additional challan row ${index + 1}, or remove that row.`);
+                return;
+            }
+            if (!feeType) {
+                if (validate) throw new Error(`Select a Fee Head in additional challan row ${index + 1}.`);
+                return;
+            }
+            if (!Number.isFinite(baseAmount) || baseAmount <= 0) {
+                if (validate) throw new Error(`Enter a valid amount for ${feeType}.`);
+                return;
+            }
+            if (!Number.isFinite(discount) || discount < 0) {
+                if (validate) throw new Error(`Enter a valid discount for ${feeType}.`);
+                return;
+            }
+            if (discount > baseAmount) {
+                if (validate) throw new Error(`${feeType} discount cannot be greater than its base amount.`);
+                return;
+            }
+            if (!dueDate) {
+                if (validate) throw new Error(`Select a due date for ${feeType}.`);
+                return;
+            }
+            if (isMonthly && !feeMonth) {
+                if (validate) throw new Error(`Select a fee month for ${feeType}.`);
+                return;
+            }
+            if (isMonthly) {
+                const duplicateKey = `${feeType.toLowerCase()}|${feeMonth}`;
+                if (seenMonthly.has(duplicateKey)) {
+                    if (validate) throw new Error(`${feeType} for ${feeMonth} was added more than once.`);
+                    return;
+                }
+                seenMonthly.add(duplicateKey);
+            }
+            selections.push({
+                feeType,
+                amount,
+                baseAmount,
+                discount,
+                dueDate,
+                isMonthly,
+                feeMonth,
+                monthValue,
+                requiresStudentAssignment: row.dataset.requiresStudentAssignment === 'true',
+                createChallan: row.dataset.existingAssignment !== 'true'
+            });
+        });
+        return selections;
+    }
+
+    async function loadAdmissionFeeHeadCatalog() {
+        try {
+            const [typesResult, configsResult] = await Promise.all([
+                applySchoolScope(supabaseClient.from('fee_head_types').select('name, requires_student_assignment').order('name')),
+                applySchoolScope(supabaseClient.from('fee_heads').select('class_id, fee_type, amount, is_monthly'))
+            ]);
+            if (typesResult.error) throw typesResult.error;
+            if (configsResult.error) throw configsResult.error;
+            admissionFeeHeadConfigs = configsResult.data || [];
+            admissionFeeHeadTypeRules = new Map((typesResult.data || []).map(item => [item.name, {
+                requiresStudentAssignment: Boolean(item.requires_student_assignment)
+            }]));
+            admissionFeeHeadTypes = [...new Set([
+                ...(typesResult.data || []).map(item => item.name),
+                ...admissionFeeHeadConfigs.map(item => item.fee_type)
+            ].filter(Boolean))].sort((a, b) => a.localeCompare(b));
+        } catch (error) {
+            console.error('Could not load admission fee-head catalog:', error);
+            admissionFeeHeadTypes = [];
+            admissionFeeHeadConfigs = [];
+            admissionFeeHeadTypeRules = new Map();
+        }
+    }
+
+    async function createAdmissionChallans(studentDbId, formData, selections) {
+        let challanSelections = selections.filter(item => item.createChallan !== false);
+        if (!studentDbId || !challanSelections.length) return 0;
+
+        const monthlySelections = challanSelections.filter(item => item.isMonthly);
+        if (monthlySelections.length) {
+            const { data: existing, error: existingError } = await applySchoolScope(supabaseClient
+                .from('challans')
+                .select('fee_type, fee_month')
+                .eq('student_id', studentDbId));
+            if (existingError) throw existingError;
+            const existingKeys = new Set((existing || []).map(item => `${String(item.fee_type).toLowerCase()}|${item.fee_month || ''}`));
+            challanSelections = challanSelections.filter(item => !item.isMonthly
+                || !existingKeys.has(`${item.feeType.toLowerCase()}|${item.feeMonth}`));
+        }
+
+        if (!challanSelections.length) return 0;
+
+        const issueDate = formData.admission_date || karachiIsoDate();
+        const payload = challanSelections.map(item => ({
+            student_id: studentDbId,
+            roll_number: formData.roll_number,
+            student_name: formData.full_name,
+            father_name: formData.father_name || 'N/A',
+            class_name: formData.applying_for_class,
+            fee_type: item.feeType,
+            amount: item.amount,
+            base_amount: item.baseAmount,
+            assigned_discount: item.discount,
+            paid_amount: 0,
+            fee_month: item.isMonthly ? item.feeMonth : null,
+            issue_date: issueDate,
+            due_date: item.dueDate,
+            status: item.amount <= 0 ? 'Paid' : 'Unpaid',
+            school_id: getAdmissionSchoolId(),
+            ...(window.campusFeatureReady && window.currentCampusId ? { campus_id: window.currentCampusId } : {})
+        }));
+
+        const { error } = await supabaseClient.from('challans').insert(payload);
+        if (error) throw error;
+        return payload.length;
+    }
+
+    async function syncStudentFeeHeadAssignments(studentDbId, selections) {
+        if (!studentDbId) return;
+        const schoolId = getAdmissionSchoolId();
+        if (!schoolId) throw new Error('School could not be identified for fee service assignments.');
+
+        const selectedServiceMap = new Map();
+        selections.filter(item => item.requiresStudentAssignment).forEach(item => {
+            selectedServiceMap.set(item.feeType.toLowerCase(), item);
+        });
+        const selectedServices = [...selectedServiceMap.values()];
+        const selectedKeys = new Set(selectedServices.map(item => item.feeType.toLowerCase()));
+        const { data: existing, error: existingError } = await applySchoolScope(supabaseClient
+            .from('student_fee_head_assignments')
+            .select('id, fee_type, is_active')
+            .eq('student_id', studentDbId));
+        if (existingError) {
+            throw new Error(`Fee service assignments are not installed. Run student_fee_head_assignments_setup.sql first. (${existingError.message})`);
+        }
+
+        const deactivateIds = (existing || [])
+            .filter(item => item.is_active && !selectedKeys.has(String(item.fee_type || '').toLowerCase()))
+            .map(item => item.id);
+        if (deactivateIds.length) {
+            const { error } = await applySchoolScope(supabaseClient
+                .from('student_fee_head_assignments')
+                .update({ is_active: false })
+                .in('id', deactivateIds));
+            if (error) throw error;
+        }
+
+        if (!selectedServices.length) return;
+        const payload = selectedServices.map(item => ({
+            ...(function () {
+                const configuredAmount = applicableFeeHeadConfig(item.feeType)?.amount;
+                const useConfiguredAmount = configuredAmount !== null
+                    && configuredAmount !== undefined
+                    && Number(configuredAmount) === Number(item.baseAmount);
+                return {
+                    amount_override: useConfiguredAmount ? null : item.baseAmount,
+                    discount_amount: item.discount
+                };
+            })(),
+            school_id: schoolId,
+            ...(window.campusFeatureReady && window.currentCampusId ? { campus_id: window.currentCampusId } : {}),
+            student_id: studentDbId,
+            fee_type: item.feeType,
+            is_active: true,
+            created_by: window.currentUser?.id || null
+        }));
+        const { error } = await supabaseClient
+            .from('student_fee_head_assignments')
+            .upsert(payload, { onConflict: 'school_id,student_id,fee_type' });
+        if (error) throw error;
+    }
+
+    async function loadStudentFeeHeadAssignments(studentDbId) {
+        resetAdmissionChallanRows();
+        if (!studentDbId) return;
+        const { data, error } = await applySchoolScope(supabaseClient
+            .from('student_fee_head_assignments')
+            .select('fee_type, amount_override, discount_amount')
+            .eq('student_id', studentDbId)
+            .eq('is_active', true)
+            .order('created_at'));
+        if (error) {
+            console.error('Could not load student fee service assignments:', error);
+            return;
+        }
+        (data || []).forEach(item => {
+            if (!admissionFeeHeadTypes.includes(item.fee_type)) admissionFeeHeadTypes.push(item.fee_type);
+            admissionFeeHeadTypeRules.set(item.fee_type, { requiresStudentAssignment: true });
+            addAdmissionChallanRow({
+                feeType: item.fee_type,
+                amount: item.amount_override != null
+                    ? item.amount_override
+                    : applicableFeeHeadConfig(item.fee_type)?.amount,
+                discount: item.discount_amount,
+                monthValue: karachiMonthValue(),
+                dueDate: document.getElementById('admissionDate')?.value || karachiIsoDate(),
+                existingAssignment: true
+            });
+        });
+    }
+
+    if (addAdmissionChallanBtn) {
+        addAdmissionChallanBtn.addEventListener('click', () => {
+            if (!admissionFeeHeadTypes.length) {
+                alert('No fee-head types are available. Add them in Fee Heads Management first.');
+                return;
+            }
+            addAdmissionChallanRow();
+        });
+    }
+    loadAdmissionFeeHeadCatalog();
 
     // Auto-fetch fees when class is selected
     window.isPopulatingForm = false; // Flag to prevent auto-fetch during population
@@ -78,10 +548,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (admissionFeeInput) admissionFeeInput.placeholder = "Loading...";
             }
 
-            const { data, error } = await supabaseClient
+            let feeQuery = applySchoolScope(supabaseClient
                 .from('fee_heads')
-                .select('*')
-                .eq('class_id', classId);
+                .select('*'));
+            const { data, error } = await feeQuery.or(`class_id.eq.${classId},class_id.is.null`);
                 
             if (error) throw error;
             
@@ -89,13 +559,17 @@ document.addEventListener('DOMContentLoaded', () => {
             let admissionTotal = 0;
 
             if (data && data.length > 0) {
-                data.forEach(fee => {
-                    const isMonthlyType = fee.is_monthly || (fee.fee_type && fee.fee_type.toLowerCase().includes('monthly'));
-                    if (isMonthlyType) {
-                        monthlyTotal += fee.amount;
-                    } else {
-                        // All non-monthly fees added to Admission Fee
-                        admissionTotal += fee.amount;
+                const feesByType = new Map();
+                data.filter(fee => !fee.class_id).forEach(fee => feesByType.set(fee.fee_type, fee));
+                data.filter(fee => fee.class_id === classId).forEach(fee => feesByType.set(fee.fee_type, fee));
+                feesByType.forEach(fee => {
+                    const normalizedFeeType = String(fee.fee_type || '').trim().toLowerCase();
+                    if (normalizedFeeType === 'monthly fee') {
+                        monthlyTotal += Number(fee.amount || 0);
+                    } else if (normalizedFeeType === 'admission fee') {
+                        // Optional one-time heads such as Transport, Hostel and
+                        // Books are added explicitly below, not forced on everyone.
+                        admissionTotal += Number(fee.amount || 0);
                     }
                 });
             }
@@ -128,6 +602,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!classId) return;
         
         await updateFeesForClass(classId, true);
+        admissionChallanRows?.querySelectorAll('.admission-challan-row').forEach(row => {
+            applyAdmissionChallanType(row, Boolean(row.querySelector('.admission-challan-amount')?.value));
+        });
     });
 
     const btnLoadClassFees = document.getElementById('btnLoadClassFees');
@@ -229,27 +706,54 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     fetchLastAdmittedRoll();
     
-    // Auto age calculation
+    // Auto age calculation (uses date parts instead of UTC date parsing)
     const dobInput = document.getElementById('dob');
     const ageInput = document.getElementById('age');
-    
-    dobInput.addEventListener('change', () => {
-        if(dobInput.value) {
-            const dob = new Date(dobInput.value);
-            const today = new Date();
-            let age = today.getFullYear() - dob.getFullYear();
-            const m = today.getMonth() - dob.getMonth();
-            if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
-                age--;
-            }
-            ageInput.value = `${age} years`;
-        } else {
-            ageInput.value = '';
+
+    function getKarachiDateParts() {
+        const parts = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Karachi', year: 'numeric', month: '2-digit', day: '2-digit'
+        }).formatToParts(new Date());
+        const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+        return { year: Number(values.year), month: Number(values.month), day: Number(values.day) };
+    }
+
+    function calculateStudentAge() {
+        const match = String(dobInput?.value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (!match) {
+            if (ageInput) ageInput.value = '';
+            return;
         }
-    });
+        const birth = { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) };
+        const today = getKarachiDateParts();
+        const isFuture = birth.year > today.year
+            || (birth.year === today.year && birth.month > today.month)
+            || (birth.year === today.year && birth.month === today.month && birth.day > today.day);
+        if (isFuture) {
+            ageInput.value = 'Invalid future date';
+            return;
+        }
+
+        let years = today.year - birth.year;
+        let months = today.month - birth.month;
+        if (today.day < birth.day) months--;
+        if (months < 0) {
+            years--;
+            months += 12;
+        }
+        ageInput.value = `${years} year${years === 1 ? '' : 's'}, ${months} month${months === 1 ? '' : 's'}`;
+    }
+
+    if (dobInput && ageInput) {
+        const today = getKarachiDateParts();
+        dobInput.max = `${today.year}-${String(today.month).padStart(2, '0')}-${String(today.day).padStart(2, '0')}`;
+        dobInput.addEventListener('input', calculateStudentAge);
+        dobInput.addEventListener('change', calculateStudentAge);
+    }
     // Set admission date to today by default (Asia/Karachi timezone)
     const admissionDateInput = document.getElementById('admissionDate');
-    if (admissionDateInput) {
+    function setAdmissionDateToToday() {
+        if (!admissionDateInput) return;
         const parts = new Intl.DateTimeFormat('en-US', { 
             timeZone: 'Asia/Karachi', 
             year: 'numeric', 
@@ -262,6 +766,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const d = parts.find(p => p.type === 'day').value;
         admissionDateInput.value = `${y}-${m}-${d}`;
     }
+    setAdmissionDateToToday();
 
     // Photo Preview + Compression
     const photoInput       = document.getElementById('studentPhoto');
@@ -556,8 +1061,121 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Print Form
     const printBtn = document.getElementById('printBtn');
+    const admissionPrintSheet = document.getElementById('admissionPrintSheet');
+
+    function escapePrintHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, character => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[character]));
+    }
+
+    function printValue(id, fallback = '\u2014') {
+        const element = document.getElementById(id);
+        const value = String(element?.value || '').trim();
+        return escapePrintHtml(value || fallback);
+    }
+
+    function printDateValue(id) {
+        const value = String(document.getElementById(id)?.value || '').trim();
+        const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        return match ? `${match[3]}/${match[2]}/${match[1]}` : escapePrintHtml(value || '\u2014');
+    }
+
+    function selectedContactValue(groupName, fallbackSource) {
+        const source = getSelectedContactSource(groupName, fallbackSource);
+        return String(document.getElementById(source)?.value || '').trim() || '\u2014';
+    }
+
+    function buildAdmissionPrintSheet() {
+        if (!admissionPrintSheet) return;
+        const photo = document.getElementById('studentPhotoPreviewImg');
+        const hasPhoto = Boolean(photo?.src && document.getElementById('photoPreviewBox')?.classList.contains('has-photo'));
+        const schoolName = escapePrintHtml(window.currentSchoolName || 'Zahid School');
+        const printedOn = new Date().toLocaleString('en-PK', {
+            dateStyle: 'medium', timeStyle: 'short', hour12: true, timeZone: 'Asia/Karachi'
+        });
+        const money = id => {
+            const value = String(document.getElementById(id)?.value || '').trim();
+            return value ? `Rs ${Number(value).toLocaleString('en-PK')}` : '\u2014';
+        };
+        const selectedChallans = readAdmissionChallanSelections(false);
+        const additionalChallansPrint = selectedChallans.length ? `
+            <div class="admission-print-section">Student-Specific Fee Head Challans</div>
+            <table class="admission-print-table">
+                <tr><th>Fee Head</th><th>Base</th><th>Discount</th><th>Payable</th><th>Fee Month</th><th>Due Date</th></tr>
+                ${selectedChallans.map(item => `
+                    <tr>
+                        <td>${escapePrintHtml(item.feeType)}</td>
+                        <td>Rs ${Number(item.baseAmount).toLocaleString('en-PK')}</td>
+                        <td>Rs ${Number(item.discount).toLocaleString('en-PK')}</td>
+                        <td>Rs ${Number(item.amount).toLocaleString('en-PK')}</td>
+                        <td>${escapePrintHtml(item.feeMonth || '\u2014')}</td>
+                        <td>${escapePrintHtml(item.dueDate)}</td>
+                    </tr>
+                `).join('')}
+                <tr>
+                    <th colspan="5">Additional Challan Payable Total</th>
+                    <td><strong>Rs ${selectedChallans.reduce((sum, item) => sum + item.amount, 0).toLocaleString('en-PK')}</strong></td>
+                </tr>
+            </table>
+        ` : '';
+
+        admissionPrintSheet.innerHTML = `
+            <div class="admission-print-head">
+                <div style="width:72px;flex:0 0 72px;"></div>
+                <div class="admission-print-title">
+                    <h1>${schoolName}</h1>
+                    <h2>Student Admission Form</h2>
+                    <p>Printed: ${escapePrintHtml(printedOn)}</p>
+                </div>
+                <div class="admission-print-photo">${hasPhoto ? `<img src="${escapePrintHtml(photo.src)}" alt="Student Photo">` : 'Student<br>Photo'}</div>
+            </div>
+
+            <div class="admission-print-section">Student and Admission Details</div>
+            <table class="admission-print-table">
+                <tr><th>Student ID</th><td>${printValue('studentId')}</td><th>Roll Number</th><td>${printValue('rollNumber')}</td></tr>
+                <tr><th>Student Name</th><td colspan="3"><strong>${printValue('fullName')}</strong></td></tr>
+                <tr><th>Date of Birth</th><td>${printDateValue('dob')}</td><th>Age</th><td>${printValue('age')}</td></tr>
+                <tr><th>Gender</th><td>${printValue('gender')}</td><th>Place of Birth</th><td>${printValue('placeOfBirth')}</td></tr>
+                <tr><th>Class</th><td>${printValue('admissionClass')}</td><th>Session</th><td>${printValue('session')}</td></tr>
+                <tr><th>Admission Date</th><td>${printDateValue('admissionDate')}</td><th>Status</th><td>${printValue('status')}</td></tr>
+            </table>
+
+            <div class="admission-print-section">Parent, Guardian and Contact Details</div>
+            <table class="admission-print-table">
+                <tr><th>Father Name</th><td>${printValue('fatherName')}</td><th>Father CNIC</th><td>${printValue('fatherCnic')}</td></tr>
+                <tr><th>Occupation</th><td>${printValue('fatherOcc')}</td><th>Mobile 1</th><td>${printValue('fatherMobile')}</td></tr>
+                <tr><th>Mobile 2</th><td>${printValue('fatherMobile2')}</td><th>Father WhatsApp</th><td>${printValue('fatherWhatsapp')}</td></tr>
+                <tr><th>Mother Name</th><td>${printValue('motherName')}</td><th>Mother CNIC</th><td>${printValue('motherCnic')}</td></tr>
+                <tr><th>Occupation</th><td>${printValue('motherOcc')}</td><th>Mother Mobile 1</th><td>${printValue('motherMobile')}</td></tr>
+                <tr><th>Mother Mobile 2</th><td>${printValue('motherMobile2')}</td><th>Primary Mobile</th><td><strong>${escapePrintHtml(selectedContactValue('primaryMobileSource', 'fatherMobile'))}</strong></td></tr>
+                <tr><th>Guardian</th><td>${printValue('guardianName')}</td><th>Relationship</th><td>${printValue('guardianRel')}</td></tr>
+                <tr><th>Guardian Contact</th><td>${printValue('guardianContact')}</td><th>Selected WhatsApp</th><td><strong>${escapePrintHtml(selectedContactValue('whatsappSource', 'fatherWhatsapp'))}</strong></td></tr>
+                <tr><th>Home Address</th><td colspan="3">${printValue('address')}</td></tr>
+            </table>
+
+            <div class="admission-print-section">Academic, Medical, Note and Fees</div>
+            <table class="admission-print-table">
+                <tr><th>Last School</th><td>${printValue('lastSchool')}</td><th>Class Passed</th><td>${printValue('classPassed')}</td></tr>
+                <tr><th>Transfer Certificate</th><td>${printValue('transferCert')}</td><th>Medical Condition</th><td>${printValue('medicalCondition')}</td></tr>
+                <tr><th>Admission Note</th><td colspan="3">${printValue('admissionNote')}</td></tr>
+                <tr><th>Admission Fee</th><td>${escapePrintHtml(money('admissionFee'))}</td><th>Monthly Fee</th><td>${escapePrintHtml(money('monthlyFee'))}</td></tr>
+                <tr><th>Discount</th><td>${escapePrintHtml(money('discount'))}</td><th>Final Monthly Fee</th><td>${escapePrintHtml(money('monthlyFee'))}</td></tr>
+            </table>
+            ${additionalChallansPrint}
+
+            <div class="admission-print-signatures">
+                <div>Parent / Guardian Signature</div>
+                <div>Admission Officer</div>
+                <div>Principal Signature</div>
+            </div>
+            <div class="admission-print-footer">This admission record belongs to ${schoolName}.</div>
+        `;
+    }
+
     if(printBtn) {
         printBtn.addEventListener('click', () => {
+            buildAdmissionPrintSheet();
             window.print();
         });
     }
@@ -648,6 +1266,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let searchTimeout;
     if (searchQueryInput) {
         searchQueryInput.addEventListener('input', () => {
+            // Invalidate any result still returning for the previous text.
+            admissionSearchRequestId++;
             clearTimeout(searchTimeout);
             searchTimeout = setTimeout(() => {
                 if (searchStudentBtn) searchStudentBtn.click();
@@ -665,14 +1285,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (searchStudentBtn) {
         searchStudentBtn.addEventListener('click', async () => {
             const query = searchQueryInput.value.trim();
+            const requestId = ++admissionSearchRequestId;
             if (!query) {
                 searchResultsContainer.style.display = 'none';
                 searchResultsContainer.innerHTML = '';
+                searchStudentBtn.textContent = 'Search';
                 return;
             }
             
             searchStudentBtn.textContent = 'Searching...';
-            searchStudentBtn.disabled = true;
             searchResultsContainer.style.display = 'none';
             searchResultsContainer.innerHTML = '';
             
@@ -680,10 +1301,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const safeQuery = query.replace(/[,\(\)]/g, ' ').trim();
             
             try {
-                const { data, error } = await applySchoolScope(supabaseClient
+                let studentQuery = applySchoolScope(supabaseClient
                     .from('admissions')
-                    .select('*')
-                    .or(`full_name.ilike.%${safeQuery}%,roll_number.eq.${safeQuery}`));
+                    .select('*'));
+                studentQuery = /^\d+$/.test(safeQuery)
+                    ? studentQuery.eq('roll_number', safeQuery)
+                    : studentQuery.ilike('full_name', `%${safeQuery}%`);
+                const { data, error } = await studentQuery;
+
+                // Ignore an older request that completed after a newer search.
+                if (requestId !== admissionSearchRequestId) return;
                     
                 if (error) throw error;
                 
@@ -714,11 +1341,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     searchResultsContainer.innerHTML = `<p style="margin:0; color:#ef4444;">No students found matching "${query}".</p>`;
                 }
             } catch (err) {
+                if (requestId !== admissionSearchRequestId) return;
                 console.error('Error searching students:', err);
                 alert('Error searching students. See console for details.');
             } finally {
-                searchStudentBtn.textContent = 'Search';
-                searchStudentBtn.disabled = false;
+                if (requestId === admissionSearchRequestId) {
+                    searchStudentBtn.textContent = 'Search';
+                }
             }
         });
     }
@@ -726,6 +1355,9 @@ document.addEventListener('DOMContentLoaded', () => {
     async function populateFormForEditing(student) {
         window.isPopulatingForm = true;
         editingStudentRecordId = student.id;
+        // Existing paid/unpaid challans remain unchanged. Persistent optional
+        // services are loaded below so they can be kept, edited, or removed.
+        resetAdmissionChallanRows();
         
         const setVal = (id, val) => {
             const el = document.getElementById(id);
@@ -745,7 +1377,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setVal('dob', student.dob);
         setVal('gender', student.gender);
         setVal('placeOfBirth', student.place_of_birth);
-        setVal('bformNumber', student.bform_number);
+        setVal('admissionNote', student.bform_number);
         setVal('address', student.home_address);
         
         setVal('fatherName', student.father_name);
@@ -762,6 +1394,12 @@ document.addEventListener('DOMContentLoaded', () => {
         setVal('guardianName', student.guardian_name);
         setVal('guardianRel', student.guardian_rel);
         setVal('guardianContact', student.guardian_contact);
+
+        const contactPreferences = parseContactPreferences(student.campus);
+        setVal('fatherMobile2', contactPreferences.father_mobile_2);
+        setVal('motherMobile2', contactPreferences.mother_mobile_2);
+        setContactChoice('primaryMobileSource', contactPreferences.primary_mobile_source, 'fatherMobile');
+        setContactChoice('whatsappSource', contactPreferences.whatsapp_source, 'fatherWhatsapp');
         
         setVal('lastSchool', student.last_school);
         setVal('classPassed', student.class_passed);
@@ -781,15 +1419,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         setVal('session', student.session);
         setVal('admissionDate', student.admission_date);
-        setVal('campus', student.campus);
         setVal('medicalCondition', student.medical_condition);
         
         // Set fee fields after class defaults are loaded safely
         setVal('admissionFee', student.admission_fee);
         setVal('monthlyFee', student.monthly_fee);
         setVal('discount', student.discount);
-        
-        setVal('siblingInSchool', student.sibling_in_school);
+
+        await loadAdmissionFeeHeadCatalog();
+        await loadStudentFeeHeadAssignments(student.id);
         
         window.isPopulatingForm = false;
 
@@ -819,6 +1457,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
+        const continueWithSibling = e.submitter?.id === 'saveSiblingBtn';
         
         formAlert.style.display = 'none';
         
@@ -834,11 +1473,17 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (isValid) {
             const submitBtn = document.getElementById('submitBtn');
+            const siblingSubmitBtn = document.getElementById('saveSiblingBtn');
             const originalText = submitBtn.innerHTML;
+            const originalSiblingText = siblingSubmitBtn?.innerHTML || '';
             
             submitBtn.innerHTML = '<span style="display:inline-block; animation: spin 1s linear infinite;">⏳</span> Saving to Database...';
             submitBtn.style.opacity = '0.8';
             submitBtn.style.pointerEvents = 'none';
+            if (siblingSubmitBtn) {
+                siblingSubmitBtn.disabled = true;
+                siblingSubmitBtn.style.opacity = '0.65';
+            }
             
             try {
                 // Helper to return null if empty, preventing type errors for Supabase dates/numbers
@@ -854,6 +1499,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     return val ? val.replace(/[\s\-]/g, '') : null;
                 };
 
+                const contactPreferences = {
+                    type: 'admission_contacts_v1',
+                    father_mobile_2: getMobileVal('fatherMobile2'),
+                    mother_mobile_2: getMobileVal('motherMobile2'),
+                    primary_mobile_source: getSelectedContactSource('primaryMobileSource', 'fatherMobile'),
+                    whatsapp_source: getSelectedContactSource('whatsappSource', 'fatherWhatsapp')
+                };
+
                 // Prepare data object based on SQL schema
                 const formData = {
                     student_id: studentIdInput.value,
@@ -864,7 +1517,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     age_extracted: getVal('age'),
                     gender: getVal('gender'),
                     place_of_birth: getVal('placeOfBirth'),
-                    bform_number: getVal('bformNumber'),
+                    // The retired B-Form storage column now holds the admission note.
+                    bform_number: getVal('admissionNote'),
                     home_address: getVal('address'),
                     
                     father_name: getVal('fatherName'),
@@ -889,14 +1543,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     applying_for_class: getVal('admissionClass'),
                     session: getVal('session'),
                     admission_date: getVal('admissionDate'),
-                    campus: getVal('campus'),
-                    
+                    campus: JSON.stringify(contactPreferences),
                     medical_condition: getVal('medicalCondition'),
                     
                     admission_fee: getVal('admissionFee'),
                     monthly_fee: getVal('monthlyFee'),
                     discount: getVal('discount'),
-                    sibling_in_school: getVal('siblingInSchool'),
                     
                     status: getVal('status') || 'Pending'
                 };
@@ -904,6 +1556,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!formSchoolId) throw new Error('School could not be identified. Refresh and try again.');
                 formData.school_id = formSchoolId;
                 if (window.campusFeatureReady && window.currentCampusId) formData.campus_id = window.currentCampusId;
+                // Validate these before saving the admission so an incomplete
+                // optional challan row never creates a partially-finished record.
+                const admissionChallanSelections = readAdmissionChallanSelections(true);
 
                 // Upload photo if a new one was selected
                 const studentUid = editingStudentRecordId || formData.student_id;
@@ -945,7 +1600,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     actionResult = await supabaseClient
                         .from('admissions')
                         .update(formData)
-                        .eq('id', editingStudentRecordId);
+                        .eq('id', editingStudentRecordId)
+                        .select('id')
+                        .single();
                 } else {
                     // INSERT new student — retry up to 3 times if student_id collides
                     let insertError = null;
@@ -957,7 +1614,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         actionResult = await supabaseClient
                             .from('admissions')
-                            .insert([formData]);
+                            .insert([formData])
+                            .select('id')
+                            .single();
                         insertError = actionResult.error;
 
                         // Only retry on student_id unique constraint violation
@@ -971,40 +1630,84 @@ document.addEventListener('DOMContentLoaded', () => {
                     throw new Error(error.message || 'Failed to save to database. Make sure you ran the SQL setup script.');
                 }
 
+                const savedStudentDbId = actionResult.data?.id || editingStudentRecordId;
+                const createdChallanCount = await createAdmissionChallans(
+                    savedStudentDbId,
+                    formData,
+                    admissionChallanSelections
+                );
+                await syncStudentFeeHeadAssignments(savedStudentDbId, admissionChallanSelections);
+
                 document.getElementById('successStudentId').textContent = studentIdInput.value;
                 document.getElementById('successRollNo').textContent = formData.roll_number;
                 
                 const smText = successMessage.querySelector('h3');
                 if (smText) {
-                    smText.textContent = editingStudentRecordId ? 'Application Updated!' : 'Application Saved!';
+                    smText.textContent = continueWithSibling
+                        ? `Child Saved${createdChallanCount ? ` with ${createdChallanCount} Challan(s)` : ''} — Ready for Next Child!`
+                        : `${editingStudentRecordId ? 'Application Updated' : 'Application Saved'}${createdChallanCount ? ` with ${createdChallanCount} Challan(s)` : ''}!`;
                 }
                 
                 showSuccessMessage();
-                
-                // Reset form
-                form.reset();
+
                 editingStudentRecordId = null;
+                searchQueryInput.value = '';
+                searchResultsContainer.innerHTML = '';
+                searchResultsContainer.style.display = 'none';
+                form.querySelectorAll('.input-group.invalid').forEach(group => group.classList.remove('invalid'));
+                form.querySelectorAll('.error-msg').forEach(message => { message.style.display = 'none'; });
+
+                if (continueWithSibling) {
+                    // Keep shared family/admission values and clear only details that
+                    // belong specifically to the child who was just saved.
+                    ['fullName', 'dob', 'age', 'gender', 'placeOfBirth', 'lastSchool', 'classPassed', 'transferCert', 'medicalCondition']
+                        .forEach(id => {
+                            const element = document.getElementById(id);
+                            if (element) element.value = '';
+                        });
+                    resetPhotoPreview();
+                    compressedPhotoBlob = null;
+                    resetAdmissionChallanRows();
+                    studentIdInput.value = await generateUniqueStudentId();
+
+                    const previousRoll = Number.parseInt(String(formData.roll_number || ''), 10);
+                    let nextRoll = Number.isFinite(previousRoll) ? previousRoll + 1 : null;
+                    while (nextRoll !== null && await isRollNumberDuplicate(String(nextRoll))) nextRoll++;
+                    document.getElementById('rollNumber').value = nextRoll === null ? '' : String(nextRoll);
+                    document.getElementById('fullName')?.focus();
+                } else {
+                    form.reset();
+                    resetAdmissionChallanRows();
+                    resetContactChoices();
+                    setAdmissionDateToToday();
+                    resetPhotoPreview();
+                    compressedPhotoBlob = null;
+                    ageInput.value = '';
+                    generateUniqueStudentId().then(id => { studentIdInput.value = id; });
+                    fetchLastAdmittedRoll();
+                }
+
                 if (originalSubmitBtnHtml) {
                     submitBtn.innerHTML = originalSubmitBtnHtml;
                     submitBtn.style.background = '';
                     submitBtn.style.boxShadow = '';
                 }
                 
-                // Regenerate a fresh unique ID for the next student
-                generateUniqueStudentId().then(id => { studentIdInput.value = id; });
-                fetchLastAdmittedRoll();
-                resetPhotoPreview();
-                compressedPhotoBlob = null;
-                ageInput.value = '';
-                
             } catch (error) {
                 formAlert.textContent = '❌ Error submitting form: ' + error.message;
                 formAlert.style.display = 'block';
                 formAlert.scrollIntoView({ behavior: 'smooth', block: 'center' });
             } finally {
-                submitBtn.innerHTML = originalText;
+                submitBtn.innerHTML = editingStudentRecordId
+                    ? originalText
+                    : (originalSubmitBtnHtml || originalText);
                 submitBtn.style.opacity = '1';
                 submitBtn.style.pointerEvents = 'all';
+                if (siblingSubmitBtn) {
+                    siblingSubmitBtn.innerHTML = originalSiblingText;
+                    siblingSubmitBtn.disabled = false;
+                    siblingSubmitBtn.style.opacity = '1';
+                }
             }
         } else {
             const firstError = document.querySelector('.input-group.invalid');
@@ -1053,7 +1756,7 @@ document.addEventListener('DOMContentLoaded', () => {
         successMessage.classList.remove('hidden');
         setTimeout(() => {
             successMessage.classList.add('hidden');
-        }, 8000);
+        }, 3500);
     }
         }
     }, 50);

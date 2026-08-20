@@ -173,6 +173,10 @@
                 <label>New Type Name <span style="color:red">*</span></label>
                 <input type="text" id="newTypeName" placeholder="e.g. Exam Fee, Book Fee">
             </div>
+            <label style="display:flex;align-items:flex-start;gap:0.55rem;margin:0.7rem 0 0.9rem;cursor:pointer;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:0.7rem;">
+                <input type="checkbox" id="newTypeAssignedOnly" style="width:1.1rem;height:1.1rem;margin-top:0.1rem;">
+                <span style="font-size:0.82rem;color:#9a3412;line-height:1.35;"><strong>Assigned students only</strong><br>Use for monthly services such as Transport or Hostel. Whole-school/class generation will include only students assigned in Admission.</span>
+            </label>
             <button class="btn-success" onclick="addFeeType()">
                 <i class="fas fa-plus"></i> Add Fee Type
             </button>
@@ -257,6 +261,6 @@
 <div class="toast" id="toast"></div>
 
 <script src="auth.js"></script>
-<script src="fee_heads.js?v=2"></script>
+<script src="fee_heads.js?v=3"></script>
 </body>
 </html>

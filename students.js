@@ -4,6 +4,7 @@ window.onAppReady(async () => {
     const studentsBody = document.getElementById('studentsBody');
     const searchQueryInput = document.getElementById('searchQuery');
     const searchClassSelect = document.getElementById('searchClass');
+    const mobileSearchInput = document.getElementById('mobileSearch');
     const mobileNumberFilter = document.getElementById('mobileNumberFilter');
     const whatsappNumberFilter = document.getElementById('whatsappNumberFilter');
     const applySchoolScope = (query) => {
@@ -16,6 +17,55 @@ window.onAppReady(async () => {
     let allAvailableClasses = [];
     let cachedUnsortedStudents = [];
     let isPrinting = false;
+
+    function parseContactPreferences(value) {
+        try {
+            const parsed = JSON.parse(String(value || ''));
+            if (parsed && parsed.type === 'admission_contacts_v1') return parsed;
+        } catch (_) {}
+        return {
+            type: 'admission_contacts_v1',
+            primary_mobile_source: 'fatherMobile',
+            whatsapp_source: 'fatherWhatsapp',
+            father_mobile_2: null,
+            mother_mobile_2: null
+        };
+    }
+
+    function contactSourceDetails(student, kind) {
+        const preferences = parseContactPreferences(student.campus);
+        const source = kind === 'mobile'
+            ? (preferences.primary_mobile_source || 'fatherMobile')
+            : (preferences.whatsapp_source || 'fatherWhatsapp');
+        const sources = {
+            fatherMobile: { value: student.father_mobile, column: 'father_mobile' },
+            fatherMobile2: { value: preferences.father_mobile_2, column: 'campus', metaKey: 'father_mobile_2' },
+            fatherWhatsapp: { value: student.father_whatsapp, column: 'father_whatsapp' },
+            motherMobile: { value: student.mother_mobile, column: 'mother_mobile' },
+            motherMobile2: { value: preferences.mother_mobile_2, column: 'campus', metaKey: 'mother_mobile_2' },
+            guardianContact: { value: student.guardian_contact, column: 'guardian_contact' }
+        };
+        return { source, preferences, ...(sources[source] || sources[kind === 'mobile' ? 'fatherMobile' : 'fatherWhatsapp']) };
+    }
+
+    function normalizeMobileSearch(value) {
+        let digits = String(value || '').replace(/\D/g, '');
+        if (digits.startsWith('0092')) digits = digits.slice(2);
+        if (digits.startsWith('92')) digits = `0${digits.slice(2)}`;
+        return digits;
+    }
+
+    function studentContactNumbers(student) {
+        const preferences = parseContactPreferences(student.campus);
+        return [
+            student.father_mobile,
+            preferences.father_mobile_2,
+            student.father_whatsapp,
+            student.mother_mobile,
+            preferences.mother_mobile_2,
+            student.guardian_contact
+        ].map(normalizeMobileSearch).filter(Boolean);
+    }
 
     // Fetch instantly on load
     fetchClasses().then(fetchStudents);
@@ -30,6 +80,7 @@ window.onAppReady(async () => {
     }
 
     if (searchQueryInput) searchQueryInput.addEventListener('input', handleSearchInput);
+    if (mobileSearchInput) mobileSearchInput.addEventListener('input', handleSearchInput);
     searchClassSelect.addEventListener('change', fetchStudents);
     mobileNumberFilter.addEventListener('change', fetchStudents);
     whatsappNumberFilter.addEventListener('change', fetchStudents);
@@ -61,7 +112,7 @@ window.onAppReady(async () => {
             // Start building the query
             let query = applySchoolScope(supabaseClient
                 .from('admissions')
-                .select('id, roll_number, full_name, father_name, father_mobile, father_whatsapp, whatsapp_group_status, admission_date, created_at, applying_for_class')
+                .select('id, roll_number, full_name, father_name, father_mobile, father_whatsapp, mother_mobile, guardian_contact, campus, whatsapp_group_status, admission_date, created_at, applying_for_class')
                 .eq('status', 'Active')); // ALWAYS filter by Active status!
 
             // Apply exact filter: Class
@@ -87,14 +138,21 @@ window.onAppReady(async () => {
 
             if (error) throw error;
 
-            cachedUnsortedStudents = (data || []).filter(student => {
-                const mobileValid = hasValid11DigitNumber(student.father_mobile);
-                const whatsappValid = hasValid11DigitNumber(student.father_whatsapp);
+            cachedUnsortedStudents = (data || []).map(student => {
+                const mobile = contactSourceDetails(student, 'mobile');
+                const whatsapp = contactSourceDetails(student, 'whatsapp');
+                return { ...student, display_mobile: mobile.value || '', display_whatsapp: whatsapp.value || '' };
+            }).filter(student => {
+                const mobileSearch = normalizeMobileSearch(mobileSearchInput?.value);
+                const mobileValid = hasValid11DigitNumber(student.display_mobile);
+                const whatsappValid = hasValid11DigitNumber(student.display_whatsapp);
+                const searchedMobileMatches = !mobileSearch
+                    || studentContactNumbers(student).some(number => number.includes(mobileSearch));
                 const mobileMatches = mobileNumberFilter.value === 'All'
                     || (mobileNumberFilter.value === 'Valid' ? mobileValid : !mobileValid);
                 const whatsappMatches = whatsappNumberFilter.value === 'All'
                     || (whatsappNumberFilter.value === 'Valid' ? whatsappValid : !whatsappValid);
-                return mobileMatches && whatsappMatches;
+                return searchedMobileMatches && mobileMatches && whatsappMatches;
             });
 
             renderFilteredStudents();
@@ -151,7 +209,9 @@ window.onAppReady(async () => {
             const addedDate = student.created_at
                 ? new Date(student.created_at).toLocaleDateString()
                 : (student.admission_date ? new Date(student.admission_date).toLocaleDateString() : 'N/A');
-            const whatsapp = student.father_whatsapp || 'Not provided';
+            const mobileDetails = contactSourceDetails(student, 'mobile');
+            const whatsappDetails = contactSourceDetails(student, 'whatsapp');
+            const whatsapp = student.display_whatsapp || 'Not provided';
             
             tr.innerHTML = `
                 <td><strong>${student.roll_number}</strong></td>
@@ -166,8 +226,8 @@ window.onAppReady(async () => {
                     </select>
                 </td>
                 <td class="editable-cell" contenteditable="true" data-col="father_name" data-id="${student.id}">${student.father_name || ''}</td>
-                <td class="editable-cell" contenteditable="true" data-col="father_mobile" data-id="${student.id}">${student.father_mobile || ''}</td>
-                <td class="editable-cell" contenteditable="true" data-col="father_whatsapp" data-id="${student.id}">${whatsapp || ''}</td>
+                <td class="editable-cell" contenteditable="true" data-contact-number="true" data-col="${mobileDetails.column}" data-meta-key="${mobileDetails.metaKey || ''}" data-id="${student.id}">${student.display_mobile || ''}</td>
+                <td class="editable-cell" contenteditable="true" data-contact-number="true" data-col="${whatsappDetails.column}" data-meta-key="${whatsappDetails.metaKey || ''}" data-id="${student.id}">${whatsapp || ''}</td>
                 <td>
                     <select class="whatsapp-group-select${student.whatsapp_group_status === 'WG' ? ' is-added' : ''}" data-id="${student.id}" data-saved-value="${student.whatsapp_group_status === 'WG' ? 'WG' : ''}" aria-label="WhatsApp group status">
                         <option value="" ${student.whatsapp_group_status !== 'WG' ? 'selected' : ''}></option>
@@ -254,7 +314,7 @@ window.onAppReady(async () => {
                 const colName = this.getAttribute('data-col');
 
                 // Normalize mobile numbers
-                if (colName === 'father_mobile' || colName === 'father_whatsapp') {
+                if (this.dataset.contactNumber === 'true') {
                     currentText = currentText.replace(/[\s\-]/g, '');
                     this.innerText = currentText; // Update UI to reflect normalization
                 }
@@ -263,7 +323,17 @@ window.onAppReady(async () => {
                 if (currentText !== originalText) {
                     try {
                         const updateData = {};
-                        updateData[colName] = currentText;
+                        if (colName === 'campus') {
+                            const student = cachedUnsortedStudents.find(item => String(item.id) === String(studentId));
+                            const preferences = parseContactPreferences(student?.campus);
+                            preferences[this.dataset.metaKey] = currentText || null;
+                            updateData.campus = JSON.stringify(preferences);
+                            if (student) student.campus = updateData.campus;
+                        } else {
+                            updateData[colName] = currentText;
+                            const student = cachedUnsortedStudents.find(item => String(item.id) === String(studentId));
+                            if (student) student[colName] = currentText;
+                        }
                         updateData['updated_at'] = new Date().toISOString();
 
                         const { error } = await applySchoolScope(supabaseClient

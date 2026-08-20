@@ -21,6 +21,42 @@ let receiptCache  = [];   // saved receipts for current student (for reprint)
 const DEFAULT_RECEIPT_FOOTER = 'Thank you! — Zahid School System';
 let receiptFooterText = DEFAULT_RECEIPT_FOOTER;
 
+function normalizeFamilyMobile(value) {
+    return String(value || '').replace(/[\s-]/g, '').trim();
+}
+
+async function getFamilyRemainingAfterStudentPayment(student) {
+    const mobile = normalizeFamilyMobile(student?.father_mobile);
+    if (!mobile) return null;
+
+    // Family Fee Collection defines a family as two or more active students
+    // sharing the same normalized father mobile number. Use the same rule here.
+    const familyMemberIds = allStudents
+        .filter(member =>
+            member.status === 'Active' &&
+            normalizeFamilyMobile(member.father_mobile) === mobile
+        )
+        .map(member => member.id);
+
+    if (familyMemberIds.length < 2) return null;
+
+    const { data, error } = await applySchoolScope(db
+        .from('challans')
+        .select('amount, paid_amount')
+        .in('student_id', familyMemberIds)
+        .in('status', ['Unpaid', 'Partially Paid']));
+
+    if (error) throw error;
+
+    const total = (data || []).reduce((sum, challan) => {
+        const amount = Number(challan.amount) || 0;
+        const paid = Number(challan.paid_amount) || 0;
+        return sum + Math.max(0, amount - paid);
+    }, 0);
+
+    return Math.round(total * 100) / 100;
+}
+
 function cleanCollectorName(value) {
     return String(value || '').trim().replace(/\s*\([^)]*\)\s*$/, '').trim();
 }
@@ -642,7 +678,7 @@ async function loadDues(uuid) {
         pendingDues = (data || []).map(ch => {
             return {
                 ...ch,
-                _concessionGiven: discountMap[ch.id] || 0
+                _concessionGiven: (discountMap[ch.id] || 0) + Math.max(0, parseFloat(ch.assigned_discount || 0))
             };
         });
         const totalFeeDue = pendingDues.reduce((sum, c) => {
@@ -1003,7 +1039,24 @@ async function submitPayment() {
         }, 0);
         const remaining = Math.max(0, totalFeeDueBeforePayment + fine - discount - paying);
 
-        const feeLines  = txRecords.map(tx => ({ desc: tx.fee_details, amount: tx.amount_paid }));
+        // If this student belongs to a family, capture the entire family's
+        // remaining balance after the challan updates. Family Fee History can
+        // then show the correct snapshot even though this payment was entered
+        // through the individual student screen.
+        let familyRemainingSnapshot = null;
+        try {
+            familyRemainingSnapshot = await getFamilyRemainingAfterStudentPayment(activeStudent);
+        } catch (familyBalanceError) {
+            console.warn('Could not capture family remaining snapshot:', familyBalanceError.message);
+        }
+
+        const feeLines = txRecords.map(tx => ({
+            desc: tx.fee_details,
+            amount: tx.amount_paid,
+            ...(familyRemainingSnapshot !== null
+                ? { family_remaining_snapshot: familyRemainingSnapshot }
+                : {})
+        }));
         const receiptRecord = {
             receipt_number:    baseReceipt,
             student_id:        activeStudent.id,

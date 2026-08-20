@@ -1,5 +1,15 @@
 let revenueChart = null;
 
+function requireRevenueSchoolId() {
+    const schoolId = window.currentSchoolId || null;
+    if (!schoolId) throw new Error('School could not be identified. Refresh and sign in again.');
+    return schoolId;
+}
+
+function scopeRevenueQuery(query) {
+    return query.eq('school_id', requireRevenueSchoolId());
+}
+
 window.onAppReady(() => {
     const checkAuth = setInterval(() => {
         if (window.authReady) {
@@ -14,6 +24,12 @@ window.onAppReady(() => {
 });
 
 function initRevenueModule() {
+    try {
+        requireRevenueSchoolId();
+    } catch (error) {
+        showToast(error.message, 'error');
+        return;
+    }
     const kn = karachiNow();
     const fmtDate = (y, m, d) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     const firstDay = fmtDate(kn.year, kn.month + 1, 1);
@@ -43,18 +59,18 @@ async function loadRevenueData() {
     document.getElementById('revenueSubtitle').textContent = 'Loading...';
 
     try {
-        const { data: feesData, error: feesErr } = await window.supabaseClient
+        const { data: feesData, error: feesErr } = await scopeRevenueQuery(window.supabaseClient
             .from('transactions')
             .select('amount_paid, created_at')
             .gte('created_at', start + 'T00:00:00')
-            .lte('created_at', end + 'T23:59:59');
+            .lte('created_at', end + 'T23:59:59'));
         if (feesErr) throw feesErr;
 
-        const { data: otherRevData, error: revErr } = await window.supabaseClient
+        const { data: otherRevData, error: revErr } = await scopeRevenueQuery(window.supabaseClient
             .from('other_revenue')
             .select('id, category, amount, revenue_date, description')
             .gte('revenue_date', start)
-            .lte('revenue_date', end);
+            .lte('revenue_date', end));
         if (revErr) throw revErr;
 
         processAndRender(feesData, otherRevData);
@@ -129,7 +145,10 @@ function renderTable(tbodyId, items) {
 window.deleteRevenueRecord = async function(id) {
     if (!confirm('Delete this record permanently?')) return;
     try {
-        const { error } = await window.supabaseClient.from('other_revenue').delete().eq('id', id);
+        const { error } = await scopeRevenueQuery(window.supabaseClient
+            .from('other_revenue')
+            .delete()
+            .eq('id', id));
         if (error) throw error;
         showToast('Record deleted.', 'success');
         loadRevenueData();
@@ -149,8 +168,10 @@ window.editRevenueRecord = async function(id, currentAmount, currentDesc) {
     if (newDesc === null) return;
 
     try {
-        const { error } = await window.supabaseClient.from('other_revenue')
-            .update({ amount: parseFloat(newAmount), description: newDesc }).eq('id', id);
+        const { error } = await scopeRevenueQuery(window.supabaseClient
+            .from('other_revenue')
+            .update({ amount: parseFloat(newAmount), description: newDesc })
+            .eq('id', id));
         if (error) throw error;
         showToast('Record updated successfully!', 'success');
         loadRevenueData();
@@ -221,6 +242,8 @@ async function handleAddRevenue(e) {
     btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
 
     const payload = {
+        school_id: requireRevenueSchoolId(),
+        ...(window.campusFeatureReady && window.currentCampusId ? { campus_id: window.currentCampusId } : {}),
         category: document.getElementById('revCategory').value,
         amount: parseFloat(document.getElementById('revAmount').value),
         revenue_date: document.getElementById('revDate').value,

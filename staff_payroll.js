@@ -173,12 +173,17 @@ async function saveAllChallans() {
 
     // Filter out Already Paid ones, we don't want to re-upsert and mess them up usually, 
     // but UPSERT is safe if we strictly override. Wait, we should only generate for Unpaid/None.
+    const schoolId = window.currentSchoolId;
+    if (!schoolId) {
+        showToast('School could not be identified. Refresh and sign in again.', 'error');
+        return;
+    }
     const toUpsert = [];
     staffDataList.forEach(item => {
         if (item.status !== 'Paid') {
             const netPayable = Math.max(0, item.base_salary - item.deduction - item.advance);
             toUpsert.push({
-                school_id: window.currentSchoolId,
+                school_id: schoolId,
                 staff_id: item.staff_id,
                 salary_month: currentMonthStr,
                 base_salary: item.base_salary,

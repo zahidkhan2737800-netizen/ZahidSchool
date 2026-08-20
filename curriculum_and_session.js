@@ -40,15 +40,14 @@ window.onAppReady(async () => {
 
   async function loadData() {
     try {
+      if (!window.currentSchoolId) throw new Error('School could not be identified. Refresh and try again.');
       let currQ = window.supabaseClient.from('curriculum').select('*').order('created_at', { ascending: false });
       let subjQ = window.supabaseClient.from('subject').select('*').order('created_at', { ascending: false });
       let sessQ = window.supabaseClient.from('session').select('*').order('created_at', { ascending: false });
 
-      if (window.currentSchoolId) {
-        currQ = currQ.eq('school_id', window.currentSchoolId);
-        subjQ = subjQ.eq('school_id', window.currentSchoolId);
-        sessQ = sessQ.eq('school_id', window.currentSchoolId);
-      }
+      currQ = currQ.eq('school_id', window.currentSchoolId);
+      subjQ = subjQ.eq('school_id', window.currentSchoolId);
+      sessQ = sessQ.eq('school_id', window.currentSchoolId);
 
       const [{ data: currData, error: currErr }, { data: subjData, error: subjErr }, { data: sessData, error: sessErr }] = await Promise.all([
         currQ,
@@ -139,9 +138,9 @@ window.onAppReady(async () => {
       return;
     }
 
-    sessBody.innerHTML = sessions.map(s => `
+    sessBody.innerHTML = sessions.map((s, index) => `
       <tr>
-        <td><strong>${escapeHtml(s.session_value)}</strong></td>
+        <td><strong>${escapeHtml(s.session_value)}</strong>${index === 0 ? '<span class="current-session-badge">Current</span>' : ''}</td>
         <td>${escapeHtml(s.description || '')}</td>
         <td>${formatDate(s.created_at)}</td>
         <td>
@@ -167,7 +166,7 @@ window.onAppReady(async () => {
 
     try {
       const { error } = await window.supabaseClient.from('curriculum').insert({
-        school_id: window.currentSchoolId || null,
+        school_id: window.currentSchoolId,
         name,
         description: description || null
       });
@@ -205,7 +204,7 @@ window.onAppReady(async () => {
 
     try {
       const { error } = await window.supabaseClient.from('subject').insert({
-        school_id: window.currentSchoolId || null,
+        school_id: window.currentSchoolId,
         curriculum_id: curriculumId,
         name,
         description: description || null
@@ -239,7 +238,7 @@ window.onAppReady(async () => {
 
     try {
       const { error } = await window.supabaseClient.from('session').insert({
-        school_id: window.currentSchoolId || null,
+        school_id: window.currentSchoolId,
         session_value: sessionValue,
         description: description || null
       });
@@ -261,7 +260,7 @@ window.onAppReady(async () => {
     if (!confirm('Are you sure? This will delete the curriculum and all its subjects.')) return;
 
     try {
-      const { error } = await window.supabaseClient.from('curriculum').delete().eq('id', id);
+      const { error } = await window.supabaseClient.from('curriculum').delete().eq('id', id).eq('school_id', window.currentSchoolId);
       if (error) throw error;
       await loadData();
     } catch (err) {
@@ -273,7 +272,7 @@ window.onAppReady(async () => {
     if (!confirm('Are you sure you want to delete this subject?')) return;
 
     try {
-      const { error } = await window.supabaseClient.from('subject').delete().eq('id', id);
+      const { error } = await window.supabaseClient.from('subject').delete().eq('id', id).eq('school_id', window.currentSchoolId);
       if (error) throw error;
       await loadData();
     } catch (err) {
@@ -285,7 +284,7 @@ window.onAppReady(async () => {
     if (!confirm('Are you sure you want to delete this session?')) return;
 
     try {
-      const { error } = await window.supabaseClient.from('session').delete().eq('id', id);
+      const { error } = await window.supabaseClient.from('session').delete().eq('id', id).eq('school_id', window.currentSchoolId);
       if (error) throw error;
       await loadData();
     } catch (err) {

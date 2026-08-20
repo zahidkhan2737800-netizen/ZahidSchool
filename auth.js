@@ -26,6 +26,8 @@ const SCHOOL_ACCESS_SECTIONS = [
     { id: 'students', label: 'Students', icon: 'fas fa-user-graduate', items: [
         { href: 'index.html', label: 'Admission Form', icon: 'fas fa-file-signature', key: 'admissions' },
         { href: 'students.html', label: 'Active Students', icon: 'fas fa-users', key: 'students' },
+        { href: 'contact_detail_emergency.html', label: 'Contact Detail and Emergency', icon: 'fas fa-address-card', key: 'students' },
+        { href: 'bulk_import.html', label: 'Bulk Import', icon: 'fas fa-file-import', key: 'admissions' },
         { href: 'Dairy.html', label: 'Diary / Tasks', icon: 'fas fa-clipboard-list', key: 'students' },
         { href: 'family.html', label: 'Family Management', icon: 'fas fa-home', key: 'family' },
         { href: 'homework.html', label: 'Homework Publisher', icon: 'fas fa-book', key: 'homework' },
@@ -111,6 +113,10 @@ const SCHOOL_ACCESS_SECTIONS = [
         { href: 'books_inventory.html', label: 'Books Inventory', icon: 'fas fa-book-open', key: 'books_inventory' },
         { href: 'book_sales_report.html', label: 'Book Sales Report', icon: 'fas fa-file-invoice-dollar', key: 'book_sales_report' }
     ]},
+    { id: 'assets', label: 'Assets', icon: 'fas fa-building-shield', items: [
+        { href: 'assets.html', label: 'Assets Management', icon: 'fas fa-boxes-stacked', key: 'assets' },
+        { href: 'library_books.html', label: 'Library Books Record', icon: 'fas fa-book-open-reader', key: 'library_books' }
+    ]},
     { id: 'admin', label: 'Administration', icon: 'fas fa-user-shield', items: [
         { href: 'classes.html', label: 'Manage Classes', icon: 'fas fa-chalkboard', key: 'classes' },
         { href: 'picture_report.html', label: 'Picture Report', icon: 'fas fa-camera', key: 'classes' },
@@ -156,6 +162,8 @@ const PAGE_KEY_MAP = {
     'dashboard.html':           'dashboard',
     'index.html':               'admissions',
     'students.html':            'students',
+    'contact_detail_emergency.html': 'students',
+    'bulk_import.html':          'admissions',
     'attendance.html':          'attendance',
     'daily_attendance.html':    'attendance',
     'daily_class_absent.html':  'attendance',
@@ -196,6 +204,8 @@ const PAGE_KEY_MAP = {
     'books_dashboard.html':     'books_dashboard',
     'books_inventory.html':     'books_inventory',
     'book_sales_report.html':   'book_sales_report',
+    'assets.html':              'assets',
+    'library_books.html':       'library_books',
     'staff_hiring.html':        'staff_hiring',
     'staff_attendance.html':    'staff_attendance',
     'staff_payroll.html':       'staff_payroll',
@@ -359,7 +369,7 @@ async function loadSchoolFeatureAccess(schoolId) {
 
         // Auto-grant new module permissions to admin if missing from DB
         if (userRoleName === 'admin' || userRoleName === 'super_admin') {
-            ['dashboard', 'admissions', 'classes', 'access_control', 'fee_heads', 'challans', 'students', 'collect_fee', 'monitoring', 'attendance', 'pending_withdrawn', 'fee_contacts', 'family', 'collect_family_fee', 'homework', 'complaints', 'reports', 'finance', 'examination', 'staff_hiring', 'staff_attendance', 'staff_payroll', 'staff_payments', 'books_dashboard', 'books_inventory', 'book_sales_report', 'allow_backdate_payment'].forEach(key => {
+            ['dashboard', 'admissions', 'classes', 'access_control', 'fee_heads', 'challans', 'students', 'collect_fee', 'monitoring', 'attendance', 'pending_withdrawn', 'fee_contacts', 'family', 'collect_family_fee', 'homework', 'complaints', 'reports', 'finance', 'examination', 'staff_hiring', 'staff_attendance', 'staff_payroll', 'staff_payments', 'books_dashboard', 'books_inventory', 'book_sales_report', 'assets', 'library_books', 'allow_backdate_payment'].forEach(key => {
                 if (!userPermissions[key]) {
                     userPermissions[key] = { can_view: true, can_create: true, can_edit: true, can_delete: true };
                 }
@@ -462,6 +472,8 @@ function filterSidebarNav() {
         'dashboard.html':           'dashboard',
         'index.html':               'admissions',
         'students.html':            'students',
+        'contact_detail_emergency.html': 'students',
+        'bulk_import.html':          'admissions',
         'attendance.html':          'attendance',
         'daily_attendance.html':    'attendance',
         'daily_class_absent.html':  'attendance',
@@ -495,6 +507,8 @@ function filterSidebarNav() {
         'books_dashboard.html':     'books_dashboard',
         'books_inventory.html':     'books_inventory',
         'book_sales_report.html':   'book_sales_report',
+        'assets.html':              'assets',
+        'library_books.html':       'library_books',
         'staff_hiring.html':        'staff_hiring',
         'staff_attendance.html':    'staff_attendance',
         'staff_payroll.html':       'staff_payroll',

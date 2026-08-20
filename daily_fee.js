@@ -4,6 +4,10 @@ window.onAppReady(() => {
     const checkAuth = setInterval(() => {
         if (window.authReady && window.currentUser) {
             clearInterval(checkAuth);
+            if (!window.canView('finance')) {
+                window.location.href = 'dashboard.html?denied=1';
+                return;
+            }
             initPage();
         }
     }, 100);
@@ -35,6 +39,7 @@ async function loadDailyData() {
         const year = parseInt(document.getElementById('filterYear').value);
         const month = parseInt(document.getElementById('filterMonth').value);
         const schoolId = window.currentSchoolId;
+        if (!schoolId) throw new Error('School could not be identified. Refresh and sign in again.');
         const tbody = document.getElementById('reportTableBody');
         tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #94a3b8;">Fetching data...</td></tr>';
 
@@ -51,7 +56,7 @@ async function loadDailyData() {
         const startOfMonthDateOnly = fmtDate(year, month, 1);
         const endOfMonthDateOnly = fmtDate(year, month, daysInMonth);
 
-        const sc = (q) => schoolId ? q.eq('school_id', schoolId) : q;
+        const sc = (q) => q.eq('school_id', schoolId);
 
         // 1. Fee Revenue (transactions)
         const { data: feesData, error: feesError } = await sc(window.supabaseClient

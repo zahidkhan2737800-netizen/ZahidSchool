@@ -28,9 +28,17 @@ const formTitle = document.getElementById('formTitle');
 const copyTargetClassSelect = document.getElementById('copyTargetClassSelect');
 const copySourceClass = document.getElementById('copySourceClass');
 const copyConfigBtn = document.getElementById('copyConfigBtn');
+const singleCopyModal = document.getElementById('singleCopyModal');
+const singleCopySource = document.getElementById('singleCopySource');
+const singleCopyClassList = document.getElementById('singleCopyClassList');
+const singleCopySelectAll = document.getElementById('singleCopySelectAll');
+const singleCopyClearAll = document.getElementById('singleCopyClearAll');
+const singleCopyConfirm = document.getElementById('singleCopyConfirm');
+const singleCopyCancel = document.getElementById('singleCopyCancel');
 
 let currentClassConfigs = [];
 let selectedClass = '';
+let singleCopyConfigId = null;
 
 // ─── Toast ────────────────────────────────────────────────────
 function showToast(msg, type = 'info') {
@@ -70,6 +78,13 @@ async function loadClasses() {
         classSelect.innerHTML = '<option value="">-- Select Class --</option>' + optionsHtml;
         if (copyTargetClassSelect) {
             copyTargetClassSelect.innerHTML = '<option value="">-- Select Target Class --</option>' + optionsHtml;
+        }
+        if (singleCopyClassList) {
+            singleCopyClassList.innerHTML = classes.map(className => `
+                <label class="single-copy-class-option" data-class="${escapeHtml(className)}">
+                    <input type="checkbox" value="${escapeHtml(className)}">
+                    <span>${escapeHtml(className)}</span>
+                </label>`).join('');
         }
     } catch (e) {
         console.error('loadClasses failed', e);
@@ -122,7 +137,7 @@ function renderConfigs() {
                     <th>Category</th>
                     <th>Complaint Prefix</th>
                     <th>Items (Buttons)</th>
-                    <th style="width: 100px;">Actions</th>
+                    <th style="width: 150px;">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -138,6 +153,7 @@ function renderConfigs() {
                 <td>${escapeHtml(conf.complaint_prefix)}</td>
                 <td>${itemsHtml}</td>
                 <td>
+                    <button type="button" class="btn btn-sm single-copy-btn" title="Copy only this category to another class" onclick="openSingleCopyModal('${conf.id}')">📄</button>
                     <button type="button" class="btn btn-primary btn-sm" onclick="editConfig('${conf.id}')">✏️</button>
                     <button type="button" class="btn btn-danger btn-sm" onclick="deleteConfig('${conf.id}')">🗑</button>
                 </td>
@@ -248,6 +264,111 @@ window.deleteConfig = async function(id) {
         showToast('Failed to delete configuration', 'danger');
     }
 };
+
+// ─── Copy One Configuration ──────────────────────────────────
+window.openSingleCopyModal = function(id) {
+    const conf = currentClassConfigs.find(item => String(item.id) === String(id));
+    if (!conf) return;
+    singleCopyConfigId = String(id);
+    singleCopySource.innerHTML = `<strong>${escapeHtml(conf.category)}</strong><br><span>${escapeHtml(selectedClass)} \u2192 selected target classes</span>`;
+    singleCopyClassList.querySelectorAll('.single-copy-class-option').forEach(option => {
+        const input = option.querySelector('input');
+        const isSource = input.value === selectedClass;
+        input.checked = false;
+        input.disabled = isSource;
+        option.classList.toggle('source-class', isSource);
+    });
+    singleCopyModal.classList.add('open');
+    singleCopyModal.setAttribute('aria-hidden', 'false');
+};
+
+function closeSingleCopyModal() {
+    singleCopyConfigId = null;
+    singleCopyModal.classList.remove('open');
+    singleCopyModal.setAttribute('aria-hidden', 'true');
+}
+
+async function copySingleConfiguration() {
+    const conf = currentClassConfigs.find(item => String(item.id) === String(singleCopyConfigId));
+    const targetClasses = [...singleCopyClassList.querySelectorAll('input:checked')].map(input => input.value);
+    if (!conf) return closeSingleCopyModal();
+    if (targetClasses.length === 0) {
+        showToast('Please select at least one target class.', 'warning');
+        return;
+    }
+
+    singleCopyConfirm.disabled = true;
+    singleCopyConfirm.textContent = 'Copying...';
+    try {
+        const { data: matches, error: fetchError } = await applySchoolScope(db
+            .from('publisher_config')
+            .select('id, class_name')
+            .in('class_name', targetClasses)
+            .eq('category', conf.category)
+            .limit(targetClasses.length));
+        if (fetchError) throw fetchError;
+
+        const existingByClass = new Map((matches || []).map(item => [item.class_name, item]));
+        const existingRows = targetClasses.map(className => existingByClass.get(className)).filter(Boolean);
+        const newClasses = targetClasses.filter(className => !existingByClass.has(className));
+        const values = {
+            complaint_prefix: conf.complaint_prefix,
+            items: conf.items,
+            updated_at: new Date().toISOString()
+        };
+        let replaceExisting = true;
+
+        if (existingRows.length > 0) {
+            replaceExisting = confirm(`“${conf.category}” already exists in ${existingRows.length} selected class${existingRows.length === 1 ? '' : 'es'}. Replace the existing prefix and buttons there?\n\nChoose Cancel to copy only to classes where it does not exist.`);
+        }
+
+        if (replaceExisting && existingRows.length > 0) {
+            const { error } = await applySchoolScope(db
+                .from('publisher_config')
+                .update(values)
+                .in('id', existingRows.map(item => item.id)));
+            if (error) throw error;
+        }
+
+        if (newClasses.length > 0) {
+            const payload = newClasses.map(className => ({
+                class_name: className,
+                category: conf.category,
+                ...values,
+                ...getTenantScopePatch()
+            }));
+            const { error } = await db.from('publisher_config').insert(payload);
+            if (error) throw error;
+        }
+
+        const updatedCount = replaceExisting ? existingRows.length : 0;
+        const changedCount = newClasses.length + updatedCount;
+        if (changedCount === 0) {
+            showToast('No new classes were changed.', 'info');
+            return;
+        }
+        showToast(`Copied “${conf.category}” to ${changedCount} class${changedCount === 1 ? '' : 'es'}.`, 'success');
+        closeSingleCopyModal();
+    } catch (e) {
+        console.error('Copy single configuration error', e);
+        showToast('Failed to copy this category.', 'danger');
+    } finally {
+        singleCopyConfirm.disabled = false;
+        singleCopyConfirm.textContent = 'Copy Category';
+    }
+}
+
+singleCopyConfirm.addEventListener('click', copySingleConfiguration);
+singleCopyCancel.addEventListener('click', closeSingleCopyModal);
+singleCopySelectAll.addEventListener('click', () => {
+    singleCopyClassList.querySelectorAll('input:not(:disabled)').forEach(input => { input.checked = true; });
+});
+singleCopyClearAll.addEventListener('click', () => {
+    singleCopyClassList.querySelectorAll('input').forEach(input => { input.checked = false; });
+});
+singleCopyModal.addEventListener('click', event => {
+    if (event.target === singleCopyModal) closeSingleCopyModal();
+});
 
 function cancelEdit() {
     editIdEl.value = '';

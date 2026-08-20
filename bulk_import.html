@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bulk Student Import - Zahid School</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="fee_paid_log.css?v=6">
+    <style>
+        :root { --brand:#2563eb; --brand-dark:#1d4ed8; }
+        .page-wrap { max-width:1700px; }
+        .upload-grid { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(320px,.7fr); gap:1rem; margin-top:1rem; }
+        .panel { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:1rem; }
+        .drop-zone { min-height:210px; border:2px dashed #93c5fd; border-radius:14px; background:#eff6ff; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:.65rem; text-align:center; padding:1.5rem; cursor:pointer; transition:.18s; }
+        .drop-zone.dragover { border-color:#2563eb; background:#dbeafe; transform:translateY(-2px); }
+        .drop-zone i { font-size:2.4rem; color:#2563eb; }
+        .drop-zone h2 { margin:0; font-size:1.2rem; }
+        .drop-zone p { margin:0; color:#64748b; }
+        .choose-file { border:0; border-radius:9px; padding:.75rem 1.05rem; background:#2563eb; color:#fff; font-weight:800; cursor:pointer; }
+        #studentFile { display:none; }
+        .instructions h3, .mapping-panel h3, .result-panel h3 { margin:.1rem 0 .7rem; }
+        .instructions ul { margin:.45rem 0; padding-left:1.2rem; color:#475569; line-height:1.55; }
+        .template-btn { width:100%; margin-top:.8rem; border:1px solid #86efac; border-radius:9px; padding:.7rem; background:#f0fdf4; color:#166534; font-weight:800; cursor:pointer; }
+        .mapping-panel { display:none; margin-top:1rem; }
+        .mapping-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:.7rem; }
+        .mapping-item { padding:.7rem; border:1px solid #e2e8f0; border-radius:9px; background:#f8fafc; }
+        .mapping-item label { display:block; margin-bottom:.35rem; color:#334155; font-size:.8rem; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .mapping-item select { width:100%; border:1px solid #cbd5e1; border-radius:7px; padding:.5rem; background:#fff; }
+        .mapping-actions { display:flex; align-items:center; gap:.7rem; margin-top:.8rem; }
+        .mapping-note { color:#64748b; font-size:.8rem; }
+        .preview-area { display:none; }
+        .summary { flex-wrap:wrap; }
+        .summary .card { min-width:180px; }
+        .summary .ready strong { color:#15803d; }
+        .summary .warning strong { color:#b45309; }
+        .summary .invalid strong { color:#dc2626; }
+        .summary .duplicate strong { color:#7c3aed; }
+        .preview-tools { display:grid; grid-template-columns:minmax(240px,1fr) 190px 210px auto; gap:.7rem; align-items:end; margin-top:1rem; padding:.8rem; border:1px solid #e2e8f0; border-radius:12px; background:#fff; }
+        .field label { display:block; margin-bottom:.25rem; color:#64748b; font-size:.8rem; font-weight:700; }
+        .field input, .field select { width:100%; padding:.55rem .65rem; border:1px solid #cbd5e1; border-radius:8px; background:#fff; }
+        .import-btn { border:0; border-radius:9px; padding:.72rem 1rem; background:#16a34a; color:#fff; font-weight:900; cursor:pointer; white-space:nowrap; }
+        .import-btn:disabled { opacity:.55; cursor:not-allowed; }
+        .preview-table { min-width:1050px; }
+        .preview-table th, .preview-table td { font-size:11px; padding:5px 6px; }
+        .preview-table td[contenteditable="true"] { cursor:text; min-width:85px; }
+        .preview-table td[contenteditable="true"]:hover { background:#fef9c3; }
+        .preview-table td[contenteditable="true"]:focus { outline:2px solid #60a5fa; background:#fff; }
+        .status-pill { display:inline-block; padding:3px 7px; border-radius:999px; font-size:.72rem; font-weight:900; white-space:nowrap; }
+        .status-ready { background:#dcfce7; color:#166534; }
+        .status-warning { background:#fef3c7; color:#92400e; }
+        .status-invalid { background:#fee2e2; color:#991b1b; }
+        .status-duplicate { background:#ede9fe; color:#6d28d9; }
+        .reason { display:block; margin-top:3px; color:#64748b; font-size:.74rem; max-width:260px; }
+        .duplicate-action { min-width:115px; padding:4px; border:1px solid #c4b5fd; border-radius:6px; background:#fff; font-size:.78rem; }
+        .auto-roll { color:#2563eb; font-size:.72rem; font-weight:800; }
+        .progress-panel { display:none; margin-top:1rem; }
+        .progress-head { display:flex; justify-content:space-between; gap:1rem; margin-bottom:.45rem; font-weight:800; }
+        .progress-track { height:14px; overflow:hidden; border-radius:999px; background:#e2e8f0; }
+        .progress-bar { width:0; height:100%; background:linear-gradient(90deg,#2563eb,#16a34a); transition:width .15s; }
+        .result-panel { display:none; margin-top:1rem; }
+        .result-cards { display:flex; flex-wrap:wrap; gap:.7rem; }
+        .result-card { min-width:170px; padding:.75rem; border:1px solid #e2e8f0; border-radius:10px; background:#f8fafc; }
+        .result-card span { display:block; color:#64748b; font-size:.78rem; }
+        .result-card strong { display:block; margin-top:3px; font-size:1.25rem; }
+        .failure-list { max-height:240px; overflow:auto; margin-top:.8rem; }
+        .failure-item { padding:.55rem .7rem; border-bottom:1px solid #e2e8f0; color:#991b1b; font-size:.84rem; }
+        .confirm-overlay { display:none; position:fixed; inset:0; z-index:5000; padding:18px; background:rgba(15,23,42,.45); align-items:center; justify-content:center; }
+        .confirm-overlay.open { display:flex; }
+        .confirm-box { width:min(470px,100%); padding:1.2rem; border-radius:14px; background:#fff; box-shadow:0 24px 70px rgba(15,23,42,.3); }
+        .confirm-box h3 { margin:0 0 .6rem; }
+        .confirm-box p { color:#475569; line-height:1.55; }
+        .confirm-actions { display:flex; justify-content:flex-end; gap:.6rem; }
+        .confirm-actions button { border:0; border-radius:8px; padding:.65rem 1rem; font-weight:800; cursor:pointer; }
+        .confirm-cancel { background:#e2e8f0; color:#475569; }
+        .confirm-import { background:#16a34a; color:#fff; }
+        @media(max-width:900px){.upload-grid{grid-template-columns:1fr}.preview-tools{grid-template-columns:1fr 1fr}.preview-tools .actions{grid-column:1/-1}}
+        @media(max-width:600px){.preview-tools{grid-template-columns:1fr}.mapping-grid{grid-template-columns:1fr}}
+    </style>
+</head>
+<body>
+    <div class="page-wrap">
+        <header class="top-head">
+            <div class="title-wrap"><div class="icon">📥</div><div><h1>Bulk Student Import</h1><p>Import existing students directly into Admissions</p></div></div>
+            <div class="head-links"><a href="index.html"><i class="fas fa-file-signature"></i> Admission</a><a href="students.html"><i class="fas fa-users"></i> Active Students</a><a href="dashboard.html"><i class="fas fa-chart-line"></i> Dashboard</a></div>
+        </header>
+
+        <div class="upload-grid">
+            <section class="panel">
+                <div id="dropZone" class="drop-zone" tabindex="0">
+                    <i class="fas fa-file-excel"></i><h2>Upload Student Excel File</h2>
+                    <p>Drag and drop an .xlsx, .xls or .csv file here</p>
+                    <button id="chooseFile" class="choose-file" type="button">Choose Excel File</button>
+                    <span id="fileName" class="mapping-note">No file selected</span>
+                    <input id="studentFile" type="file" accept=".xlsx,.xls,.csv">
+                </div>
+            </section>
+            <aside class="panel instructions">
+                <h3>Import Instructions</h3>
+                <ul><li><strong>Required:</strong> Roll Number, Student Name and Class</li><li><strong>Optional:</strong> Father Name, Mobile and WhatsApp</li><li>Missing optional details never block admission.</li><li>Duplicate roll numbers cannot be imported.</li><li>Other possible duplicates are never overwritten automatically.</li></ul>
+                <button id="downloadTemplate" class="template-btn" type="button"><i class="fas fa-download"></i> Download Student Import Template</button>
+            </aside>
+        </div>
+
+        <section id="mappingPanel" class="panel mapping-panel">
+            <h3>Column Mapping</h3><p class="mapping-note">Confirm how each Excel column maps to the School System.</p>
+            <div id="mappingGrid" class="mapping-grid"></div>
+            <div class="mapping-actions"><button id="applyMapping" class="btn-primary" type="button">Apply Mapping & Preview</button><span id="mappingStatus" class="mapping-note"></span></div>
+        </section>
+
+        <main id="previewArea" class="preview-area">
+            <section class="summary">
+                <div class="card"><span class="lbl">Total Rows</span><strong id="totalRows">0</strong></div>
+                <div class="card ready"><span class="lbl">Ready to Import</span><strong id="readyRows">0</strong></div>
+                <div class="card warning"><span class="lbl">Missing Optional</span><strong id="warningRows">0</strong></div>
+                <div class="card invalid"><span class="lbl">Cannot Import</span><strong id="invalidRows">0</strong></div>
+                <div class="card duplicate"><span class="lbl">Possible Duplicates</span><strong id="duplicateRows">0</strong></div>
+            </section>
+            <section class="preview-tools">
+                <div class="field"><label for="previewSearch">Search Preview</label><input id="previewSearch" type="search" placeholder="Student, father, roll or number"></div>
+                <div class="field"><label for="previewClass">Class</label><select id="previewClass"><option value="">All Classes</option></select></div>
+                <div class="field"><label for="previewStatus">Validation Status</label><select id="previewStatus"><option value="">All Statuses</option><option value="ready">Ready</option><option value="warning">Missing Optional</option><option value="duplicate">Possible Duplicate</option><option value="invalid">Cannot Import</option></select></div>
+                <div class="actions"><button id="importStudents" class="import-btn" type="button" disabled>Import 0 Students</button></div>
+            </section>
+            <section class="table-wrap"><table class="preview-table"><thead><tr><th>Status</th><th>Roll Number *</th><th>Student Name *</th><th>Father's Name</th><th>Class *</th><th>Mobile Number</th><th>WhatsApp Number</th><th>Duplicate Action</th></tr></thead><tbody id="previewBody"></tbody></table></section>
+        </main>
+
+        <section id="progressPanel" class="panel progress-panel"><div class="progress-head"><span id="progressText">Importing Students...</span><span id="progressPercent">0%</span></div><div class="progress-track"><div id="progressBar" class="progress-bar"></div></div></section>
+        <section id="resultPanel" class="panel result-panel"><h3>Import Completed</h3><div class="result-cards"><div class="result-card"><span>Successfully Imported</span><strong id="resultImported">0</strong></div><div class="result-card"><span>Skipped Invalid</span><strong id="resultInvalid">0</strong></div><div class="result-card"><span>Duplicates Skipped</span><strong id="resultDuplicates">0</strong></div><div class="result-card"><span>Failed</span><strong id="resultFailed">0</strong></div></div><div id="failureList" class="failure-list"></div></section>
+    </div>
+
+    <div id="confirmModal" class="confirm-overlay" aria-hidden="true"><section class="confirm-box"><h3>Confirm Bulk Import</h3><p id="confirmMessage"></p><div class="confirm-actions"><button id="confirmCancel" class="confirm-cancel" type="button">Cancel</button><button id="confirmImport" class="confirm-import" type="button">Import Students</button></div></section></div>
+
+    <script src="auth.js?v=11"></script>
+    <script src="bulk_import.js?v=2"></script>
+</body>
+</html>

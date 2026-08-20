@@ -16,12 +16,59 @@ let allStudents   = [];   // full admissions cache
 let familiesData  = [];   // grouped by mobile
 let activeFamily  = null; // currently opened family object
 let pendingDues   = [];   // challans for all active family members
+let pendingDuesLoaded = false; // distinguishes a valid zero balance from a failed/unstarted load
 let selectedIds   = new Set();
 let grandTotal    = 0;
 let receiptCache  = [];   // saved receipts for current family (for reprint)
 let familyDisplayNamesMap = new Map(); // normalized mobile -> selected family name
+let familyFeeAssignments = new Map(); // student id -> assigned Transport/Hostel/etc.
+let familyFeeHeadConfigs = [];
+let familyClassConfigs = [];
 const DEFAULT_RECEIPT_FOOTER = 'Thank you! — Zahid School System';
 let receiptFooterText = DEFAULT_RECEIPT_FOOTER;
+
+function getCurrentFamilyRemaining(fallback = 0) {
+    if (!pendingDuesLoaded || !Array.isArray(pendingDues)) {
+        return Math.max(0, Number(fallback) || 0);
+    }
+
+    const total = pendingDues.reduce((sum, challan) => {
+        const amount = Number(challan.amount) || 0;
+        const paid = Number(challan.paid_amount) || 0;
+        return sum + Math.max(0, amount - paid);
+    }, 0);
+
+    return Math.round(total * 100) / 100;
+}
+
+async function getLiveFamilyRemaining(fallback = 0) {
+    const memberIds = Array.isArray(activeFamily?.members)
+        ? activeFamily.members.map(member => member.id).filter(Boolean)
+        : [];
+
+    if (memberIds.length === 0) return getCurrentFamilyRemaining(fallback);
+
+    try {
+        const { data, error } = await applySchoolScope(db
+            .from('challans')
+            .select('amount, paid_amount')
+            .in('student_id', memberIds)
+            .in('status', ['Unpaid', 'Partially Paid']));
+
+        if (error) throw error;
+
+        const total = (data || []).reduce((sum, challan) => {
+            const amount = Number(challan.amount) || 0;
+            const paid = Number(challan.paid_amount) || 0;
+            return sum + Math.max(0, amount - paid);
+        }, 0);
+
+        return Math.round(total * 100) / 100;
+    } catch (error) {
+        console.warn('Could not refresh family balance before printing:', error.message);
+        return getCurrentFamilyRemaining(fallback);
+    }
+}
 
 function cleanCollectorName(value) {
     return String(value || '').trim().replace(/\s*\([^)]*\)\s*$/, '').trim();
@@ -334,15 +381,32 @@ async function loadFamiliesData() {
         let displayNamesQuery = db
             .from('family_display_names')
             .select('mobile_number, family_name, family_status');
+        let classesQuery = db
+            .from('classes')
+            .select('id, class_name, section');
+        let feeHeadsQuery = db
+            .from('fee_heads')
+            .select('class_id, fee_type, amount');
         if (getCurrentSchoolId()) {
             studentsQuery = studentsQuery.eq('school_id', getCurrentSchoolId());
             displayNamesQuery = displayNamesQuery.eq('school_id', getCurrentSchoolId());
+            classesQuery = classesQuery.eq('school_id', getCurrentSchoolId());
+            feeHeadsQuery = feeHeadsQuery.eq('school_id', getCurrentSchoolId());
         }
-        const [studentsResult, displayNamesResult] = await Promise.all([studentsQuery, displayNamesQuery]);
+        const [studentsResult, displayNamesResult, classesResult, feeHeadsResult] = await Promise.all([
+            studentsQuery,
+            displayNamesQuery,
+            classesQuery,
+            feeHeadsQuery
+        ]);
         if (studentsResult.error) throw studentsResult.error;
         allStudents = studentsResult.data || [];
+        familyClassConfigs = classesResult.data || [];
+        familyFeeHeadConfigs = feeHeadsResult.data || [];
         familyDisplayNamesMap = new Map((displayNamesResult.data || []).map(row => [String(row.mobile_number || '').replace(/[\s-]/g, ''), { name: row.family_name, status: row.family_status || '' }]));
         if (displayNamesResult.error) console.warn('Could not load selected family names:', displayNamesResult.error);
+        if (classesResult.error) console.warn('Could not load classes for additional fee display:', classesResult.error);
+        if (feeHeadsResult.error) console.warn('Could not load fee heads for additional fee display:', feeHeadsResult.error);
         
         processFamilies(allStudents);
 
@@ -428,6 +492,7 @@ function renderFamilyList() {
 // ─── Open Family Workspace ────────────────────────────────────────────────────
 async function openFamily(fam) {
     activeFamily = fam;
+    familyFeeAssignments = new Map();
     selectedIds.clear();
     receiptCache = [];
 
@@ -454,8 +519,7 @@ async function openFamily(fam) {
     if(wsTotalFeeEl) wsTotalFeeEl.textContent = 'Loading…';
     const wsMonthlyFeeEl = document.getElementById('wsMonthlyFee');
     if(wsMonthlyFeeEl) {
-        const familyMonthlyFee = fam.members.reduce((sum, member) => sum + Math.max(0, Number(member.monthly_fee || 0)), 0);
-        wsMonthlyFeeEl.textContent = `Rs ${familyMonthlyFee.toLocaleString()}`;
+        wsMonthlyFeeEl.textContent = 'Loading…';
     }
 
     // Reset checkout
@@ -495,8 +559,32 @@ async function openFamily(fam) {
     await Promise.all([
         loadHistory(fam.members),
         loadFamilyDues(fam.members),
-        loadDiscountHistory(fam.members)
+        loadDiscountHistory(fam.members),
+        loadFamilyFeeAssignments(fam.members)
     ]);
+
+    // Render once more after both dues and assignments are ready.
+    updateFamilyBalanceSummary();
+}
+
+async function loadFamilyFeeAssignments(members) {
+    const studentIds = (members || []).map(member => member.id).filter(Boolean);
+    familyFeeAssignments = new Map();
+    if (!studentIds.length) return;
+    try {
+        const { data, error } = await applySchoolScope(db
+            .from('student_fee_head_assignments')
+            .select('student_id, fee_type, amount_override, discount_amount')
+            .in('student_id', studentIds)
+            .eq('is_active', true));
+        if (error) throw error;
+        (data || []).forEach(row => {
+            if (!familyFeeAssignments.has(row.student_id)) familyFeeAssignments.set(row.student_id, []);
+            familyFeeAssignments.get(row.student_id).push(row);
+        });
+    } catch (error) {
+        console.warn('Could not load assigned student fee heads:', error.message);
+    }
 }
 
 // ─── Load Payment History (from receipts table grouping by FAM base) ──────────
@@ -529,6 +617,8 @@ async function loadHistory(famMembers) {
                      created_at: r.created_at,
                      total_paid: 0,
                      remaining: 0,
+                     _legacyRemaining: 0,
+                     _familyRemainingSnapshot: null,
                      payment_method: r.payment_method,
                      payment_reference: r.payment_reference,
                      remarks: r.remarks,
@@ -537,10 +627,20 @@ async function loadHistory(famMembers) {
                  };
              }
              grouped[base].total_paid += parseFloat(r.total_paid || 0);
-             // For single receipts, the remaining is accurate per receipt.
-             // For grouped FAM receipts, remaining is cumulative if we add them, but actually 
-             // in Family payments, remaining is stored independently per student. Adding them up gives the correct family total remaining at that moment!
-             grouped[base].remaining += parseFloat(r.remaining || 0);
+             // Legacy family receipts stored one student's remaining balance per
+             // receipt row. Keep their sum as a fallback, but prefer the complete
+             // family snapshot embedded in all newly-created family receipts.
+             grouped[base]._legacyRemaining += parseFloat(r.remaining || 0);
+
+             const sourceLines = Array.isArray(r.fee_lines) ? r.fee_lines : [];
+             const snapshotLine = sourceLines.find(line =>
+                 line && line.family_remaining_snapshot !== null &&
+                 line.family_remaining_snapshot !== undefined &&
+                 Number.isFinite(Number(line.family_remaining_snapshot))
+             );
+             if (snapshotLine) {
+                 grouped[base]._familyRemainingSnapshot = Number(snapshotLine.family_remaining_snapshot);
+             }
              
              // Always rebuild the leading student label from the current admission
              // record. This keeps old receipts that stored only a first name (for
@@ -558,6 +658,14 @@ async function loadHistory(famMembers) {
              }) : [];
              
              grouped[base].fee_lines.push(...rLines);
+        });
+
+        Object.values(grouped).forEach(receipt => {
+            receipt.remaining = receipt._familyRemainingSnapshot !== null
+                ? receipt._familyRemainingSnapshot
+                : receipt._legacyRemaining;
+            delete receipt._legacyRemaining;
+            delete receipt._familyRemainingSnapshot;
         });
 
         // Convert the object map back to an array sorted by date descending
@@ -613,7 +721,7 @@ async function loadHistory(famMembers) {
 
 // ─── Reprint a Saved Receipt ──────────────────────────────────────────────────
 // This uses the dynamically grouped Family receipt object
-function reprintFromHistory(receipt) {
+async function reprintFromHistory(receipt) {
     applyThermalSettings('collect_family_fee');
     document.getElementById('rctNo').textContent        = receipt.receipt_number;
     document.getElementById('rctDate').textContent      = new Date(receipt.created_at).toLocaleString('en-PK', { timeZone: 'Asia/Karachi' });
@@ -624,15 +732,9 @@ function reprintFromHistory(receipt) {
     if(rctFamNode) rctFamNode.textContent = activeFamily.familyNo || 'N/A';
     document.getElementById('rctTotal').textContent     = Number(receipt.total_paid).toLocaleString();
     
-    // Always show current global remaining from live pendingDues
-    let liveRemaining = 0;
-    if (typeof pendingDues !== 'undefined' && Array.isArray(pendingDues) && pendingDues.length > 0) {
-        pendingDues.forEach(c => {
-            liveRemaining += Math.max(0, parseFloat(c.amount) - parseFloat(c.paid_amount || 0));
-        });
-    } else {
-        liveRemaining = Number(receipt.remaining || 0);
-    }
+    // Query Supabase at print time so payments made from Collect Student Fee
+    // (including another tab) are reflected without relying on stale page data.
+    const liveRemaining = await getLiveFamilyRemaining(receipt.remaining);
     document.getElementById('rctRemaining').textContent = Number(liveRemaining).toLocaleString();
 
     // Ensure visibility
@@ -660,7 +762,7 @@ window.printDaySummaryForReceipt = function(receiptIndex) {
     if (!sourceReceipt) return;
 
     const dateStr = new Date(sourceReceipt.created_at).toLocaleDateString('en-PK', { timeZone: 'Asia/Karachi' });
-    window.printDaySummary(dateStr, sourceReceipt.collected_by || '');
+    return window.printDaySummary(dateStr, sourceReceipt.collected_by || '');
 };
 
 window.printCombinedUsersDaySummaryForReceipt = function(receiptIndex) {
@@ -668,10 +770,10 @@ window.printCombinedUsersDaySummaryForReceipt = function(receiptIndex) {
     if (!sourceReceipt) return;
 
     const dateStr = new Date(sourceReceipt.created_at).toLocaleDateString('en-PK', { timeZone: 'Asia/Karachi' });
-    window.printDaySummary(dateStr, '', true);
+    return window.printDaySummary(dateStr, '', true);
 };
 
-window.printDaySummary = function(dateStr, collectorKey = '', combineAllUsers = false) {
+window.printDaySummary = async function(dateStr, collectorKey = '', combineAllUsers = false) {
     if (!receiptCache || receiptCache.length === 0) return;
 
     const dayReceipts = receiptCache.filter(r =>
@@ -690,16 +792,10 @@ window.printDaySummary = function(dateStr, collectorKey = '', combineAllUsers = 
         allLines.push(...(Array.isArray(r.fee_lines) ? r.fee_lines : []));
     });
     
-    // Calculate remaining from live pendingDues — total across ALL family
-    // members' dues, not from the last receipt's snapshot.
-    let familyRemaining = 0;
-    if (typeof pendingDues !== 'undefined' && Array.isArray(pendingDues)) {
-        pendingDues.forEach(c => {
-            familyRemaining += Math.max(0, parseFloat(c.amount) - parseFloat(c.paid_amount || 0));
-        });
-    } else {
-        familyRemaining = Number(sorted[sorted.length - 1].remaining || 0);
-    }
+    // Combined reprints also query the database at print time. This prevents an
+    // already-open Family page from printing the balance cached before a payment
+    // was entered through Collect Student Fee.
+    const familyRemaining = await getLiveFamilyRemaining(sorted[sorted.length - 1].remaining);
 
     applyThermalSettings('collect_family_fee');
     document.getElementById('rctNo').textContent        = `DAY-${dateStr.replace(/\//g, '')}`;
@@ -742,8 +838,12 @@ async function loadFamilyDues(members) {
     if(challansList) challansList.innerHTML = '<p style="color:#94a3b8;">Loading family pending dues...</p>';
     selectedIds.clear();
     pendingDues = [];
+    pendingDuesLoaded = false;
     
-    if (members.length === 0) return;
+    if (!members || members.length === 0) {
+        pendingDuesLoaded = true;
+        return;
+    }
 
     const studentIds = members.map(m => m.id);
     
@@ -784,9 +884,10 @@ async function loadFamilyDues(members) {
                 ...ch,
                 _studentName: stu ? stu.full_name : 'Unknown',
                 _studentRoll: stu ? stu.roll_number : '-',
-                _concessionGiven: discountMap[ch.id] || 0
+                _concessionGiven: (discountMap[ch.id] || 0) + Math.max(0, parseFloat(ch.assigned_discount || 0))
             };
         });
+        pendingDuesLoaded = true;
 
         if (pendingDues.length === 0) {
             if(btnPayAll) btnPayAll.style.display = 'none';
@@ -828,7 +929,31 @@ function updateFamilyBalanceSummary() {
     if(wsTotalFeeEl) wsTotalFeeEl.textContent = `Rs ${familyTotal.toLocaleString()}`;
     if(wsMonthlyFeeEl && activeFamily) {
         const monthlyTotal = activeFamily.members.reduce((sum, member) => sum + Math.max(0, Number(member.monthly_fee || 0)), 0);
-        wsMonthlyFeeEl.textContent = `Rs ${monthlyTotal.toLocaleString()}`;
+        const assignedFeeTotal = activeFamily.members.reduce((familySum, member) => {
+            const normalizedClass = String(member.applying_for_class || '').trim().toLowerCase();
+            const classRecord = familyClassConfigs.find(item =>
+                `${item.class_name || ''} ${item.section || ''}`.trim().toLowerCase() === normalizedClass
+            );
+            const memberAssignedTotal = (familyFeeAssignments.get(member.id) || []).reduce((sum, assignment) => {
+                const specific = familyFeeHeadConfigs.find(config => config.fee_type === assignment.fee_type && config.class_id === classRecord?.id);
+                const global = familyFeeHeadConfigs.find(config => config.fee_type === assignment.fee_type && !config.class_id);
+                const baseAmount = assignment.amount_override != null
+                    ? Math.max(0, Number(assignment.amount_override) || 0)
+                    : Math.max(0, Number((specific || global)?.amount) || 0);
+                const discount = Math.min(baseAmount, Math.max(0, Number(assignment.discount_amount) || 0));
+                return sum + Math.max(0, baseAmount - discount);
+            }, 0);
+            return familySum + memberAssignedTotal;
+        }, 0);
+        const pendingOtherFeeTotal = pendingDues.reduce((sum, challan) => {
+            const normalizedType = String(challan.fee_type || '').trim().toLowerCase();
+            if (!normalizedType || normalizedType === 'monthly fee') return sum;
+            const memberAssignedTypes = new Set((familyFeeAssignments.get(challan.student_id) || [])
+                .map(item => String(item.fee_type || '').trim().toLowerCase()));
+            if (memberAssignedTypes.has(normalizedType)) return sum;
+            return sum + Math.max(0, Number(challan.amount || 0) - Number(challan.paid_amount || 0));
+        }, 0);
+        wsMonthlyFeeEl.textContent = `Rs ${(monthlyTotal + assignedFeeTotal + pendingOtherFeeTotal).toLocaleString()}`;
     }
 
     // Build per-member chip breakdown
@@ -845,6 +970,35 @@ function updateFamilyBalanceSummary() {
         wsMembersList.innerHTML = activeFamily.members.map(m => {
             const due = Math.round((memberTotals[m.id] || 0) * 100) / 100;
             const color = due > 0 ? '#dc2626' : '#16a34a';
+            const normalizedClass = String(m.applying_for_class || '').trim().toLowerCase();
+            const classRecord = familyClassConfigs.find(item =>
+                `${item.class_name || ''} ${item.section || ''}`.trim().toLowerCase() === normalizedClass
+            );
+            const assignments = familyFeeAssignments.get(m.id) || [];
+            const assignedTypes = new Set(assignments.map(item => String(item.fee_type || '').trim().toLowerCase()));
+            const assignedFeeLines = assignments.map(item => {
+                const specific = familyFeeHeadConfigs.find(config => config.fee_type === item.fee_type && config.class_id === classRecord?.id);
+                const global = familyFeeHeadConfigs.find(config => config.fee_type === item.fee_type && !config.class_id);
+                const baseAmount = item.amount_override != null
+                    ? Math.max(0, Number(item.amount_override) || 0)
+                    : Math.max(0, Number((specific || global)?.amount) || 0);
+                const discount = Math.min(baseAmount, Math.max(0, Number(item.discount_amount) || 0));
+                const payable = Math.max(0, baseAmount - discount);
+                return `<div class="member-chip-extra"><strong>${item.fee_type}:</strong> Rs ${payable.toLocaleString()}${discount > 0 ? ` <span>(Discount Rs ${discount.toLocaleString()})</span>` : ''}</div>`;
+            });
+
+            const pendingExtraTotals = {};
+            pendingDues.filter(challan => challan.student_id === m.id).forEach(challan => {
+                const type = String(challan.fee_type || '').trim();
+                const normalizedType = type.toLowerCase();
+                if (!type || normalizedType === 'monthly fee' || assignedTypes.has(normalizedType)) return;
+                const remaining = Math.max(0, Number(challan.amount || 0) - Number(challan.paid_amount || 0));
+                pendingExtraTotals[type] = (pendingExtraTotals[type] || 0) + remaining;
+            });
+            const pendingExtraLines = Object.entries(pendingExtraTotals).map(([feeType, amount]) =>
+                `<div class="member-chip-extra member-chip-extra-due"><strong>${feeType} Due:</strong> Rs ${Number(amount).toLocaleString()}</div>`
+            );
+            const additionalFeeHtml = [...assignedFeeLines, ...pendingExtraLines].join('');
             return `<div class="member-chip">
                 <div class="member-chip-head">
                     <span class="member-chip-name">${m.full_name}</span>
@@ -852,6 +1006,7 @@ function updateFamilyBalanceSummary() {
                 </div>
                 <div class="member-chip-meta">Roll ${m.roll_number || '—'} · Class ${m.applying_for_class || '—'}</div>
                 <div class="member-chip-monthly">Monthly Fee: Rs ${Number(m.monthly_fee || 0).toLocaleString()}</div>
+                ${additionalFeeHtml}
             </div>`;
         }).join('');
     }
@@ -1125,6 +1280,14 @@ async function submitPayment() {
             ) / 100;
         }
 
+        // One immutable snapshot for the whole family at this exact payment.
+        // It is embedded in fee_lines so this works with the existing receipts
+        // schema and does not require a Supabase migration.
+        const totalFamilyRemaining = Math.round(
+            Object.values(totalRemainingByStudent)
+                .reduce((sum, amount) => sum + Number(amount || 0), 0) * 100
+        ) / 100;
+
         const receiptsToInsert = [];
         let rIndex = 1;
         
@@ -1136,7 +1299,10 @@ async function submitPayment() {
                 roll_number:       grp.roll_number,
                 father_name:       grp.father_name,
                 class_name:        grp.class_name,
-                fee_lines:         grp.lines,
+                fee_lines:         grp.lines.map(line => ({
+                    ...line,
+                    family_remaining_snapshot: totalFamilyRemaining
+                })),
                 total_paid:        grp.total,
                 remaining:         totalRemainingByStudent[grp.student_id] || 0,
                 payment_method:    method,
@@ -1153,10 +1319,6 @@ async function submitPayment() {
         // ── Save multiple atomic receipts to receipts table ──
         const { error: rctErr } = await db.from('receipts').insert(receiptsToInsert);
         if (rctErr) console.warn('Receipt save warning:', rctErr.message);
-
-        // Total family remaining across ALL dues
-        const totalFamilyRemaining = Object.values(totalRemainingByStudent)
-            .reduce((sum, amount) => sum + Number(amount || 0), 0);
 
         // Print combined physical receipt using UI grouping logic
         printReceipt(baseReceipt, txRecords, paying, totalFamilyRemaining, fine, discount, collectorName, paymentTimestamp);

@@ -15,6 +15,28 @@
         .config-table th { background: #f8fafc; font-weight: 600; color: #475569; }
         .config-table td { color: #334155; }
         .tag { display: inline-block; background: #e2e8f0; color: #475569; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.85rem; margin: 2px; }
+        .single-copy-btn { background:#0ea5e9 !important; border-color:#0ea5e9 !important; color:#fff !important; }
+        .single-copy-btn:hover { background:#0284c7 !important; }
+        .single-copy-overlay { display:none; position:fixed; inset:0; z-index:3500; padding:18px; background:rgba(15,23,42,.42); align-items:center; justify-content:center; }
+        .single-copy-overlay.open { display:flex; }
+        .single-copy-dialog { width:min(430px, 100%); padding:20px; border-radius:14px; background:#fff; box-shadow:0 22px 60px rgba(15,23,42,.3); }
+        .single-copy-dialog h3 { margin:0; color:#0f172a; }
+        .single-copy-source { margin:8px 0 16px; padding:11px; border-radius:9px; background:#f0f9ff; color:#075985; font-weight:700; line-height:1.45; }
+        .single-copy-dialog > label { display:block; margin-bottom:6px; color:#475569; font-weight:700; }
+        .single-copy-class-tools { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:7px; }
+        .single-copy-class-tools span { color:#475569; font-weight:700; }
+        .single-copy-class-tools div { display:flex; gap:5px; }
+        .single-copy-class-tools button { border:1px solid #bae6fd; border-radius:6px; padding:5px 8px; background:#f0f9ff; color:#0369a1; font-size:.76rem; font-weight:800; cursor:pointer; }
+        .single-copy-class-list { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:7px; max-height:250px; overflow:auto; padding:9px; border:2px solid #e2e8f0; border-radius:9px; background:#f8fafc; }
+        .single-copy-class-option { display:flex; align-items:center; gap:7px; margin:0; padding:7px 8px; border:1px solid #e2e8f0; border-radius:7px; background:#fff; color:#334155; font-size:.86rem; font-weight:700; cursor:pointer; }
+        .single-copy-class-option:has(input:checked) { border-color:#38bdf8; background:#e0f2fe; color:#075985; }
+        .single-copy-class-option.source-class { display:none; }
+        .single-copy-class-option input { width:16px; height:16px; accent-color:#0284c7; }
+        .single-copy-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:17px; }
+        .single-copy-actions button { border:0; border-radius:8px; padding:10px 15px; font-weight:800; cursor:pointer; }
+        .single-copy-cancel { background:#e2e8f0; color:#475569; }
+        .single-copy-confirm { background:#0ea5e9; color:#fff; }
+        .single-copy-confirm:disabled { opacity:.6; cursor:wait; }
     </style>
 </head>
 <body>
@@ -89,10 +111,29 @@
         </div>
     </div>
 
+    <div id="singleCopyModal" class="single-copy-overlay" aria-hidden="true">
+        <section class="single-copy-dialog" role="dialog" aria-modal="true" aria-labelledby="singleCopyTitle">
+            <h3 id="singleCopyTitle">📄 Copy One Category</h3>
+            <div id="singleCopySource" class="single-copy-source"></div>
+            <div class="single-copy-class-tools">
+                <span>Select target classes:</span>
+                <div>
+                    <button id="singleCopySelectAll" type="button">Select All</button>
+                    <button id="singleCopyClearAll" type="button">Clear</button>
+                </div>
+            </div>
+            <div id="singleCopyClassList" class="single-copy-class-list"></div>
+            <div class="single-copy-actions">
+                <button id="singleCopyCancel" type="button" class="single-copy-cancel">Cancel</button>
+                <button id="singleCopyConfirm" type="button" class="single-copy-confirm">Copy Category</button>
+            </div>
+        </section>
+    </div>
+
     <!-- Toast container -->
     <div class="toast-box" id="toastContainer"></div>
 
     <script src="auth.js"></script>
-    <script src="publisher_config.js"></script>
+    <script src="publisher_config.js?v=3"></script>
 </body>
 </html>

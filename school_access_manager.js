@@ -23,6 +23,12 @@
             .sam-summary strong{display:block;font-size:.95rem}.sam-summary small{color:#64748b}
             .sam-badge{padding:5px 10px;border-radius:999px;font-size:.73rem;font-weight:800;background:#dcfce7;color:#166534}
             .sam-badge.custom{background:#dbeafe;color:#1d4ed8}
+            .sam-package-tools{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:11px 13px;border:1px solid #ddd6fe;background:linear-gradient(135deg,#f5f3ff,#eff6ff);border-radius:11px;margin-bottom:16px}
+            .sam-package-tools strong{margin-right:auto;color:#4c1d95;font-size:.84rem}.sam-package-tools small{display:block;color:#64748b;font-weight:500;margin-top:2px}
+            .sam-addon{border-color:#c4b5fd;box-shadow:0 4px 16px rgba(124,58,237,.10)}
+            .sam-addon .sam-section-head{background:linear-gradient(135deg,#ede9fe,#eff6ff)}
+            .sam-addon .sam-section-head>i{background:#7c3aed}
+            .sam-addon-badge{display:inline-flex;margin-top:3px;padding:2px 6px;border-radius:999px;background:#ede9fe;color:#6d28d9;font-size:.58rem;font-weight:900;letter-spacing:.03em}
             .sam-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px}
             .sam-section{border:1px solid #dbe3ef;border-radius:13px;background:#fff;overflow:hidden;box-shadow:0 2px 8px rgba(15,23,42,.04)}
             .sam-section-head{display:flex;align-items:center;gap:10px;padding:12px 13px;background:linear-gradient(135deg,#eff6ff,#f8fafc);border-bottom:1px solid #e2e8f0}
@@ -40,7 +46,7 @@
             .sam-message.show{display:block}.sam-message.success{background:#dcfce7;color:#166534}.sam-message.error{background:#fee2e2;color:#991b1b}
             .sam-setup{padding:18px;border:1px solid #fecaca;border-radius:12px;background:#fff7ed;color:#9a3412;line-height:1.55}
             @media(max-width:1100px){.sam-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-            @media(max-width:700px){.sam-toolbar,.sam-grid{grid-template-columns:1fr}.sam-mode{white-space:normal}.sam-actions{flex-wrap:wrap}.sam-btn.primary{margin-left:0;width:100%}}
+            @media(max-width:700px){.sam-toolbar,.sam-grid{grid-template-columns:1fr}.sam-mode{white-space:normal}.sam-actions{flex-wrap:wrap}.sam-btn.primary{margin-left:0;width:100%}.sam-package-tools strong{width:100%}}
         `;
         document.head.appendChild(style);
     }
@@ -103,6 +109,11 @@
                     </div>
                 </div>
                 <div class="sam-summary" data-sam="summary"></div>
+                <div class="sam-package-tools" data-sam="asset-package">
+                    <strong><i class="fas fa-building-shield"></i> Assets Add-on<small>Assets Management + Library Books Record</small></strong>
+                    <button class="sam-btn" type="button" data-sam="assets-on"><i class="fas fa-plus"></i> Enable Both</button>
+                    <button class="sam-btn" type="button" data-sam="assets-off"><i class="fas fa-minus"></i> Remove Both</button>
+                </div>
                 <div class="sam-grid" data-sam="grid"></div>
                 <div class="sam-actions">
                     <button class="sam-btn" type="button" data-sam="all">Enable all</button>
@@ -124,9 +135,10 @@
 
         function renderSummary() {
             const enabledCount = allowed.size;
+            const enabledModuleCount = sections.filter(section => section.items.some(item => allowed.has(normalize(item.href)))).length;
             const fee = Number(selectedSchool?.monthly_fee || 0).toLocaleString();
             el('summary').innerHTML = `
-                <div><strong>${escapeHtml(selectedSchool?.school_name || 'No school selected')}</strong><small>Rs ${fee}/month · ${enabledCount} of ${pageKeys.length} pages selected</small></div>
+                <div><strong>${escapeHtml(selectedSchool?.school_name || 'No school selected')}</strong><small>Rs ${fee}/month · ${enabledModuleCount} of ${sections.length} modules · ${enabledCount} of ${pageKeys.length} pages selected</small></div>
                 <span class="sam-badge ${configured ? 'custom' : ''}">${configured ? 'CUSTOM PACKAGE' : 'FULL ACCESS'}</span>`;
             el('mode').checked = configured;
         }
@@ -144,10 +156,10 @@
 
         function renderGrid() {
             el('grid').innerHTML = sections.map(section => `
-                <section class="sam-section">
+                <section class="sam-section ${section.id === 'assets' ? 'sam-addon' : ''}">
                     <div class="sam-section-head">
                         <i class="${section.icon}"></i>
-                        <div class="sam-section-title"><strong>${section.label}</strong><small data-count="${section.id}"></small></div>
+                        <div class="sam-section-title"><strong>${section.label}</strong><small data-count="${section.id}"></small>${section.id === 'assets' ? '<span class="sam-addon-badge">SELLABLE ADD-ON</span>' : ''}</div>
                         <input class="sam-check" type="checkbox" data-section="${section.id}" aria-label="Toggle ${section.label}">
                     </div>
                     <div class="sam-pages">
@@ -250,6 +262,23 @@
             renderGrid();
             renderSummary();
         });
+        const assetsSection = sections.find(section => section.id === 'assets');
+        if (!assetsSection) {
+            el('asset-package').style.display = 'none';
+        } else {
+            el('assets-on').addEventListener('click', () => {
+                assetsSection.items.forEach(item => allowed.add(normalize(item.href)));
+                configured = true;
+                renderGrid();
+                renderSummary();
+            });
+            el('assets-off').addEventListener('click', () => {
+                assetsSection.items.forEach(item => allowed.delete(normalize(item.href)));
+                configured = true;
+                renderGrid();
+                renderSummary();
+            });
+        }
         el('save').addEventListener('click', async () => {
             if (!selectedSchool) return;
             if (configured && allowed.size === 0 && !window.confirm('This school will only be able to open the dashboard. Save this restriction?')) return;

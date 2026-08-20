@@ -7,6 +7,7 @@ var NAV_CATEGORIES = [
     items: [
       { href: 'index.html', label: 'Admission Form', icon: 'fas fa-file-signature', key: 'admissions' },
       { href: 'students.html', label: 'Active Students', icon: 'fas fa-users', key: 'students' },
+      { href: 'bulk_import.html', label: 'Bulk Import', icon: 'fas fa-file-import', key: 'admissions' },
       { href: 'Dairy.html', label: 'Diary / Tasks', icon: 'fas fa-clipboard-list', key: 'students' },
       { href: 'family.html', label: 'Family Management', icon: 'fas fa-home', key: 'family' },
       { href: 'homework.html', label: 'Homework Publisher', icon: 'fas fa-book', key: 'homework' },
@@ -111,12 +112,19 @@ var NAV_CATEGORIES = [
             { href: 'RS.html', label: 'RS', icon: 'fas fa-file-alt', key: 'examination' }
         ]
     },
-    {
+  {
         id: 'inventory', label: 'Inventory', icon: 'fas fa-boxes',
         items: [
             { href: 'books_dashboard.html', label: 'Books Dashboard', icon: 'fas fa-chart-pie', key: 'books_dashboard' },
             { href: 'books_inventory.html', label: 'Books Inventory', icon: 'fas fa-book-open', key: 'books_inventory' },
             { href: 'book_sales_report.html', label: 'Book Sales Report', icon: 'fas fa-file-invoice-dollar', key: 'book_sales_report' }
+        ]
+    },
+  {
+        id: 'assets', label: 'Assets', icon: 'fas fa-building-shield',
+        items: [
+            { href: 'assets.html', label: 'Assets Management', icon: 'fas fa-boxes-stacked', key: 'assets' },
+            { href: 'library_books.html', label: 'Library Books Record', icon: 'fas fa-book-open-reader', key: 'library_books' }
         ]
     },
   {
