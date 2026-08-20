@@ -20,9 +20,21 @@ let grandTotal    = 0;
 let receiptCache  = [];   // saved receipts for current student (for reprint)
 const DEFAULT_RECEIPT_FOOTER = 'Thank you! — Zahid School System';
 let receiptFooterText = DEFAULT_RECEIPT_FOOTER;
+let receiptSchoolName = '';
+let receiptSchoolPhone = '';
 
 function normalizeFamilyMobile(value) {
     return String(value || '').replace(/[\s-]/g, '').trim();
+}
+
+function paymentTimestampForDate(dateValue) {
+    const today = window.karachiToday ? window.karachiToday() : new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Karachi', year: 'numeric', month: '2-digit', day: '2-digit'
+    }).format(new Date());
+    if (!dateValue || dateValue === today) return new Date().toISOString();
+    // A historical date has no trustworthy clock time, so retain noon only for
+    // deliberately backdated records.
+    return `${dateValue}T12:00:00+05:00`;
 }
 
 async function getFamilyRemainingAfterStudentPayment(student) {
@@ -64,6 +76,37 @@ function cleanCollectorName(value) {
 function applyPaymentReceiptFooter() {
     const footer = document.getElementById('rctFooter');
     if (footer) footer.textContent = receiptFooterText;
+}
+
+function applyReceiptSchoolIdentity() {
+    const schoolName = document.getElementById('rctSchoolName');
+    const schoolPhone = document.getElementById('rctSchoolPhone');
+    if (schoolName) schoolName.textContent = receiptSchoolName || window.currentSchoolName || 'School';
+    if (schoolPhone) {
+        schoolPhone.textContent = receiptSchoolPhone;
+        schoolPhone.style.display = receiptSchoolPhone ? 'block' : 'none';
+    }
+}
+
+async function loadReceiptSchoolIdentity() {
+    receiptSchoolName = window.currentSchoolName || 'School';
+    receiptSchoolPhone = '';
+    const schoolId = getCurrentSchoolId();
+    if (schoolId) {
+        try {
+            const { data, error } = await db
+                .from('schools')
+                .select('school_name, whatsapp')
+                .eq('id', schoolId)
+                .maybeSingle();
+            if (error) throw error;
+            receiptSchoolName = String(data?.school_name || receiptSchoolName).trim();
+            receiptSchoolPhone = String(data?.whatsapp || '').trim();
+        } catch (error) {
+            console.info('Could not refresh receipt school identity:', error.message);
+        }
+    }
+    applyReceiptSchoolIdentity();
 }
 
 async function loadReceiptFooterText() {
@@ -210,8 +253,11 @@ function setTodayDate() {
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 window.onAppReady(async () => {
     await waitForFeeAuth();
-    await loadReceiptFooterText();
-    window.addEventListener('focus', loadReceiptFooterText);
+    await Promise.all([loadReceiptFooterText(), loadReceiptSchoolIdentity()]);
+    window.addEventListener('focus', () => {
+        loadReceiptFooterText();
+        loadReceiptSchoolIdentity();
+    });
     
     setTodayDate();
     const backdateLabel = document.getElementById('backdateToggleLabel');
@@ -864,14 +910,7 @@ async function applyDiscountToSelectedChallans() {
 
     try {
         const paymentDateOnly = inputPaymentDate ? inputPaymentDate.value : new Date().toISOString().split('T')[0];
-        let paymentTimestamp = null;
-        const chkBackdate = document.getElementById('chkBackdate');
-        if (chkBackdate && chkBackdate.checked && paymentDateOnly) {
-            const todayStr = window.karachiToday ? window.karachiToday() : new Date().toISOString().split('T')[0];
-            if (paymentDateOnly !== todayStr) {
-                paymentTimestamp = paymentDateOnly + "T12:00:00+05:00";
-            }
-        }
+        let paymentTimestamp = paymentTimestampForDate(paymentDateOnly);
 
         let remainingDiscount = discountAmt;
         const discountLogs = [];
@@ -916,7 +955,8 @@ async function applyDiscountToSelectedChallans() {
                 school_id:         getCurrentSchoolId(),
                 collected_by:      collectorName,
                 collected_by_user_id: window.currentUser?.id || null,
-                ...(paymentTimestamp ? { created_at: paymentTimestamp, payment_date: paymentDateOnly } : {})
+                created_at:        paymentTimestamp,
+                payment_date:      paymentDateOnly
             });
 
             remainingDiscount = Math.round((remainingDiscount - appliedDiscount) * 100) / 100;
@@ -951,14 +991,7 @@ async function submitPayment() {
 
     const paying   = parseFloat(inputPaying.value) || 0;
     const paymentDateOnly = inputPaymentDate ? inputPaymentDate.value : new Date().toISOString().split('T')[0];
-    let paymentTimestamp = null;
-    const chkBackdate = document.getElementById('chkBackdate');
-    if (chkBackdate && chkBackdate.checked && paymentDateOnly) {
-        const todayStr = window.karachiToday ? window.karachiToday() : new Date().toISOString().split('T')[0];
-        if (paymentDateOnly !== todayStr) {
-            paymentTimestamp = paymentDateOnly + "T12:00:00+05:00";
-        }
-    }
+    let paymentTimestamp = paymentTimestampForDate(paymentDateOnly);
     const fine     = parseFloat(inputFine.value)   || 0;
     const discount = parseFloat(inputDiscount.value)|| 0;
     const method   = inputMethod.value;
@@ -1016,7 +1049,9 @@ async function submitPayment() {
                 remarks:           remarks || null,
                 school_id:         getCurrentSchoolId(),
                 collected_by:      collectorName || null,
-                collected_by_user_id: window.currentUser?.id || null
+                collected_by_user_id: window.currentUser?.id || null,
+                created_at:        paymentTimestamp,
+                payment_date:      paymentDateOnly
             });
 
             wallet -= debit;
@@ -1073,7 +1108,7 @@ async function submitPayment() {
             school_id:         getCurrentSchoolId(),
             collected_by:      collectorName || null,
             collected_by_user_id: window.currentUser?.id || null,
-            ...(paymentTimestamp ? { created_at: paymentTimestamp } : {})
+            created_at:        paymentTimestamp
         };
         const { error: rctErr } = await db.from('receipts').insert([receiptRecord]);
         if (rctErr) console.warn('Receipt save warning:', rctErr.message); // non-fatal

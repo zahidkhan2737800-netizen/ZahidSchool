@@ -1,4 +1,5 @@
 const saasDirectory = { schools: [], roles: [], campuses: [], users: [] };
+let editingSaasSchoolId = null;
 
 window.onAppReady(async () => {
     if (!await window.SaasAdmin.ready('users')) return;
@@ -125,7 +126,22 @@ function renderSchools() {
 
     list.innerHTML = saasDirectory.schools.map(school => {
         const isCurrentSchool = school.id === window.currentSchoolId;
+        const isEditing = school.id === editingSaasSchoolId;
         const whatsappDigits = String(school.whatsapp || '').replace(/[^0-9]/g, '');
+        if (isEditing) {
+            return `<tr style="background:#eff6ff;">
+                <td><input class="saas-input" id="editSchoolName" value="${window.SaasAdmin.escapeHtml(school.school_name)}" aria-label="School name"></td>
+                <td><input class="saas-input" id="editSchoolCity" value="${window.SaasAdmin.escapeHtml(school.city || '')}" aria-label="City"></td>
+                <td><input class="saas-input" id="editSchoolWhatsapp" value="${window.SaasAdmin.escapeHtml(school.whatsapp || '')}" aria-label="WhatsApp number"></td>
+                <td><input class="saas-input" id="editSchoolMaxStudents" type="number" min="1" step="1" value="${Number(school.max_students || 1)}" aria-label="Maximum students"></td>
+                <td><input class="saas-input" id="editSchoolMonthlyFee" type="number" min="0" step="1" value="${Number(school.monthly_fee || 0)}" aria-label="Monthly subscription fee"></td>
+                <td><span class="saas-badge ${school.is_active ? 'active' : 'inactive'}"><i class="fas ${school.is_active ? 'fa-circle-check' : 'fa-circle-xmark'}"></i> ${school.is_active ? 'Active' : 'Suspended'}</span></td>
+                <td style="text-align:right;white-space:nowrap;">
+                    <button class="saas-btn success" id="btnSaveSchoolEdit" onclick="saveSaasSchool('${school.id}')"><i class="fas fa-check"></i> Save</button>
+                    <button class="saas-btn" onclick="cancelSaasSchoolEdit()"><i class="fas fa-xmark"></i> Cancel</button>
+                </td>
+            </tr>`;
+        }
         return `<tr>
             <td><strong>${window.SaasAdmin.escapeHtml(school.school_name)}</strong></td>
             <td>${window.SaasAdmin.escapeHtml(school.city || '—')}</td>
@@ -133,13 +149,69 @@ function renderSchools() {
             <td><strong>${Number(school.max_students || 0).toLocaleString()}</strong></td>
             <td><strong style="color:#d97706;">Rs ${Number(school.monthly_fee || 0).toLocaleString()}</strong></td>
             <td><span class="saas-badge ${school.is_active ? 'active' : 'inactive'}"><i class="fas ${school.is_active ? 'fa-circle-check' : 'fa-circle-xmark'}"></i> ${school.is_active ? 'Active' : 'Suspended'}</span></td>
-            <td style="text-align:right;">${isCurrentSchool
-                ? '<span class="saas-badge active"><i class="fas fa-lock"></i> Current School</span>'
-                : `<button class="saas-btn danger" onclick="deleteSaasSchool('${school.id}')"><i class="fas fa-trash-alt"></i> Delete</button>`}
+            <td style="text-align:right;white-space:nowrap;">
+                <button class="saas-btn" onclick="editSaasSchool('${school.id}')"><i class="fas fa-pen"></i> Edit</button>
+                ${isCurrentSchool
+                    ? '<span class="saas-badge active"><i class="fas fa-lock"></i> Current School</span>'
+                    : `<button class="saas-btn danger" onclick="deleteSaasSchool('${school.id}')"><i class="fas fa-trash-alt"></i> Delete</button>`}
             </td>
         </tr>`;
     }).join('');
 }
+
+window.editSaasSchool = function (schoolId) {
+    if (!saasDirectory.schools.some(school => school.id === schoolId)) return;
+    editingSaasSchoolId = schoolId;
+    renderSchools();
+    document.getElementById('editSchoolName')?.focus();
+};
+
+window.cancelSaasSchoolEdit = function () {
+    editingSaasSchoolId = null;
+    renderSchools();
+};
+
+window.saveSaasSchool = async function (schoolId) {
+    const school = saasDirectory.schools.find(item => item.id === schoolId);
+    if (!school || editingSaasSchoolId !== schoolId) return;
+
+    const schoolName = document.getElementById('editSchoolName')?.value.trim() || '';
+    const maxStudents = Number.parseInt(document.getElementById('editSchoolMaxStudents')?.value, 10);
+    const monthlyFee = Number.parseFloat(document.getElementById('editSchoolMonthlyFee')?.value);
+    if (!schoolName) return window.SaasAdmin.toast('School name is required.', 'error');
+    if (!Number.isInteger(maxStudents) || maxStudents < 1) return window.SaasAdmin.toast('Max Students must be a positive number.', 'error');
+    if (!Number.isFinite(monthlyFee) || monthlyFee < 0) return window.SaasAdmin.toast('Monthly fee cannot be negative.', 'error');
+
+    const button = document.getElementById('btnSaveSchoolEdit');
+    if (button) {
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving';
+    }
+
+    try {
+        const { error } = await window.supabaseClient
+            .from('schools')
+            .update({
+                school_name: schoolName,
+                city: document.getElementById('editSchoolCity')?.value.trim() || null,
+                whatsapp: document.getElementById('editSchoolWhatsapp')?.value.trim() || null,
+                max_students: maxStudents,
+                monthly_fee: monthlyFee
+            })
+            .eq('id', schoolId);
+        if (error) throw error;
+
+        editingSaasSchoolId = null;
+        window.SaasAdmin.toast(`School updated to “${schoolName}”. All existing data remains attached.`, 'success');
+        await refreshDirectory();
+    } catch (error) {
+        window.SaasAdmin.toast('Could not update school: ' + (error.message || 'Unknown error'), 'error');
+        if (button) {
+            button.disabled = false;
+            button.innerHTML = '<i class="fas fa-check"></i> Save';
+        }
+    }
+};
 
 window.deleteSaasSchool = async function (schoolId) {
     const school = saasDirectory.schools.find(item => item.id === schoolId);

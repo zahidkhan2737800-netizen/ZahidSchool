@@ -17,6 +17,8 @@ let familyCommitmentsMap = {}; // family_mobile -> pending dated commitments
 let teacherFeeSelectedStudentIds = new Set(); // shared Supabase TeacherFee rows
 let familyDisplayNamesMap = new Map(); // normalized mobile -> selected family name
 let familyPaymentsMap = {}; // family_mobile -> receipt-level payments for selected month
+const FAMILY_DATA_BATCH_SIZE = 100;
+const FAMILY_DATA_PAGE_SIZE = 1000;
 
 const STATUS_COLORS = {
     'C': 'status-C',
@@ -42,6 +44,80 @@ function selectedMonthUtcRange(monthKey) {
     };
 }
 
+function uniqueFamilyStudentIds(ids) {
+    return [...new Set((ids || []).map(id => String(id || '').trim()).filter(Boolean))];
+}
+
+function chunkFamilyData(values, size = FAMILY_DATA_BATCH_SIZE) {
+    const chunks = [];
+    for (let index = 0; index < values.length; index += size) {
+        chunks.push(values.slice(index, index + size));
+    }
+    return chunks;
+}
+
+function scopeFamilyQuery(query) {
+    return window.currentSchoolId ? query.eq('school_id', window.currentSchoolId) : query;
+}
+
+async function runFamilyQueryWithRetry(queryFactory, attempts = 2) {
+    let lastResult = null;
+    for (let attempt = 0; attempt < attempts; attempt++) {
+        lastResult = await queryFactory();
+        if (!lastResult?.error) return lastResult;
+        if (attempt + 1 < attempts) {
+            await new Promise(resolve => setTimeout(resolve, 150 * (attempt + 1)));
+        }
+    }
+    return lastResult;
+}
+
+async function fetchAllFamilyRows(queryFactory, label) {
+    const rows = [];
+    for (let from = 0; ; from += FAMILY_DATA_PAGE_SIZE) {
+        const to = from + FAMILY_DATA_PAGE_SIZE - 1;
+        const result = await runFamilyQueryWithRetry(() => queryFactory().range(from, to));
+        if (result?.error) {
+            throw new Error(`${label}: ${result.error.message || 'Supabase request failed'}`);
+        }
+        const pageRows = result?.data || [];
+        rows.push(...pageRows);
+        if (pageRows.length < FAMILY_DATA_PAGE_SIZE) break;
+    }
+    return rows;
+}
+
+async function fetchPendingFamilyChallans(studentIds) {
+    const batches = chunkFamilyData(uniqueFamilyStudentIds(studentIds));
+    const results = await Promise.all(batches.map((batch, batchIndex) => fetchAllFamilyRows(() => {
+        let query = window.supabaseClient
+            .from('challans')
+            .select('id, student_id, amount, paid_amount, fee_month, fee_type, status')
+            .in('student_id', batch)
+            .in('status', ['Unpaid', 'Partially Paid'])
+            .order('student_id', { ascending: true })
+            .order('id', { ascending: true });
+        return scopeFamilyQuery(query);
+    }, `Pending challans batch ${batchIndex + 1}`)));
+    return results.flat();
+}
+
+async function fetchRecentFamilyAttendance(studentIds, dates) {
+    const batches = chunkFamilyData(uniqueFamilyStudentIds(studentIds));
+    const results = await Promise.all(batches.map((batch, batchIndex) => fetchAllFamilyRows(() => {
+        let query = window.supabaseClient
+            .from('attendance')
+            .select('id, student_id, status, date')
+            .in('date', dates)
+            .in('student_id', batch)
+            .order('student_id', { ascending: true })
+            .order('date', { ascending: true })
+            .order('id', { ascending: true });
+        return scopeFamilyQuery(query);
+    }, `Attendance batch ${batchIndex + 1}`)));
+    return results.flat();
+}
+
 async function loadFamilyPaymentsForMonth() {
     const studentToFamily = new Map();
     allFamilies.forEach(family => {
@@ -49,25 +125,23 @@ async function loadFamilyPaymentsForMonth() {
             if (student.id) studentToFamily.set(String(student.id), String(family.mobile || '').trim());
         });
     });
-    const studentIds = [...studentToFamily.keys()];
+    const studentIds = uniqueFamilyStudentIds([...studentToFamily.keys()]);
     if (!studentIds.length) return {};
 
     const { start, end } = selectedMonthUtcRange(currentMonth);
-    const transactions = [];
-    for (let index = 0; index < studentIds.length; index += 40) {
+    const transactionBatches = await Promise.all(chunkFamilyData(studentIds).map((batch, batchIndex) => fetchAllFamilyRows(() => {
         let query = window.supabaseClient
             .from('transactions')
-            .select('student_id, receipt_number, amount_paid, created_at')
-            .in('student_id', studentIds.slice(index, index + 40))
+            .select('id, student_id, receipt_number, amount_paid, created_at')
+            .in('student_id', batch)
             .gt('amount_paid', 0)
             .gte('created_at', start)
             .lt('created_at', end)
-            .limit(2000);
-        if (window.currentSchoolId) query = query.eq('school_id', window.currentSchoolId);
-        const { data, error } = await query;
-        if (error) throw error;
-        if (data) transactions.push(...data);
-    }
+            .order('created_at', { ascending: true })
+            .order('id', { ascending: true });
+        return scopeFamilyQuery(query);
+    }, `Family payments batch ${batchIndex + 1}`)));
+    const transactions = transactionBatches.flat();
 
     const receiptGroups = new Map();
     transactions.forEach(transaction => {
@@ -281,8 +355,20 @@ window.onAppReady(async () => {
     setupCommitmentModal();
 
     // Initial Load
-    await loadBaseData();
-    await loadData();
+    const loader = document.getElementById('loader');
+    if (loader) loader.style.display = 'block';
+    try {
+        await loadBaseData();
+        await loadData();
+    } catch (error) {
+        console.error('Family Fee Contact could not load completely:', error);
+        if (loader) loader.style.display = 'none';
+        const tbody = document.getElementById('contactsBody');
+        if (tbody) {
+            tbody.innerHTML = `<tr><td colspan="20" style="padding:3rem;color:#dc2626;font-weight:700;">Could not load complete family data. Please refresh and try again.<br><small>${escapeFamilyContactHtml(error.message || 'Unknown loading error')}</small></td></tr>`;
+        }
+        showToast('Complete family data could not be loaded. No partial balances were displayed.', 'error');
+    }
 });
 
 async function waitForAuthContext(timeoutMs = 10000) {
@@ -515,33 +601,25 @@ async function loadBaseData() {
             });
         });
 
-        // Fetch Real Unpaid Balances - Safely batched by student IDs to avoid URI Too Long errors
-        let allStudentIds = [];
-        allFamilies.forEach(f => {
-            if (f.members) f.members.forEach(m => allStudentIds.push(m.id));
-        });
+        // Load balances, attendance and templates concurrently. Each large table
+        // is school-scoped, batched and paginated so speed never drops records.
+        const allStudentIds = uniqueFamilyStudentIds(allFamilies.flatMap(family =>
+            (family.members || []).map(member => member.id)
+        ));
 
-        allPendingChallans = [];
-        if (allStudentIds.length > 0) {
-            try {
-                // Batch by 40 students to stay well within URL limits
-                for (let i = 0; i < allStudentIds.length; i += 40) {
-                    const batch = allStudentIds.slice(i, i + 40);
-                    const { data: batchData, error: bErr } = await window.supabaseClient
-                        .from('challans')
-                        .select('*')
-                        .in('student_id', batch)
-                        .in('status', ['Unpaid', 'Partially Paid'])
-                        .limit(2000); // safety limit per batch
-                        
-                    if (!bErr && batchData) {
-                        allPendingChallans.push(...batchData);
-                    }
-                }
-            } catch (queryErr) {
-                console.warn("Challan batch fetch warning:", queryErr);
-            }
-        }
+        const todayYmd = karachiYmd();
+        recentDates = [
+            addDaysToYmd(todayYmd, -2),
+            addDaysToYmd(todayYmd, -1),
+            todayYmd
+        ];
+
+        const [pendingChallans, attendanceRows] = await Promise.all([
+            allStudentIds.length ? fetchPendingFamilyChallans(allStudentIds) : Promise.resolve([]),
+            allStudentIds.length ? fetchRecentFamilyAttendance(allStudentIds, recentDates) : Promise.resolve([]),
+            loadWaTemplates()
+        ]);
+        allPendingChallans = pendingChallans;
 
         // First map by student ID
         studentBalancesMap = {};
@@ -558,47 +636,15 @@ async function loadBaseData() {
             familyBalances[fam.mobile] = famTotal;
         });
 
-        // Fetch Last 3 Days Attendance
-        const attToday = new Date();
-        recentDates = [];
-        for (let i = 2; i >= 0; i--) {
-            const d = new Date(attToday);
-            d.setDate(attToday.getDate() - i);
-            recentDates.push(d.toISOString().slice(0, 10));
-        }
-        const allMemberIds = [];
-        allFamilies.forEach(f => {
-            if (f.members) f.members.forEach(m => allMemberIds.push(m.id));
-        });
-        
         recentAttendance = {};
-        if (allMemberIds.length > 0) {
-            try {
-                for (let i = 0; i < allMemberIds.length; i += 40) {
-                    const batch = allMemberIds.slice(i, i + 40);
-                    const { data: attData, error: attErr } = await window.supabaseClient
-                        .from('attendance')
-                        .select('student_id, status, date')
-                        .in('date', recentDates)
-                        .in('student_id', batch);
-                        
-                    if (attData && !attErr) {
-                        attData.forEach(a => {
-                            if (!recentAttendance[a.student_id]) recentAttendance[a.student_id] = {};
-                            recentAttendance[a.student_id][a.date] = a.status;
-                        });
-                    }
-                }
-            } catch (queryErr) {
-                console.warn("Attendance batch fetch warning:", queryErr);
-            }
-        }
-
-        // Load Templates
-        await loadWaTemplates();
+        attendanceRows.forEach(attendance => {
+            if (!recentAttendance[attendance.student_id]) recentAttendance[attendance.student_id] = {};
+            recentAttendance[attendance.student_id][attendance.date] = attendance.status;
+        });
 
     } catch (err) {
         console.error("Error loading family base data:", err);
+        throw err;
     }
 }
 
@@ -646,67 +692,64 @@ async function loadData() {
     tbody.innerHTML = '';
     
     try {
-        let contactsRequest = window.supabaseClient
-            .from('family_contacts')
-            .select('*')
-            .eq('month_key', currentMonth);
-        if (window.currentSchoolId) contactsRequest = contactsRequest.eq('school_id', window.currentSchoolId);
+        const contactsRequest = fetchAllFamilyRows(() => {
+            let query = window.supabaseClient
+                .from('family_contacts')
+                .select('*')
+                .eq('month_key', currentMonth)
+                .order('family_mobile', { ascending: true });
+            return scopeFamilyQuery(query);
+        }, 'Family contact rows');
 
-        let commitmentsRequest = window.supabaseClient
-            .from('family_fee_commitments')
-            .select('id, family_mobile, family_name, members, days_promised, month_key, commitment_made_on, due_date, created_by, created_at')
-            .eq('month_key', currentMonth)
-            .eq('status', 'Pending')
-            .order('due_date', { ascending: true })
-            .order('created_at', { ascending: true });
-        if (window.currentSchoolId) commitmentsRequest = commitmentsRequest.eq('school_id', window.currentSchoolId);
+        const commitmentsRequest = fetchAllFamilyRows(() => {
+            let query = window.supabaseClient
+                .from('family_fee_commitments')
+                .select('id, family_mobile, family_name, members, days_promised, month_key, commitment_made_on, due_date, created_by, created_at')
+                .eq('month_key', currentMonth)
+                .eq('status', 'Pending')
+                .order('due_date', { ascending: true })
+                .order('created_at', { ascending: true })
+                .order('id', { ascending: true });
+            return scopeFamilyQuery(query);
+        }, 'Family commitments');
 
-        let teacherFeeRowsRequest = window.supabaseClient
-            .from('teacher_fee_rows')
-            .select('student_id');
-        if (window.currentSchoolId) teacherFeeRowsRequest = teacherFeeRowsRequest.eq('school_id', window.currentSchoolId);
+        const teacherFeeRowsRequest = fetchAllFamilyRows(() => {
+            let query = window.supabaseClient
+                .from('teacher_fee_rows')
+                .select('student_id')
+                .order('student_id', { ascending: true });
+            return scopeFamilyQuery(query);
+        }, 'TeacherFee selections');
 
-        const [contactsResult, commitmentsResult, teacherFeeRowsResult, paymentsResult] = await Promise.all([
+        const [contacts, commitments, teacherFeeRows, paymentsResult] = await Promise.all([
             contactsRequest,
             commitmentsRequest,
             teacherFeeRowsRequest,
-            loadFamilyPaymentsForMonth().catch(error => {
-                console.warn('Could not load family payment summaries:', error);
-                return {};
-            })
+            loadFamilyPaymentsForMonth()
         ]);
-        const contacts = contactsResult.data;
-        const error = contactsResult.error;
 
         // Map to lookup dictionary
         monthData = {};
-        if (contacts && !error) {
-            contacts.forEach(c => monthData[c.family_mobile] = c);
-        }
+        contacts.forEach(c => monthData[c.family_mobile] = c);
 
         familyCommitmentsMap = {};
-        if (!commitmentsResult.error) {
-            (commitmentsResult.data || []).forEach(commitment => {
-                const members = Array.isArray(commitment.members) ? commitment.members : [];
-                if (members.length < 2) return;
-                const mobile = String(commitment.family_mobile || '').trim();
-                if (!mobile) return;
-                if (!familyCommitmentsMap[mobile]) familyCommitmentsMap[mobile] = [];
-                familyCommitmentsMap[mobile].push(commitment);
-            });
-        } else {
-            console.warn('Could not load family commitments:', commitmentsResult.error);
-        }
+        commitments.forEach(commitment => {
+            const members = Array.isArray(commitment.members) ? commitment.members : [];
+            if (members.length < 2) return;
+            const mobile = String(commitment.family_mobile || '').trim();
+            if (!mobile) return;
+            if (!familyCommitmentsMap[mobile]) familyCommitmentsMap[mobile] = [];
+            familyCommitmentsMap[mobile].push(commitment);
+        });
 
-        teacherFeeSelectedStudentIds = new Set((teacherFeeRowsResult.data || []).map(row => String(row.student_id)));
-        if (teacherFeeRowsResult.error) console.warn('Could not load TeacherFee selections:', teacherFeeRowsResult.error);
+        teacherFeeSelectedStudentIds = new Set(teacherFeeRows.map(row => String(row.student_id)));
         familyPaymentsMap = paymentsResult || {};
     } catch (err) {
-        console.warn("family_contacts table might not exist yet. Using empty state.", err);
-        monthData = {};
-        familyCommitmentsMap = {};
-        teacherFeeSelectedStudentIds = new Set();
-        familyPaymentsMap = {};
+        console.error('Could not load complete monthly family data:', err);
+        document.getElementById('loader').style.display = 'none';
+        tbody.innerHTML = `<tr><td colspan="20" style="padding:3rem;color:#dc2626;font-weight:700;">Could not load all family records. Please refresh and try again.<br><small>${escapeFamilyContactHtml(err.message || 'Unknown loading error')}</small></td></tr>`;
+        showToast('Family data was not displayed because one or more requests were incomplete.', 'error');
+        return;
     }
 
     document.getElementById('loader').style.display = 'none';
@@ -787,7 +830,8 @@ function renderTable() {
         return a.fam.primaryName.localeCompare(b.fam.primaryName, undefined, { sensitivity: 'base' });
     });
 
-    // 3. Render
+    // 3. Render into one fragment to avoid a full table reflow for every family.
+    const fragment = document.createDocumentFragment();
     rowsToRender.forEach(({ fam, data }) => {
         const balance = familyBalances[fam.mobile] || 0;
         totalBalance += balance;
@@ -856,11 +900,13 @@ function renderTable() {
 
         // Attach Cell Events
         attachCellEvents(tr, fam.mobile);
-        tbody.appendChild(tr);
+        fragment.appendChild(tr);
     });
 
     if (rowsToRender.length === 0) {
         tbody.innerHTML = '<tr><td colspan="20" style="padding: 3rem; color: #94a3b8;">No family records match your filters.</td></tr>';
+    } else {
+        tbody.appendChild(fragment);
     }
 
     // Update Counter
@@ -1176,11 +1222,13 @@ window.applySelectedWaTemplate = async function() {
     // ── Fresh-fetch challans for THIS family so the WA message is never stale ──
     const studentIds = fam.members.map(m => m.id);
     try {
-        const { data: freshChallans, error: fErr } = await window.supabaseClient
+        let freshChallansQuery = window.supabaseClient
             .from('challans')
-            .select('*')
+            .select('id, student_id, amount, paid_amount, fee_month, fee_type, status')
             .in('student_id', studentIds)
             .in('status', ['Unpaid', 'Partially Paid']);
+        freshChallansQuery = scopeFamilyQuery(freshChallansQuery);
+        const { data: freshChallans, error: fErr } = await freshChallansQuery;
 
         if (!fErr && freshChallans) {
             // Remove old entries for these students from the global cache

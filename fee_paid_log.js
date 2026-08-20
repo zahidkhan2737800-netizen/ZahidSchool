@@ -37,11 +37,26 @@ function applySchoolScope(query) {
 
 function to12Hour(dateString) {
     const d = new Date(dateString);
+    if (Number.isNaN(d.getTime())) return '';
+
+    // Backdated payments use exactly 12:00 noon as a placeholder because the
+    // real collection time is unknown. Leave those legacy/new placeholders blank.
+    const clockParts = new Intl.DateTimeFormat('en-GB', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hourCycle: 'h23',
+        timeZone: 'Asia/Karachi'
+    }).formatToParts(d);
+    const clock = Object.fromEntries(clockParts.map(part => [part.type, part.value]));
+    if (clock.hour === '12' && clock.minute === '00' && clock.second === '00') return '';
+
     return d.toLocaleTimeString('en-PK', {
         hour: 'numeric',
         minute: '2-digit',
         second: '2-digit',
-        hour12: true
+        hour12: true,
+        timeZone: 'Asia/Karachi'
     });
 }
 
@@ -50,7 +65,8 @@ function toDateLabel(dateString) {
     return d.toLocaleDateString('en-PK', {
         day: '2-digit',
         month: 'short',
-        year: 'numeric'
+        year: 'numeric',
+        timeZone: 'Asia/Karachi'
     });
 }
 
@@ -229,10 +245,9 @@ async function loadPaidFees() {
     paidLogBody.innerHTML = '<tr><td colspan="9" class="empty">Loading paid fee records...</td></tr>';
 
     try {
-        const startDate = `${selected}T00:00:00`;
-        const endObj = new Date(`${selected}T00:00:00`);
-        endObj.setDate(endObj.getDate() + 1);
-        const endDate = `${fmtDateOnly(endObj)}T00:00:00`;
+        const startInstant = new Date(`${selected}T00:00:00+05:00`);
+        const startDate = startInstant.toISOString();
+        const endDate = new Date(startInstant.getTime() + 24 * 60 * 60 * 1000).toISOString();
 
         const { data: txData, error: txErr } = await applySchoolScope(
             db.from('transactions')

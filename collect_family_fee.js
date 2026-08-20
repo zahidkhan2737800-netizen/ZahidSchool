@@ -26,6 +26,8 @@ let familyFeeHeadConfigs = [];
 let familyClassConfigs = [];
 const DEFAULT_RECEIPT_FOOTER = 'Thank you! — Zahid School System';
 let receiptFooterText = DEFAULT_RECEIPT_FOOTER;
+let receiptSchoolName = '';
+let receiptSchoolPhone = '';
 
 function getCurrentFamilyRemaining(fallback = 0) {
     if (!pendingDuesLoaded || !Array.isArray(pendingDues)) {
@@ -39,6 +41,14 @@ function getCurrentFamilyRemaining(fallback = 0) {
     }, 0);
 
     return Math.round(total * 100) / 100;
+}
+
+function paymentTimestampForDate(dateValue) {
+    const today = window.karachiToday ? window.karachiToday() : new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Karachi', year: 'numeric', month: '2-digit', day: '2-digit'
+    }).format(new Date());
+    if (!dateValue || dateValue === today) return new Date().toISOString();
+    return `${dateValue}T12:00:00+05:00`;
 }
 
 async function getLiveFamilyRemaining(fallback = 0) {
@@ -77,6 +87,37 @@ function cleanCollectorName(value) {
 function applyPaymentReceiptFooter() {
     const footer = document.getElementById('rctFooter');
     if (footer) footer.textContent = receiptFooterText;
+}
+
+function applyReceiptSchoolIdentity() {
+    const schoolName = document.getElementById('rctSchoolName');
+    const schoolPhone = document.getElementById('rctSchoolPhone');
+    if (schoolName) schoolName.textContent = receiptSchoolName || window.currentSchoolName || 'School';
+    if (schoolPhone) {
+        schoolPhone.textContent = receiptSchoolPhone;
+        schoolPhone.style.display = receiptSchoolPhone ? 'block' : 'none';
+    }
+}
+
+async function loadReceiptSchoolIdentity() {
+    receiptSchoolName = window.currentSchoolName || 'School';
+    receiptSchoolPhone = '';
+    const schoolId = getCurrentSchoolId();
+    if (schoolId) {
+        try {
+            const { data, error } = await db
+                .from('schools')
+                .select('school_name, whatsapp')
+                .eq('id', schoolId)
+                .maybeSingle();
+            if (error) throw error;
+            receiptSchoolName = String(data?.school_name || receiptSchoolName).trim();
+            receiptSchoolPhone = String(data?.whatsapp || '').trim();
+        } catch (error) {
+            console.info('Could not refresh receipt school identity:', error.message);
+        }
+    }
+    applyReceiptSchoolIdentity();
 }
 
 async function loadReceiptFooterText() {
@@ -205,8 +246,11 @@ function applyThermalSettings(moduleName) {
 
 window.onAppReady(async () => {
     await waitForFamilyFeeAuth();
-    await loadReceiptFooterText();
-    window.addEventListener('focus', loadReceiptFooterText);
+    await Promise.all([loadReceiptFooterText(), loadReceiptSchoolIdentity()]);
+    window.addEventListener('focus', () => {
+        loadReceiptFooterText();
+        loadReceiptSchoolIdentity();
+    });
     await loadFamiliesData();
 
     // Close workspace on button / backdrop / Escape
@@ -1154,9 +1198,7 @@ async function submitPayment() {
     let paymentTimestamp = null;
     let paymentDateOnly = null;
     if (selectedDate) {
-        const parts = selectedDate.split('-');
-        const dt = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 12, 0, 0);
-        paymentTimestamp = dt.toISOString();
+        paymentTimestamp = paymentTimestampForDate(selectedDate);
         paymentDateOnly = selectedDate;
     }
 
@@ -1547,7 +1589,7 @@ async function applyDiscountToChallans() {
                 school_id:         getCurrentSchoolId(),
                 collected_by:      discountCollector,
                 collected_by_user_id: window.currentUser?.id || null,
-                ...((() => { const sd = inputPaymentDate?.value; if (!sd) return {}; const p = sd.split('-'); return { created_at: new Date(parseInt(p[0]), parseInt(p[1])-1, parseInt(p[2]), 12, 0, 0).toISOString(), payment_date: sd }; })())
+                ...((() => { const sd = inputPaymentDate?.value; if (!sd) return {}; return { created_at: paymentTimestampForDate(sd), payment_date: sd }; })())
             });
 
             remainingDiscount = Math.round((remainingDiscount - discountToApply) * 100) / 100;
